@@ -42,6 +42,7 @@ class Parcel:
     sender_name: Optional[str] = None
     sender_phone: Optional[PhoneNumber] = None
     sender_address: Optional[str] = None
+    is_manual_axis: bool = False
     id: Optional[int] = None
     tour_id: Optional[int] = None
     courier_id: Optional[int] = None
@@ -78,6 +79,15 @@ class Parcel:
     def total_to_collect(self) -> Money:
         """Inviolable Total to Collect formula: Merchandise Amount + Delivery Fee (CDC section 4 & 7.2)."""
         return self.merchandise_amount + self.delivery_fee
+
+    def override_axis(self, new_axis: LogisticAxis) -> None:
+        """Allow manual override of logistic corridor if locality is new/custom (CDC Section 5.2)."""
+        if self.status not in (ParcelStatus.EN_DEPOT, ParcelStatus.ASSIGNE):
+            raise BusinessRuleViolationException(
+                f"Impossible de modifier l'axe d'un colis au statut '{self.status.value}'. Autorisé uniquement sous EN_DEPOT ou ASSIGNE."
+            )
+        self.axis = new_axis
+        self.is_manual_axis = True
 
     def assign_to_courier(self, courier_id: int, tour_id: Optional[int] = None) -> None:
         """Assign parcel to a courier or transit shuttle."""

@@ -36,6 +36,7 @@ class ParcelType:
     delivery_address: str
     axis: str
     axis_label: str
+    is_manual_axis: bool = False
     flux_type: str
     merchandise_amount: int
     delivery_fee: int
@@ -373,6 +374,16 @@ class Mutation:
                 partner_fee=input.partner_fee,
             )
             res = uc.update_status(input.parcel_id, dto)
+            return ParcelType(**res.model_dump())
+        finally:
+            db.close()
+
+    @strawberry.mutation
+    def override_parcel_axis(self, parcel_id: int, new_axis: str) -> ParcelType:
+        db = SessionLocal()
+        try:
+            uc = ParcelUseCases(db)
+            res = uc.override_parcel_axis(parcel_id, new_axis)
             return ParcelType(**res.model_dump())
         finally:
             db.close()

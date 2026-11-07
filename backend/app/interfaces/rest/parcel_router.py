@@ -7,6 +7,7 @@ from backend.app.application.dtos.parcel_dtos import (
     CreateBatchParcelDTO,
     CreateParcelDTO,
     ParcelResponseDTO,
+    UpdateParcelAxisDTO,
     UpdateParcelStatusDTO,
 )
 from backend.app.application.use_cases.parcel_use_cases import ParcelUseCases
@@ -79,5 +80,19 @@ def update_parcel_status(
     try:
         use_cases = ParcelUseCases(db)
         return use_cases.update_status(parcel_id, dto, user_id=current_user.id)
+    except DomainException as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.patch("/{parcel_id}/axis", response_model=ParcelResponseDTO)
+def override_parcel_axis(
+    parcel_id: int,
+    dto: UpdateParcelAxisDTO,
+    db: Session = Depends(get_db),
+    current_user: UserORM = Depends(require_roles(["RECEPTIONNISTE", "SUPERVISEUR", "SUPER_ADMIN"])),
+):
+    try:
+        use_cases = ParcelUseCases(db)
+        return use_cases.override_parcel_axis(parcel_id, dto.axis)
     except DomainException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

@@ -16,6 +16,7 @@ interface InboundRow {
   deliveryAddress: string;
   axis: LogisticAxis;
   isAxisFallback: boolean;
+  isManualAxis?: boolean;
   fluxType: FluxType;
   merchandiseAmount: number;
   deliveryFee: number;
@@ -41,6 +42,7 @@ export default function InboundPage() {
       deliveryAddress: "",
       axis: "AXE_CENTRE",
       isAxisFallback: true,
+      isManualAxis: false,
       fluxType: "COD",
       merchandiseAmount: 0,
       deliveryFee: 5000,
@@ -107,6 +109,7 @@ export default function InboundPage() {
         deliveryAddress: "",
         axis: "AXE_CENTRE",
         isAxisFallback: true,
+        isManualAxis: false,
         fluxType: "COD",
         merchandiseAmount: 0,
         deliveryFee: 5000,
@@ -125,12 +128,23 @@ export default function InboundPage() {
       const copy = [...prev];
       const target = { ...copy[index], [field]: value };
 
-      // Auto-detect axis when address changes
+      // Auto-detect axis when address changes (unless user manually selected a custom axis)
       if (field === "deliveryAddress") {
-        const detection = detectAxisClient(value);
-        target.axis = detection.axis;
-        target.isAxisFallback = detection.isFallback;
-        if (detection.axis === "AXE_PROVINCE") {
+        if (!target.isManualAxis) {
+          const detection = detectAxisClient(value);
+          target.axis = detection.axis;
+          target.isAxisFallback = detection.isFallback;
+          if (detection.axis === "AXE_PROVINCE") {
+            target.fluxType = "PROVINCE";
+          }
+        }
+      }
+
+      // If user directly changes axis, mark as manual override
+      if (field === "axis") {
+        target.isManualAxis = true;
+        target.isAxisFallback = false;
+        if (value === "AXE_PROVINCE") {
           target.fluxType = "PROVINCE";
         }
       }
@@ -200,6 +214,7 @@ export default function InboundPage() {
         recipient_phone: r.recipientPhone,
         delivery_address: r.deliveryAddress,
         axis: r.axis,
+        is_manual_axis: r.isManualAxis,
         flux_type: r.fluxType,
         merchandise_amount: Number(r.merchandiseAmount) || 0,
         delivery_fee: Number(r.deliveryFee) || 0,
@@ -463,9 +478,30 @@ export default function InboundPage() {
                       />
                     </td>
 
-                    {/* Axis Badge / Auto-detect */}
+                    {/* Axis Badge / Auto-detect & Interactive Override */}
                     <td className="py-3 px-3">
-                      <AxisBadge axis={row.axis} isFallback={row.isAxisFallback} />
+                      <div className="flex flex-col gap-1">
+                        <select
+                          data-testid={`select-axis-${idx}`}
+                          value={row.axis}
+                          onChange={(e) => updateRow(idx, "axis", e.target.value as LogisticAxis)}
+                          className="w-full px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        >
+                          <option value="AXE_CENTRE">1. AXE_CENTRE</option>
+                          <option value="AXE_RN1">2. AXE_RN1 (Itaosy)</option>
+                          <option value="AXE_RN2">3. AXE_RN2 (Ambohimangakely)</option>
+                          <option value="AXE_RN3">4. AXE_RN3 (Sabotsy Namehana)</option>
+                          <option value="AXE_RN4">5. AXE_RN4 (Ivato / Digue)</option>
+                          <option value="AXE_RN7">6. AXE_RN7 (Iavoloha)</option>
+                          <option value="AXE_SUD_EST">7. AXE_SUD_EST (Alasora)</option>
+                          <option value="AXE_PROVINCE">8. AXE_PROVINCE (Gares)</option>
+                        </select>
+                        <AxisBadge
+                          axis={row.axis}
+                          isFallback={row.isAxisFallback}
+                          isManual={row.isManualAxis}
+                        />
+                      </div>
                     </td>
 
                     {/* Flux Type */}
@@ -613,6 +649,7 @@ export default function InboundPage() {
                     deliveryAddress: "",
                     axis: "AXE_CENTRE",
                     isAxisFallback: true,
+                    isManualAxis: false,
                     fluxType: "COD",
                     merchandiseAmount: 0,
                     deliveryFee: 5000,

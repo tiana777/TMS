@@ -56,6 +56,7 @@ class ParcelUseCases:
             delivery_address=p.delivery_address,
             axis=p.axis.value,
             axis_label=p.axis.label,
+            is_manual_axis=p.is_manual_axis,
             flux_type=p.flux_type.value,
             merchandise_amount=p.merchandise_amount.amount,
             delivery_fee=p.delivery_fee.amount,
@@ -79,12 +80,14 @@ class ParcelUseCases:
         # 1. Phone validation & parsing
         phone = PhoneNumber(dto.recipient_phone)
 
-        # 2. Axis auto-detection if not specified
+        # 2. Axis auto-detection or manual assignment
         if dto.axis:
             axis = LogisticAxis(dto.axis)
+            is_manual_axis = True
         else:
             detection = AxisAutoDetector.detect(dto.delivery_address)
             axis = detection.axis
+            is_manual_axis = False
 
         # 3. Next sequential BDR generation
         tracking_number = dto.tracking_number or self.repo.generate_next_bdr()
@@ -110,6 +113,7 @@ class ParcelUseCases:
             recipient_phone=phone,
             delivery_address=dto.delivery_address,
             axis=axis,
+            is_manual_axis=is_manual_axis,
             flux_type=FluxType(dto.flux_type),
             merchandise_amount=Money(dto.merchandise_amount),
             delivery_fee=Money(dto.delivery_fee),
@@ -198,6 +202,16 @@ class ParcelUseCases:
         self.db.add(history)
         self.db.commit()
 
+        return self._to_response_dto(saved)
+
+    def override_parcel_axis(self, parcel_id: int, new_axis: str) -> ParcelResponseDTO:
+        parcel = self.repo.get_by_id(parcel_id)
+        if not parcel:
+            raise BusinessRuleViolationException(f"Colis introuvable (ID: {parcel_id})")
+
+        target_axis = LogisticAxis(new_axis)
+        parcel.override_axis(target_axis)
+        saved = self.repo.save(parcel)
         return self._to_response_dto(saved)
 
     def get_parcel(self, parcel_id: int) -> Optional[ParcelResponseDTO]:

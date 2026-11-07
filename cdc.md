@@ -220,7 +220,13 @@ flowchart TD
 2.  **Niveau 2 (Corridors Urbains) :**
     Si aucun mot-clé de province n'est trouvé, l'algorithme parcourt les listes de quartiers associées aux axes urbains 1 à 7. Dès qu'un quartier est identifié, l'axe radial correspondant est assigné.
 3.  **Niveau 3 (Repli sécurisé) :**
-    En cas de lieu indéterminé ou d'adresse non répertoriée, le système assigne par défaut l'axe central **`AXE_CENTRE`**, et lève un avertissement invitant le superviseur à confirmer la zone de livraison.
+    En cas de lieu indéterminé ou d'adresse non répertoriée, le système assigne par défaut l'axe central **`AXE_CENTRE`**, et lève un avertissement invitant l'opérateur ou le superviseur à confirmer la zone de livraison.
+
+### 5.2 Règle de Surcharge Manuelle de l'Axe & Gestion des Nouveaux Lieux
+*   **Principe de Flexibilité Opérationnelle :** L'auto-détection de l'axe est une assistance intelligente mais **n'est jamais bloquante**. À tout moment lors de la saisie Inbound ou du dispatching, l'opérateur ou le superviseur a le droit et la possibilité de **modifier manuellement l'axe logistique** via un sélecteur interactif.
+*   **Prise en Charge des Nouveaux Quartiers & Repères Inédits :** Si un colis est destiné à un nouveau quartier, une nouvelle zone résidentielle ou un repère informel non encore indexé dans la base (ayant donc reçu le repli automatique par défaut), l'opérateur le reclasse directement dans le bon axe radial (ex: affecter un nouveau lotissement d'Ambohidratrimo vers `AXE_RN4`, ou un nouveau secteur d'Alasora vers `AXE_SUD_EST`).
+*   **Traçabilité de la Surcharge :** Le système enregistre l'axe définitif choisi et affiche un badge distinctif `Modifié Manuellement` sur l'interface pour distinguer les axes détectés automatiquement de ceux ajustés par les agents.
+*   **Enrichissement Continu du Référentiel (Écran 10) :** Tout nouveau quartier identifié sur le terrain peut être rattaché de façon permanente à son axe logistique dans la table `zones` par l'administrateur, enrichissant ainsi le moteur de détection pour les futures expéditions.
 
 ---
 
@@ -379,7 +385,7 @@ L'application web est structurée en **12 modules applicatifs dédiés** :
 *   **Fonctionnalités :** 
     1.  **Gestion Multi-Donneurs d'Ordre :** Prise en charge des 3 typologies d'expéditeurs (**Cybermarchand**, **Particulier**, **Entreprise**).
     2.  **Contacts Obligatoires Expéditeur :** Enregistrement ou sélection rapide du donneur d'ordre, capture du numéro de téléphone certifié au format malgache (10 chiffres avec badge opérateur Telma, Orange ou Airtel), adresse/quartier de départ et contact référent.
-    3.  **Grille Dynamique Multi-Lignes :** Saisie rapide des colis du lot, détection visuelle opérateur destinataire, algorithme d'auto-détection géographique de l'axe logistique à la volée.
+    3.  **Grille Dynamique Multi-Lignes :** Saisie rapide des colis du lot, détection visuelle opérateur destinataire, algorithme d'auto-détection géographique de l'axe logistique à la volée **avec sélecteur interactif permettant la modification/surcharge manuelle immédiate de l'axe** en cas de nouvelle adresse ou zone non répertoriée.
     4.  **Calculs Financiers & Immatriculation :** Calcul instantané de la valeur totale du lot (Marchandise COD, Frais de livraison, Frais partenaire Province), attribution automatique des numéros BDR séquentiels et édition du Bon de Réception.
 
 ### Écran 02 : Importation en Masse de Fichiers Donneurs d'Ordre (Cybermarchands & Entreprises)

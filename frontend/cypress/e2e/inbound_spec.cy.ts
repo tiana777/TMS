@@ -82,6 +82,17 @@ describe("Module Inbound & Import - Simulation Automatique Cypress", () => {
     cy.wait(500);
     cy.get('[data-testid="badge-axis-axe_rn1"]').should("be.visible");
 
+    // Verify manual axis override (CDC Section 5.2 : adaptation aux nouveaux lieux)
+    cy.get('[data-testid="select-axis-0"]').select("AXE_RN7");
+    cy.wait(400);
+    cy.get('[data-testid="badge-axis-axe_rn7"]').should("be.visible");
+    cy.get('[data-testid="badge-axis-manual"]').should("be.visible").and("contain", "Modifié manuellement");
+
+    // Re-select AXE_RN1
+    cy.get('[data-testid="select-axis-0"]').select("AXE_RN1");
+    cy.wait(400);
+    cy.get('[data-testid="badge-axis-axe_rn1"]').should("be.visible");
+
     // Fill amounts
     cy.get('[data-testid="input-merch-0"]').type("{selectall}45000");
     cy.get('[data-testid="input-fee-0"]').type("{selectall}5000");

@@ -156,6 +156,7 @@ class ParcelORM(Base):
     client_tel = Column(String(20), nullable=False, index=True)
     lieu_detail = Column(Text, nullable=False)
     axe = Column(String(30), nullable=False, index=True)
+    axe_modifie_manuellement = Column(Integer, default=0, nullable=False)
     type_flux = Column(
         String(20),
         CheckConstraint("type_flux IN ('COD', 'SIMPLE', 'RETOUR', 'PROVINCE')"),

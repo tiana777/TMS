@@ -19,11 +19,16 @@ class CreateParcelDTO(BaseModel):
     tracking_number: Optional[str] = None
     reception_date: Optional[str] = None  # YYYY-MM-DD
     axis: Optional[str] = None  # If None, auto-detected!
+    is_manual_axis: bool = False
     observation: Optional[str] = None
 
 
 class CreateBatchParcelDTO(BaseModel):
     parcels: List[CreateParcelDTO]
+
+
+class UpdateParcelAxisDTO(BaseModel):
+    axis: str
 
 
 class UpdateParcelStatusDTO(BaseModel):
@@ -56,6 +61,7 @@ class ParcelResponseDTO(BaseModel):
     delivery_address: str
     axis: str
     axis_label: str
+    is_manual_axis: bool = False
     flux_type: str
     merchandise_amount: int
     delivery_fee: int

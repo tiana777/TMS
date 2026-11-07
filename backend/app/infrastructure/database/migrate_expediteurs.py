@@ -16,6 +16,7 @@ def update_data():
             ALTER TABLE colis ADD COLUMN IF NOT EXISTS expediteur_nom VARCHAR(100);
             ALTER TABLE colis ADD COLUMN IF NOT EXISTS expediteur_tel VARCHAR(20);
             ALTER TABLE colis ADD COLUMN IF NOT EXISTS expediteur_adresse VARCHAR(255);
+            ALTER TABLE colis ADD COLUMN IF NOT EXISTS axe_modifie_manuellement INTEGER DEFAULT 0 NOT NULL;
         """))
         conn.commit()
 

@@ -47,6 +47,7 @@ class PostgresParcelRepository(IParcelRepository):
             recipient_phone=PhoneNumber(orm.client_tel),
             delivery_address=orm.lieu_detail,
             axis=LogisticAxis(orm.axe),
+            is_manual_axis=bool(orm.axe_modifie_manuellement) if getattr(orm, "axe_modifie_manuellement", None) else False,
             flux_type=FluxType(orm.type_flux),
             merchandise_amount=Money(orm.montant_marchandise),
             delivery_fee=Money(orm.frais_livraison),
@@ -85,6 +86,7 @@ class PostgresParcelRepository(IParcelRepository):
             client_tel=domain.recipient_phone.raw_digits,
             lieu_detail=domain.delivery_address,
             axe=domain.axis.value,
+            axe_modifie_manuellement=1 if domain.is_manual_axis else 0,
             type_flux=domain.flux_type.value,
             montant_marchandise=float(domain.merchandise_amount.amount),
             frais_livraison=float(domain.delivery_fee.amount),
@@ -118,6 +120,7 @@ class PostgresParcelRepository(IParcelRepository):
                 orm.client_tel = parcel.recipient_phone.raw_digits
                 orm.lieu_detail = parcel.delivery_address
                 orm.axe = parcel.axis.value
+                orm.axe_modifie_manuellement = 1 if parcel.is_manual_axis else 0
                 orm.type_flux = parcel.flux_type.value
                 orm.montant_marchandise = float(parcel.merchandise_amount.amount)
                 orm.frais_livraison = float(parcel.delivery_fee.amount)

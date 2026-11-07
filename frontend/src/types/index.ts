@@ -43,6 +43,7 @@ export interface Parcel {
   delivery_address: string;
   axis: LogisticAxis;
   axis_label: string;
+  is_manual_axis?: boolean;
   flux_type: FluxType;
   merchandise_amount: number;
   delivery_fee: number;
