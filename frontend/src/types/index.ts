@@ -1,5 +1,7 @@
 export type Operator = "TELMA" | "ORANGE" | "AIRTEL";
 
+export type SenderType = "CYBERMARCHAND" | "PARTICULIER" | "ENTREPRISE";
+
 export type FluxType = "COD" | "SIMPLE" | "RETOUR" | "PROVINCE";
 
 export type ParcelStatus =
@@ -28,6 +30,12 @@ export interface Parcel {
   tracking_number: string;
   reception_date: string;
   vendor_id: number;
+  sender_type?: SenderType;
+  sender_name?: string | null;
+  sender_phone?: string | null;
+  sender_phone_formatted?: string | null;
+  sender_operator?: Operator | null;
+  sender_address?: string | null;
   recipient_name: string;
   recipient_phone: string;
   recipient_phone_formatted: string;
@@ -57,8 +65,12 @@ export interface Parcel {
 export interface Vendor {
   id: number;
   nom: string;
+  type_expediteur?: SenderType;
   telephone?: string | null;
+  adresse?: string | null;
+  email?: string | null;
   contact_responsable?: string | null;
+  nif_stat?: string | null;
   modalite_paiement: string;
 }
 

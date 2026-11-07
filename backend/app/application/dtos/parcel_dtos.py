@@ -6,6 +6,10 @@ from pydantic import BaseModel, Field
 
 class CreateParcelDTO(BaseModel):
     vendor_id: int
+    sender_type: str = "CYBERMARCHAND"  # CYBERMARCHAND, PARTICULIER, ENTREPRISE
+    sender_name: Optional[str] = None
+    sender_phone: Optional[str] = None
+    sender_address: Optional[str] = None
     recipient_name: str
     recipient_phone: str
     delivery_address: str
@@ -39,6 +43,12 @@ class ParcelResponseDTO(BaseModel):
     tracking_number: str
     reception_date: str
     vendor_id: int
+    sender_type: str = "CYBERMARCHAND"
+    sender_name: Optional[str] = None
+    sender_phone: Optional[str] = None
+    sender_phone_formatted: Optional[str] = None
+    sender_operator: Optional[str] = None
+    sender_address: Optional[str] = None
     recipient_name: str
     recipient_phone: str
     recipient_phone_formatted: str

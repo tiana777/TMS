@@ -5,6 +5,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 from backend.app.domain.exceptions import BusinessRuleViolationException
+from backend.app.domain.models.vendor import SenderType
 from backend.app.domain.state_machine.parcel_fsm import (
     ParcelStateMachine,
     ParcelStatus,
@@ -37,6 +38,10 @@ class Parcel:
     flux_type: FluxType
     merchandise_amount: Money
     delivery_fee: Money
+    sender_type: SenderType = SenderType.CYBERMARCHAND
+    sender_name: Optional[str] = None
+    sender_phone: Optional[PhoneNumber] = None
+    sender_address: Optional[str] = None
     id: Optional[int] = None
     tour_id: Optional[int] = None
     courier_id: Optional[int] = None

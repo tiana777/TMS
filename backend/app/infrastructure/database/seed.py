@@ -234,35 +234,45 @@ def seed_master_data():
             session.commit()
             print("Couriers seeded.")
 
-        # 5. Seed initial Cybermarchands
+        # 5. Seed initial Expéditeurs / Donneurs d'Ordre (Cybermarchands, Particuliers, Entreprises)
         if not session.query(VendorORM).first():
-            print("Seeding initial cybermarchands...")
+            print("Seeding initial order givers (Cybermarchands, Particuliers, Entreprises)...")
             vendors = [
                 VendorORM(
                     nom="Mod'Tanà Boutique",
+                    type_expediteur="CYBERMARCHAND",
                     telephone="0345566778",
                     contact_responsable="Madame Voahirana",
+                    adresse="Box 14, Pavillon Analakely",
+                    email="contact@modtana.mg",
                     modalite_paiement="COMPTANT",
                     actif=1,
                 ),
                 VendorORM(
-                    nom="Tech Express Madagascar",
+                    nom="Cabinet Juridique & Audit Tanà",
+                    type_expediteur="ENTREPRISE",
                     telephone="0329988776",
-                    contact_responsable="Monsieur Andry",
-                    modalite_paiement="COMPTANT",
+                    contact_responsable="Maître Andry Rabemananjara",
+                    adresse="Immeuble ARO, 3e étage, Antsakaviro",
+                    email="contact@audit-tana.mg",
+                    nif_stat="4001234567 / 2021",
+                    modalite_paiement="FACTURE_MENSUELLE",
                     actif=1,
                 ),
                 VendorORM(
-                    nom="Parfumerie Tsara",
+                    nom="Rasoamalala Hanta (Envoi Personnel)",
+                    type_expediteur="PARTICULIER",
                     telephone="0331234599",
-                    contact_responsable="Madame Sarah",
+                    contact_responsable="Hanta Rasoamalala",
+                    adresse="Lot IVG 34 Ambohimanarina",
+                    email="hanta.rasoa@moov.mg",
                     modalite_paiement="COMPTANT",
                     actif=1,
                 ),
             ]
             session.add_all(vendors)
             session.commit()
-            print("Vendors seeded.")
+            print("Expéditeurs seeded.")
 
         print("Master reference data seeded successfully.")
     finally:

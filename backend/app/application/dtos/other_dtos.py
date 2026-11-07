@@ -87,3 +87,29 @@ class ScorecardResponseDTO(BaseModel):
     tier: str
     bonus_amount: int
     bonus_formatted: str
+
+
+class CreateVendorDTO(BaseModel):
+    name: str
+    sender_type: str = "CYBERMARCHAND"  # CYBERMARCHAND, PARTICULIER, ENTREPRISE
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    email: Optional[str] = None
+    contact_person: Optional[str] = None
+    nif_stat: Optional[str] = None
+    payment_terms: str = "COMPTANT"
+
+
+class VendorResponseDTO(BaseModel):
+    id: int
+    name: str
+    sender_type: str
+    phone: Optional[str] = None
+    phone_formatted: Optional[str] = None
+    operator: Optional[str] = None
+    address: Optional[str] = None
+    email: Optional[str] = None
+    contact_person: Optional[str] = None
+    nif_stat: Optional[str] = None
+    payment_terms: str
+    active: bool

@@ -55,8 +55,17 @@ class VendorORM(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     nom = Column(String(100), unique=True, nullable=False, index=True)
+    type_expediteur = Column(
+        String(30),
+        CheckConstraint("type_expediteur IN ('CYBERMARCHAND', 'PARTICULIER', 'ENTREPRISE')"),
+        default="CYBERMARCHAND",
+        nullable=False,
+    )
     telephone = Column(String(20), nullable=True)
+    adresse = Column(String(255), nullable=True)
+    email = Column(String(100), nullable=True)
     contact_responsable = Column(String(100), nullable=True)
+    nif_stat = Column(String(50), nullable=True)
     modalite_paiement = Column(String(50), default="COMPTANT", nullable=False)
     actif = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -130,6 +139,15 @@ class ParcelORM(Base):
     numero_bordereau = Column(String(30), unique=True, nullable=False, index=True)
     date_reception = Column(String(10), nullable=False, index=True)  # YYYY-MM-DD
     vendeur_id = Column(Integer, ForeignKey("vendeurs.id"), nullable=False, index=True)
+    expediteur_type = Column(
+        String(30),
+        CheckConstraint("expediteur_type IN ('CYBERMARCHAND', 'PARTICULIER', 'ENTREPRISE')"),
+        default="CYBERMARCHAND",
+        nullable=False,
+    )
+    expediteur_nom = Column(String(100), nullable=True)
+    expediteur_tel = Column(String(20), nullable=True)
+    expediteur_adresse = Column(String(255), nullable=True)
     tournee_id = Column(Integer, ForeignKey("tournees.id"), nullable=True, index=True)
     livreur_id = Column(Integer, ForeignKey("livreurs.id"), nullable=True, index=True)
     partenaire_id = Column(Integer, ForeignKey("partenaires.id"), nullable=True, index=True)

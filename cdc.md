@@ -11,7 +11,7 @@
 | **Nom du Logiciel** | **TMS EXPRESS** (Transport Management System Express) |
 | **Périmètre Applicatif** | Application Web d'Entreprise dédiée à la logistique urbaine du dernier kilomètre (*Last-Mile Delivery*), aux expéditions régionales en Province (*Inter-City Freight*), au management de la performance des livreurs et à la gestion stricte du recouvrement financier et des litiges |
 | **Zone Géographique d'Exploitation** | 1. **Réseau Urbain & Péri-urbain :** Antananarivo Renivohitra & Grand Tanà (Rayon de 25 km, 8 corridors logistiques radiaux)<br>2. **Réseau National (Provinces) :** Tout Madagascar via les gares routières d'Antananarivo et les coopératives nationales (RN1, RN2, RN3, RN4, RN6, RN7) |
-| **Modèle Économique & Cible** | Prestation logistique pour cybermarchands (*E-commerce, boutiques réseaux sociaux, distributeurs, entreprises*) avec encaissement contre-remboursement (Cash On Delivery - COD) et fret inter-villes |
+| **Modèle Économique & Cible** | Prestation logistique multi-donneurs d'ordre couvrant :<br>1. **Cybermarchands** (*E-commerce, boutiques réseaux sociaux, distributeurs*) avec encaissement contre-remboursement (COD) et reversement garanti.<br>2. **Particuliers** (*Envois C2C ponctuels de colis, cadeaux, effets personnels, documents urgents, ventes occasionnelles*).<br>3. **Entreprises & B2B** (*Sociétés, PME, administrations, professions libérales : plis confidentiels, factures, contrats, pièces détachées, échantillons industriels*). |
 | **Type d'Architecture** | **Application Web d'Entreprise Autonome (Zéro Dépendance Tableur) :** <br>• Frontend : Interface Web Responsive & Progressive Web App (HTML5, TailwindCSS, Composants Réactifs, Vue Mobile optimisée coursiers)<br>• Backend : API RESTful (Python 3.12+ / FastAPI), Architecture en couches (*Domain / Service / Repository*)<br>• Base de Données : SGBD Relationnel normalisé 3NF (PostgreSQL / SQLite transactionnel ACID) |
 | **Devise Opérationnelle** | Ariary Malgache (**MGA / Ar**) • Gestion stricte des montants entiers positifs sans décimales |
 | **Fuseau Horaire Obligatoire** | **GMT+3 (Indian/Antananarivo)** sur l'intégralité des modules, calculs, journaux d'audit et horodatages |
@@ -21,6 +21,11 @@
 ## 2. GLOSSAIRE MÉTIER ET TECHNIQUE
 
 *   **BDR (Bordereau de Livraison) :** Numéro d'immatriculation alphanumérique unique généré automatiquement pour chaque colis (format séquentiel strict à 4 chiffres : `0001`, `0002`... ou horodaté `BDR-YYYY-XXXX`).
+*   **Donneur d'Ordre / Expéditeur :** Entité ou individu émetteur du colis confié à TMS EXPRESS. Il se décline en 3 typologies distinctes :
+    1.  **CYBERMARCHAND** : Boutique e-commerce, vendeur sur réseaux sociaux (Facebook, Instagram, TikTok) ou marketplace, opérant avec encaissement COD et reversements réguliers.
+    2.  **PARTICULIER** : Client individuel effectuant un envoi ponctuel de point à point (cadeau, effets personnels, document, vente d'occasion entre particuliers).
+    3.  **ENTREPRISE** : Personne morale, PME, grande société ou administration ayant des flux récurrents ou volumineux B2B/B2C (contrats, pièces, factures, échantillons), avec règlement au comptant ou en compte entreprise facturé périodiquement.
+*   **Contacts Expéditeur (Données Obligatoires Inbound) :** Pour tout colis enregistré, le système collecte obligatoirement : le type d'expéditeur (`CYBERMARCHAND`, `PARTICULIER`, `ENTREPRISE`), le nom ou raison sociale, le numéro de téléphone certifié au format malgache (10 chiffres avec identification Telma, Orange ou Airtel), l'adresse ou quartier de ramassage/siège, et le contact référent / email (optionnel).
 *   **COD (Cash On Delivery / Contre-Remboursement) :** Processus dans lequel le livreur ou le guichet de retrait encaisse auprès du destinataire la valeur marchande du colis au moment de la remise, en plus des frais de transport.
 *   **Course Simple / Port Payé :** Livraison dont la valeur marchande est déjà réglée d'avance par l'acheteur au cybermarchand ; le transporteur ne perçoit que les frais de service (ou aucun montant si les frais font l'objet d'un contrat de facturation périodique).
 *   **Axe Logistique :** Corridor de transport délimitant un secteur géographique déterminé à partir du Hub Central de Tsiazotafo pour organiser rationnellement les tournées.
@@ -371,11 +376,15 @@ L'application web est structurée en **12 modules applicatifs dédiés** :
 
 ### Écran 01 : Réception Inbound & Formulaire Multi-Colis par Lot
 *   **Utilisateur Principal :** Réceptionniste du Colis.
-*   **Fonctionnalités :** Sélection rapide du cybermarchand, grille dynamique multi-lignes, détection visuelle opérateur (badges vert Telma, orange Orange, rouge Airtel), calcul instantané de la valeur totale du lot, attribution automatique des numéros BDR séquentiels et impression des étiquettes codes-barres.
+*   **Fonctionnalités :** 
+    1.  **Gestion Multi-Donneurs d'Ordre :** Prise en charge des 3 typologies d'expéditeurs (**Cybermarchand**, **Particulier**, **Entreprise**).
+    2.  **Contacts Obligatoires Expéditeur :** Enregistrement ou sélection rapide du donneur d'ordre, capture du numéro de téléphone certifié au format malgache (10 chiffres avec badge opérateur Telma, Orange ou Airtel), adresse/quartier de départ et contact référent.
+    3.  **Grille Dynamique Multi-Lignes :** Saisie rapide des colis du lot, détection visuelle opérateur destinataire, algorithme d'auto-détection géographique de l'axe logistique à la volée.
+    4.  **Calculs Financiers & Immatriculation :** Calcul instantané de la valeur totale du lot (Marchandise COD, Frais de livraison, Frais partenaire Province), attribution automatique des numéros BDR séquentiels et édition du Bon de Réception.
 
-### Écran 02 : Importation en Masse de Fichiers Entreprises
+### Écran 02 : Importation en Masse de Fichiers Donneurs d'Ordre (Cybermarchands & Entreprises)
 *   **Utilisateurs Principaux :** Réceptionniste & Superviseur.
-*   **Fonctionnalités :** Téléversement Glisser-Déposer (*Drag & Drop*) pour fichiers Excel (`.xlsx`, `.xls`) et CSV. Analyse sémantique intelligente des colonnes, nettoyage automatique des numéros de téléphone malgaches, prévisualisation des anomalies avant insertion en base.
+*   **Fonctionnalités :** Téléversement Glisser-Déposer (*Drag & Drop*) pour fichiers Excel (`.xlsx`, `.xls`) et CSV. Analyse sémantique intelligente des colonnes expéditeur et destinataire, validation automatique des formats téléphoniques malgaches, prévisualisation des anomalies avant insertion en base.
 
 ### Écran 03 : Dispatching & Assignation des Tournées
 *   **Utilisateur Principal :** Superviseur Logistique.
@@ -409,9 +418,9 @@ L'application web est structurée en **12 modules applicatifs dédiés** :
 *   **Utilisateur Principal :** Super Admin.
 *   **Fonctionnalités :** Calcul automatique de la dette théorique de tournée. Rapprochement avec le cash physique remis, les preuves Mobile Money et les récépissés de fret gares. Détection automatique de tout écart de caisse avec blocage de clôture et ouverture automatique d'un dossier de litige si $\text{Écart} \neq 0$.
 
-### Écran 09 : CRM Cybermarchands & Répertoire des Vendeurs
+### Écran 09 : CRM Donneurs d'Ordre & Répertoire des Expéditeurs (Cybermarchands, Particuliers, Entreprises)
 *   **Utilisateurs Principaux :** Super Admin & Superviseur.
-*   **Fonctionnalités :** Fiche récapitulative pour chaque boutique partenaire : volume confié, taux d'aboutissement des livraisons, historique des litiges, solde net à reverser. Bordereau automatique de reversement financier.
+*   **Fonctionnalités :** Fiche récapitulative pour chaque expéditeur partenaire (filtrable par Cybermarchand, Particulier, Entreprise) : contacts complets (téléphone, adresse, référent), volume confié, taux d'aboutissement des livraisons, historique des litiges, solde net à reverser ou encours de facturation entreprise. Bordereau automatique de reversement financier / relevé de compte.
 
 ### Écran 10 : Administration du Référentiel Logistique (Axes, Gares, Coopératives)
 *   **Utilisateur Principal :** Super Admin.
@@ -698,9 +707,13 @@ erDiagram
 
     VENDEURS {
         int id PK
+        string type_expediteur "CYBERMARCHAND, PARTICULIER, ENTREPRISE"
         string nom UK
         string telephone
         string contact_responsable
+        string adresse
+        string email
+        string nif_stat
         string modalite_paiement
         int actif
         datetime created_at
@@ -746,6 +759,10 @@ erDiagram
         string numero_bordereau UK
         string date_reception
         int vendeur_id FK
+        string expediteur_type "CYBERMARCHAND, PARTICULIER, ENTREPRISE"
+        string expediteur_nom
+        string expediteur_tel
+        string expediteur_adresse
         int tournee_id FK
         int partenaire_id FK
         int zone_id FK

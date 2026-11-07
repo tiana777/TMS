@@ -8,7 +8,7 @@ from backend.app.domain.models.courier import Courier
 from backend.app.domain.models.dispute import CourierDebt, DebtStatus, IncidentType
 from backend.app.domain.models.parcel import FluxType, Parcel
 from backend.app.domain.models.tour import Tour, TourStatus
-from backend.app.domain.models.vendor import Vendor
+from backend.app.domain.models.vendor import SenderType, Vendor
 from backend.app.domain.repositories.interfaces import (
     ICourierRepository,
     IDisputeRepository,
@@ -51,6 +51,10 @@ class PostgresParcelRepository(IParcelRepository):
             merchandise_amount=Money(orm.montant_marchandise),
             delivery_fee=Money(orm.frais_livraison),
             partner_fee=Money(orm.frais_partenaire),
+            sender_type=SenderType(orm.expediteur_type) if orm.expediteur_type else SenderType.CYBERMARCHAND,
+            sender_name=orm.expediteur_nom,
+            sender_phone=PhoneNumber(orm.expediteur_tel) if orm.expediteur_tel else None,
+            sender_address=orm.expediteur_adresse,
             status=ParcelStatus(orm.statut),
             reschedule_date=orm.date_report,
             incident_reason=orm.motif_incident,
@@ -69,6 +73,10 @@ class PostgresParcelRepository(IParcelRepository):
             numero_bordereau=domain.tracking_number,
             date_reception=domain.reception_date,
             vendeur_id=domain.vendor_id,
+            expediteur_type=domain.sender_type.value if hasattr(domain.sender_type, "value") else str(domain.sender_type),
+            expediteur_nom=domain.sender_name,
+            expediteur_tel=domain.sender_phone.raw_digits if domain.sender_phone else None,
+            expediteur_adresse=domain.sender_address,
             tournee_id=domain.tour_id,
             livreur_id=domain.courier_id,
             partenaire_id=domain.partner_id,
@@ -98,6 +106,10 @@ class PostgresParcelRepository(IParcelRepository):
                 orm.numero_bordereau = parcel.tracking_number
                 orm.date_reception = parcel.reception_date
                 orm.vendeur_id = parcel.vendor_id
+                orm.expediteur_type = parcel.sender_type.value if hasattr(parcel.sender_type, "value") else str(parcel.sender_type)
+                orm.expediteur_nom = parcel.sender_name
+                orm.expediteur_tel = parcel.sender_phone.raw_digits if parcel.sender_phone else None
+                orm.expediteur_adresse = parcel.sender_address
                 orm.tournee_id = parcel.tour_id
                 orm.livreur_id = parcel.courier_id
                 orm.partenaire_id = parcel.partner_id
@@ -379,8 +391,12 @@ class PostgresVendorRepository(IVendorRepository):
         return Vendor(
             id=orm.id,
             name=orm.nom,
+            sender_type=SenderType(orm.type_expediteur) if orm.type_expediteur else SenderType.CYBERMARCHAND,
             phone=PhoneNumber(orm.telephone) if orm.telephone else None,
+            address=orm.adresse,
+            email=orm.email,
             contact_person=orm.contact_responsable,
+            nif_stat=orm.nif_stat,
             payment_terms=orm.modalite_paiement,
             active=bool(orm.actif),
             created_at=orm.created_at,
@@ -391,8 +407,12 @@ class PostgresVendorRepository(IVendorRepository):
         return VendorORM(
             id=domain.id,
             nom=domain.name,
+            type_expediteur=domain.sender_type.value if hasattr(domain.sender_type, "value") else str(domain.sender_type),
             telephone=domain.phone.raw_digits if domain.phone else None,
+            adresse=domain.address,
+            email=domain.email,
             contact_responsable=domain.contact_person,
+            nif_stat=domain.nif_stat,
             modalite_paiement=domain.payment_terms,
             actif=1 if domain.active else 0,
         )
@@ -402,8 +422,12 @@ class PostgresVendorRepository(IVendorRepository):
             orm = self.session.query(VendorORM).filter(VendorORM.id == vendor.id).first()
             if orm:
                 orm.nom = vendor.name
+                orm.type_expediteur = vendor.sender_type.value if hasattr(vendor.sender_type, "value") else str(vendor.sender_type)
                 orm.telephone = vendor.phone.raw_digits if vendor.phone else None
+                orm.adresse = vendor.address
+                orm.email = vendor.email
                 orm.contact_responsable = vendor.contact_person
+                orm.nif_stat = vendor.nif_stat
                 orm.modalite_paiement = vendor.payment_terms
                 orm.actif = 1 if vendor.active else 0
                 self.session.commit()

@@ -23,6 +23,12 @@ class ParcelType:
     tracking_number: str
     reception_date: str
     vendor_id: int
+    sender_type: str
+    sender_name: Optional[str] = None
+    sender_phone: Optional[str] = None
+    sender_phone_formatted: Optional[str] = None
+    sender_operator: Optional[str] = None
+    sender_address: Optional[str] = None
     recipient_name: str
     recipient_phone: str
     recipient_phone_formatted: str
@@ -114,11 +120,29 @@ class AxisType:
     zones: List[str]
 
 
+@strawberry.type
+class VendorType:
+    id: int
+    nom: str
+    type_expediteur: str
+    telephone: Optional[str] = None
+    adresse: Optional[str] = None
+    email: Optional[str] = None
+    contact_responsable: Optional[str] = None
+    nif_stat: Optional[str] = None
+    modalite_paiement: str
+    actif: bool
+
+
 # --- GraphQL Inputs ---
 
 @strawberry.input
 class CreateParcelInput:
     vendor_id: int
+    sender_type: str = "CYBERMARCHAND"
+    sender_name: Optional[str] = None
+    sender_phone: Optional[str] = None
+    sender_address: Optional[str] = None
     recipient_name: str
     recipient_phone: str
     delivery_address: str
@@ -275,6 +299,32 @@ class Query:
             return [
                 AxisType(id=a.id, code=a.code, libelle=a.libelle, zones=[z.nom for z in a.zones])
                 for a in axes
+            ]
+        finally:
+            db.close()
+
+    @strawberry.field
+    def vendors(self, type_expediteur: Optional[str] = None) -> List[VendorType]:
+        db = SessionLocal()
+        try:
+            from backend.app.infrastructure.persistence.models import VendorORM
+            q = db.query(VendorORM).filter(VendorORM.actif == 1)
+            if type_expediteur:
+                q = q.filter(VendorORM.type_expediteur == type_expediteur)
+            return [
+                VendorType(
+                    id=v.id,
+                    nom=v.nom,
+                    type_expediteur=v.type_expediteur or "CYBERMARCHAND",
+                    telephone=v.telephone,
+                    adresse=v.adresse,
+                    email=v.email,
+                    contact_responsable=v.contact_responsable,
+                    nif_stat=v.nif_stat,
+                    modalite_paiement=v.modalite_paiement,
+                    actif=bool(v.actif),
+                )
+                for v in q.all()
             ]
         finally:
             db.close()

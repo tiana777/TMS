@@ -14,6 +14,7 @@ from backend.app.domain.exceptions import (
     DomainException,
 )
 from backend.app.domain.models.parcel import FluxType, Parcel
+from backend.app.domain.models.vendor import SenderType
 from backend.app.domain.services.axis_detector import AxisAutoDetector
 from backend.app.domain.state_machine.parcel_fsm import (
     ParcelStateMachine,
@@ -34,11 +35,20 @@ class ParcelUseCases:
         self.repo = PostgresParcelRepository(db)
 
     def _to_response_dto(self, p: Parcel) -> ParcelResponseDTO:
+        sender_phone_digits = p.sender_phone.raw_digits if p.sender_phone else None
+        sender_phone_fmt = p.sender_phone.formatted if p.sender_phone else None
+        sender_operator = p.sender_phone.operator.value if p.sender_phone else None
         return ParcelResponseDTO(
             id=p.id,
             tracking_number=p.tracking_number,
             reception_date=p.reception_date,
             vendor_id=p.vendor_id,
+            sender_type=p.sender_type.value if hasattr(p.sender_type, "value") else str(p.sender_type),
+            sender_name=p.sender_name,
+            sender_phone=sender_phone_digits,
+            sender_phone_formatted=sender_phone_fmt,
+            sender_operator=sender_operator,
+            sender_address=p.sender_address,
             recipient_name=p.recipient_name,
             recipient_phone=p.recipient_phone.raw_digits,
             recipient_phone_formatted=p.recipient_phone.formatted,
@@ -80,11 +90,22 @@ class ParcelUseCases:
         tracking_number = dto.tracking_number or self.repo.generate_next_bdr()
         reception_date = dto.reception_date or datetime.now().strftime("%Y-%m-%d")
 
-        # 4. Domain entity creation
+        # 4. Sender validation
+        sender_phone_vo = PhoneNumber(dto.sender_phone) if dto.sender_phone else None
+        try:
+            sender_type_enum = SenderType(dto.sender_type) if dto.sender_type else SenderType.CYBERMARCHAND
+        except ValueError:
+            sender_type_enum = SenderType.CYBERMARCHAND
+
+        # 5. Domain entity creation
         parcel = Parcel(
             tracking_number=tracking_number,
             reception_date=reception_date,
             vendor_id=dto.vendor_id,
+            sender_type=sender_type_enum,
+            sender_name=dto.sender_name,
+            sender_phone=sender_phone_vo,
+            sender_address=dto.sender_address,
             recipient_name=dto.recipient_name,
             recipient_phone=phone,
             delivery_address=dto.delivery_address,
