@@ -29,22 +29,24 @@ def db_session():
 
 class TestPostgresRepositories:
     def test_vendor_repository(self, db_session):
+        import uuid
         repo = PostgresVendorRepository(db_session)
+        unique_name = f"Test Cyber Boutique {uuid.uuid4().hex[:6]}"
         vendor = Vendor(
-            name="Test Cyber Boutique 2026",
+            name=unique_name,
             phone=PhoneNumber("0349988776"),
             contact_person="Mme Rasoa",
             payment_terms="COMPTANT",
         )
         saved = repo.save(vendor)
         assert saved.id is not None
-        assert saved.name == "Test Cyber Boutique 2026"
+        assert saved.name == unique_name
 
         fetched = repo.get_by_id(saved.id)
         assert fetched is not None
         assert fetched.name == saved.name
 
-        fetched_by_name = repo.get_by_name("Test Cyber Boutique 2026")
+        fetched_by_name = repo.get_by_name(unique_name)
         assert fetched_by_name is not None
         assert fetched_by_name.id == saved.id
 
