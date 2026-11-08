@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   Award,
   Settings,
+  Users,
 } from "lucide-react";
 
 const navigation = [
@@ -22,6 +23,8 @@ const navigation = [
   { name: "03. Dispatching & Tournées", href: "/dispatch", icon: Truck },
   { name: "05. Pointage Terrain", href: "/tracking", icon: CheckCircle2 },
   { name: "07. Caisse & Clôture", href: "/cash", icon: Wallet },
+  { name: "09. CRM Expéditeurs", href: "/crm", icon: Users },
+  { name: "10. Référentiel Logistique", href: "/referentiel", icon: Settings },
   { name: "11. Scorecards Livreurs", href: "/scorecards", icon: Award },
   { name: "12. Litiges & Dettes", href: "/disputes", icon: AlertTriangle },
 ];

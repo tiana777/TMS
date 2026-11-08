@@ -544,3 +544,137 @@ class TestRESTandGraphQLAPI:
         assert closed_tour["actual_remitted"] == 68000
         assert closed_tour["discrepancy"] == 0
 
+    def test_scorecards_fleet_leaderboard(self):
+        login_res = client.post(
+            "/api/v1/auth/login",
+            json={"username": "admin", "password": "admin123"},
+        )
+        assert login_res.status_code == 200
+        token = login_res.json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        res = client.get("/api/v1/couriers/scorecards/leaderboard?period=2026-11", headers=headers)
+        assert res.status_code == 200
+        board = res.json()
+        assert isinstance(board, list)
+        if len(board) > 0:
+            top = board[0]
+            assert "global_score" in top
+            assert "tier" in top
+            assert "courier_name" in top
+
+    def test_dispute_creation_repayment_and_force_majeure(self):
+        login_res = client.post(
+            "/api/v1/auth/login",
+            json={"username": "admin", "password": "admin123"},
+        )
+        assert login_res.status_code == 200
+        token = login_res.json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # 1. Create a dispute for courier 1
+        create_res = client.post(
+            "/api/v1/disputes",
+            json={
+                "livreur_id": 1,
+                "incident_type": "FAUX_BILLET",
+                "initial_amount": 20000,
+                "reason": "Faux billet de 20 000 Ar accepté à Analakely",
+                "incident_date": "2026-11-08",
+            },
+            headers=headers,
+        )
+        assert create_res.status_code == 201
+        dispute_data = create_res.json()
+        debt_id = dispute_data["id"]
+        assert dispute_data["remaining_balance"] == 20000
+        assert dispute_data["status"] == "OUVERTE"
+        assert dispute_data["livreur_name"] is not None
+
+        # 2. Repay partially (5 000 Ar) with Option B Retenue Salaire
+        repay_res = client.post(
+            f"/api/v1/disputes/{debt_id}/repay",
+            json={"amount": 5000, "mode": "RETENUE_SALAIRE"},
+            headers=headers,
+        )
+        assert repay_res.status_code == 200
+        partially_paid = repay_res.json()
+        assert partially_paid["remaining_balance"] == 15000
+        assert partially_paid["refunded_amount"] == 5000
+        assert partially_paid["status"] == "EN_COURS"
+
+        # 3. Create a dispute and exonerate under Force Majeure with police PV
+        pv_res = client.post(
+            "/api/v1/disputes",
+            json={
+                "livreur_id": 1,
+                "incident_type": "PERTE_COLIS",
+                "initial_amount": 50000,
+                "reason": "Agression avec vol armé en tournée",
+                "incident_date": "2026-11-08",
+            },
+            headers=headers,
+        )
+        assert pv_res.status_code == 201
+        pv_debt_id = pv_res.json()["id"]
+
+        cancel_res = client.post(
+            f"/api/v1/disputes/{pv_debt_id}/force-majeure",
+            json={"police_report": "PV-POLICE-0921-2026"},
+            headers=headers,
+        )
+        assert cancel_res.status_code == 200
+        cancelled = cancel_res.json()
+        assert cancelled["status"] == "ANNULEE_FORCE_MAJEURE"
+
+    def test_master_data_zones_partners_and_vendor_updates(self):
+        login_res = client.post(
+            "/api/v1/auth/login",
+            json={"username": "admin", "password": "admin123"},
+        )
+        assert login_res.status_code == 200
+        token = login_res.json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # 1. Create a partner cooperative
+        import uuid
+        uid = uuid.uuid4().hex[:4]
+        partner_res = client.post(
+            "/api/v1/master/partners",
+            json={
+                "nom": f"Coopérative Test {uid}",
+                "type": "COOPERATIVE",
+                "contact": "034 00 111 22",
+                "gare_rattachement": "Gare Ambodivona",
+            },
+            headers=headers,
+        )
+        assert partner_res.status_code == 201
+        p_data = partner_res.json()
+        assert p_data["nom"] == f"Coopérative Test {uid}"
+        assert p_data["type"] == "COOPERATIVE"
+
+        # 2. Add zone to axis 1
+        zone_res = client.post(
+            "/api/v1/master/axes/1/zones",
+            json={"nom": f"Quartier Test {uid}"},
+            headers=headers,
+        )
+        assert zone_res.status_code == 200
+        axis_data = zone_res.json()
+        assert f"Quartier Test {uid}" in axis_data["zones"]
+
+        # 3. Update a vendor
+        vendor_res = client.patch(
+            "/api/v1/master/vendors/1",
+            json={
+                "adresse": "Pavillon Analakely Box 99",
+                "modalite_paiement": "FACTURE_MENSUELLE",
+            },
+            headers=headers,
+        )
+        assert vendor_res.status_code == 200
+        v_data = vendor_res.json()
+        assert v_data["adresse"] == "Pavillon Analakely Box 99"
+        assert v_data["modalite_paiement"] == "FACTURE_MENSUELLE"
+

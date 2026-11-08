@@ -549,16 +549,233 @@ export async function createDispute(payload: {
   return await res.json();
 }
 
-export async function repayDebt(debtId: number, amount: number, closureDate?: string) {
+export async function repayDebt(
+  debtId: number,
+  amount: number,
+  mode: string = "COMPTANT",
+  closureDate?: string
+) {
   const headers = getAuthHeaders();
   const res = await fetch(`${API_BASE_URL}/disputes/${debtId}/repay`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ amount, closure_date: closureDate }),
+    body: JSON.stringify({ amount, mode, closure_date: closureDate }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || "Erreur lors de l'enregistrement de l'apurement.");
+  }
+  return await res.json();
+}
+
+export async function cancelDebtForceMajeure(debtId: number, policeReport: string) {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/disputes/${debtId}/force-majeure`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ police_report: policeReport }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de l'annulation pour force majeure.");
+  }
+  return await res.json();
+}
+
+export async function fetchFleetLeaderboard(period: string) {
+  try {
+    const headers = getAuthHeaders();
+    const res = await fetch(`${API_BASE_URL}/couriers/scorecards/leaderboard?period=${period}`, { headers });
+    if (!res.ok) throw new Error("Erreur chargement du leaderboard");
+    return await res.json();
+  } catch (e) {
+    console.warn("API offline, fallback fleet leaderboard", e);
+    return [
+      {
+        livreur_id: 1,
+        courier_name: "RAKOTO Jean",
+        period,
+        total_assigned: 45,
+        total_delivered: 43,
+        success_rate: 95.6,
+        punctuality_rate: 93.3,
+        quality_rate: 100.0,
+        cash_rigor_rate: 100.0,
+        global_score: 96.5,
+        tier: "OR",
+        bonus_amount: 150000,
+        bonus_formatted: "150 000 Ar",
+      },
+      {
+        livreur_id: 2,
+        courier_name: "ANDRY Nirina",
+        period,
+        total_assigned: 40,
+        total_delivered: 36,
+        success_rate: 90.0,
+        punctuality_rate: 88.0,
+        quality_rate: 98.0,
+        cash_rigor_rate: 95.0,
+        global_score: 91.6,
+        tier: "ARGENT",
+        bonus_amount: 80000,
+        bonus_formatted: "80 000 Ar",
+      },
+      {
+        livreur_id: 3,
+        courier_name: "SOLO Faneva",
+        period,
+        total_assigned: 38,
+        total_delivered: 31,
+        success_rate: 81.6,
+        punctuality_rate: 80.0,
+        quality_rate: 95.0,
+        cash_rigor_rate: 85.0,
+        global_score: 83.8,
+        tier: "BRONZE",
+        bonus_amount: 0,
+        bonus_formatted: "0 Ar",
+      },
+    ];
+  }
+}
+
+export async function createVendor(payload: {
+  nom: string;
+  type_expediteur: string;
+  telephone?: string;
+  adresse?: string;
+  email?: string;
+  contact_responsable?: string;
+  nif_stat?: string;
+  modalite_paiement: string;
+}) {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/master/vendors`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de la création de l'expéditeur.");
+  }
+  return await res.json();
+}
+
+export async function updateVendor(
+  vendorId: number,
+  payload: {
+    nom?: string;
+    type_expediteur?: string;
+    telephone?: string;
+    adresse?: string;
+    email?: string;
+    contact_responsable?: string;
+    nif_stat?: string;
+    modalite_paiement?: string;
+    actif?: number;
+  }
+) {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/master/vendors/${vendorId}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de la mise à jour de l'expéditeur.");
+  }
+  return await res.json();
+}
+
+export async function fetchPartners(type?: string) {
+  try {
+    const url = type
+      ? `${API_BASE_URL}/master/partners?type=${encodeURIComponent(type)}`
+      : `${API_BASE_URL}/master/partners`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Erreur chargement des partenaires");
+    return await res.json();
+  } catch (e) {
+    console.warn("API offline, fallback partners", e);
+    return [
+      {
+        id: 1,
+        nom: "Cotisse Transport",
+        contact: "032 11 020 30",
+        type: "COOPERATIVE",
+        gare_rattachement: "Gare Routière Ambodivona",
+      },
+      {
+        id: 2,
+        nom: "Kofmad Province",
+        contact: "034 22 334 45",
+        type: "COOPERATIVE",
+        gare_rattachement: "Gare Fasan'ny Karana",
+      },
+      {
+        id: 3,
+        nom: "Trans Tsiry RN7",
+        contact: "033 44 556 67",
+        type: "COOPERATIVE",
+        gare_rattachement: "Gare Fasan'ny Karana",
+      },
+      {
+        id: 4,
+        nom: "Gare Routière Ambodivona",
+        contact: "Guichet Central",
+        type: "GARE",
+        gare_rattachement: "Ambodivona",
+      },
+      {
+        id: 5,
+        nom: "Gare Routière Fasan'ny Karana",
+        contact: "Guichet Central",
+        type: "GARE",
+        gare_rattachement: "Fasan'ny Karana",
+      },
+      {
+        id: 6,
+        nom: "Gare Routière Andohatapenaka",
+        contact: "Guichet Central",
+        type: "GARE",
+        gare_rattachement: "Andohatapenaka",
+      },
+    ];
+  }
+}
+
+export async function createPartner(payload: {
+  nom: string;
+  contact?: string;
+  type: string;
+  gare_rattachement?: string;
+}) {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/master/partners`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de la création du partenaire.");
+  }
+  return await res.json();
+}
+
+export async function addZoneToAxis(axisId: number, nom: string) {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/master/axes/${axisId}/zones`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ nom }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de l'ajout de la zone.");
   }
   return await res.json();
 }

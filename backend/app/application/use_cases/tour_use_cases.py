@@ -309,6 +309,8 @@ class DisputeUseCases:
         self.repo = PostgresDisputeRepository(db)
 
     def _to_dispute_dto(self, d: CourierDebt) -> DisputeResponseDTO:
+        courier = self.db.query(CourierORM).filter(CourierORM.id == d.livreur_id).first()
+        livreur_name = courier.nom if courier else f"Livreur #{d.livreur_id}"
         return DisputeResponseDTO(
             id=d.id,
             reference_litige=d.reference_litige,
@@ -323,6 +325,7 @@ class DisputeUseCases:
             reason=d.reason,
             incident_date=d.incident_date,
             closure_date=d.closure_date,
+            livreur_name=livreur_name,
         )
 
     def create_dispute(self, dto: CreateDisputeDTO) -> DisputeResponseDTO:
@@ -354,13 +357,22 @@ class DisputeUseCases:
             dette_id=debt.id,
             utilisateur_validateur_id=user_id,
             montant_verse=float(amount.amount),
-            mode_remboursement="COMPTANT",
+            mode_remboursement=dto.mode or "COMPTANT",
             reference_piece_comptable=f"REC-{saved.reference_litige}-{int(datetime.now().timestamp())}",
             horodatage=datetime.utcnow(),
         )
         self.db.add(rep)
         self.db.commit()
 
+        return self._to_dispute_dto(saved)
+
+    def cancel_under_force_majeure(self, debt_id: int, police_report: str) -> DisputeResponseDTO:
+        debt = self.repo.get_by_id(debt_id)
+        if not debt:
+            raise BusinessRuleViolationException(f"Dossier de litige introuvable (ID: {debt_id})")
+
+        debt.cancel_under_force_majeure(police_report)
+        saved = self.repo.save(debt)
         return self._to_dispute_dto(saved)
 
 
@@ -466,8 +478,12 @@ class CourierUseCases:
             eval_orm.calcule_a = datetime.utcnow()
         self.db.commit()
 
+        courier = self.repo.get_by_id(result.livreur_id)
+        courier_name = courier.name if courier else f"Livreur #{result.livreur_id}"
+
         return ScorecardResponseDTO(
             livreur_id=result.livreur_id,
+            courier_name=courier_name,
             period=result.period,
             total_assigned=result.total_assigned,
             total_delivered=result.total_delivered,
@@ -480,3 +496,9 @@ class CourierUseCases:
             bonus_amount=result.bonus_amount.amount,
             bonus_formatted=result.bonus_amount.formatted,
         )
+
+    def compute_fleet_leaderboard(self, period: str) -> List[ScorecardResponseDTO]:
+        couriers = self.repo.list_all()
+        scorecards = [self.compute_scorecard(c.id, period) for c in couriers if c.active]
+        scorecards.sort(key=lambda s: s.global_score, reverse=True)
+        return scorecards

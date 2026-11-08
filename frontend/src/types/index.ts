@@ -85,6 +85,15 @@ export interface AxisInfo {
   zones: string[];
 }
 
+export interface Partner {
+  id: number;
+  nom: string;
+  contact?: string | null;
+  type: "COOPERATIVE" | "GARE" | "CONFRERE";
+  gare_rattachement?: string | null;
+  actif?: number;
+}
+
 export interface Courier {
   id: number;
   name: string;
@@ -132,6 +141,7 @@ export interface Dispute {
 
 export interface Scorecard {
   livreur_id: number;
+  courier_name?: string;
   period: string;
   total_assigned: number;
   total_delivered: number;

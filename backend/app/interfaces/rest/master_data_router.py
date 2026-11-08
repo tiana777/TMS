@@ -47,6 +47,29 @@ class VendorResponseDTO(BaseModel):
     modalite_paiement: str
 
 
+class CreatePartnerInputDTO(BaseModel):
+    nom: str
+    contact: Optional[str] = None
+    type: str  # COOPERATIVE, GARE, CONFRERE
+    gare_rattachement: Optional[str] = None
+
+
+class CreateZoneInputDTO(BaseModel):
+    nom: str
+
+
+class UpdateVendorInputDTO(BaseModel):
+    nom: Optional[str] = None
+    type_expediteur: Optional[str] = None
+    telephone: Optional[str] = None
+    adresse: Optional[str] = None
+    email: Optional[str] = None
+    contact_responsable: Optional[str] = None
+    nif_stat: Optional[str] = None
+    modalite_paiement: Optional[str] = None
+    actif: Optional[int] = None
+
+
 class CreateVendorInputDTO(BaseModel):
     nom: str
     type_expediteur: str = "CYBERMARCHAND"  # CYBERMARCHAND, PARTICULIER, ENTREPRISE
@@ -135,3 +158,81 @@ def create_vendor(data: CreateVendorInputDTO, db: Session = Depends(get_db)):
         nif_stat=v.nif_stat,
         modalite_paiement=v.modalite_paiement,
     )
+
+
+@router.patch("/vendors/{vendor_id}", response_model=VendorResponseDTO)
+def update_vendor(vendor_id: int, data: UpdateVendorInputDTO, db: Session = Depends(get_db)):
+    v = db.query(VendorORM).filter(VendorORM.id == vendor_id).first()
+    if not v:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Expéditeur introuvable")
+
+    if data.nom is not None:
+        v.nom = data.nom
+    if data.type_expediteur is not None:
+        v.type_expediteur = data.type_expediteur
+    if data.telephone is not None:
+        v.telephone = data.telephone
+    if data.adresse is not None:
+        v.adresse = data.adresse
+    if data.email is not None:
+        v.email = data.email
+    if data.contact_responsable is not None:
+        v.contact_responsable = data.contact_responsable
+    if data.nif_stat is not None:
+        v.nif_stat = data.nif_stat
+    if data.modalite_paiement is not None:
+        v.modalite_paiement = data.modalite_paiement
+    if data.actif is not None:
+        v.actif = data.actif
+
+    db.commit()
+    db.refresh(v)
+    return VendorResponseDTO(
+        id=v.id,
+        nom=v.nom,
+        type_expediteur=v.type_expediteur,
+        telephone=v.telephone,
+        adresse=v.adresse,
+        email=v.email,
+        contact_responsable=v.contact_responsable,
+        nif_stat=v.nif_stat,
+        modalite_paiement=v.modalite_paiement,
+    )
+
+
+@router.post("/partners", response_model=PartnerResponseDTO, status_code=201)
+def create_partner(data: CreatePartnerInputDTO, db: Session = Depends(get_db)):
+    p = PartnerORM(
+        nom=data.nom,
+        contact=data.contact,
+        type=data.type,
+        gare_rattachement=data.gare_rattachement,
+        actif=1,
+    )
+    db.add(p)
+    db.commit()
+    db.refresh(p)
+    return PartnerResponseDTO(
+        id=p.id,
+        nom=p.nom,
+        contact=p.contact,
+        type=p.type,
+        gare_rattachement=p.gare_rattachement,
+    )
+
+
+@router.post("/axes/{axis_id}/zones", response_model=AxisResponseDTO)
+def add_zone_to_axis(axis_id: int, data: CreateZoneInputDTO, db: Session = Depends(get_db)):
+    from fastapi import HTTPException
+    axis = db.query(AxisORM).filter(AxisORM.id == axis_id).first()
+    if not axis:
+        raise HTTPException(status_code=404, detail="Axe introuvable")
+
+    zone = ZoneORM(axe_id=axis.id, nom=data.nom)
+    db.add(zone)
+    db.commit()
+    db.refresh(axis)
+
+    zones = [z.nom for z in axis.zones]
+    return AxisResponseDTO(id=axis.id, code=axis.code, libelle=axis.libelle, zones=zones)

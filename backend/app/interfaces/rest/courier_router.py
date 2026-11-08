@@ -39,6 +39,19 @@ def create_courier(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
+@router.get("/scorecards/leaderboard", response_model=List[ScorecardResponseDTO])
+def get_fleet_leaderboard(
+    period: str,  # YYYY-MM
+    db: Session = Depends(get_db),
+    current_user: UserORM = Depends(get_current_user),
+):
+    try:
+        use_cases = CourierUseCases(db)
+        return use_cases.compute_fleet_leaderboard(period)
+    except DomainException as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
 @router.get("/{courier_id}/scorecard", response_model=ScorecardResponseDTO)
 def get_scorecard(
     courier_id: int,

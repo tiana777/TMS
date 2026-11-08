@@ -4,6 +4,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from backend.app.application.dtos.other_dtos import (
+    CancelForceMajeureDTO,
     CreateDisputeDTO,
     DisputeResponseDTO,
     RepayDebtDTO,
@@ -57,5 +58,19 @@ def repay_debt(
     try:
         use_cases = DisputeUseCases(db)
         return use_cases.repay_debt(debt_id, dto, user_id=current_user.id)
+    except DomainException as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/{debt_id}/force-majeure", response_model=DisputeResponseDTO)
+def cancel_force_majeure(
+    debt_id: int,
+    dto: CancelForceMajeureDTO,
+    db: Session = Depends(get_db),
+    current_user: UserORM = Depends(require_roles(["SUPER_ADMIN"])),
+):
+    try:
+        use_cases = DisputeUseCases(db)
+        return use_cases.cancel_under_force_majeure(debt_id, dto.police_report)
     except DomainException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

@@ -66,6 +66,11 @@ class CreateDisputeDTO(BaseModel):
 class RepayDebtDTO(BaseModel):
     amount: int
     closure_date: Optional[str] = None
+    mode: Optional[str] = "COMPTANT"  # COMPTANT, RETENUE_SALAIRE, CAUTION
+
+
+class CancelForceMajeureDTO(BaseModel):
+    police_report: str
 
 
 class DisputeResponseDTO(BaseModel):
@@ -82,6 +87,7 @@ class DisputeResponseDTO(BaseModel):
     reason: str
     incident_date: str
     closure_date: Optional[str] = None
+    livreur_name: Optional[str] = None
 
 
 class ScorecardResponseDTO(BaseModel):
@@ -97,6 +103,7 @@ class ScorecardResponseDTO(BaseModel):
     tier: str
     bonus_amount: int
     bonus_formatted: str
+    courier_name: Optional[str] = None
 
 
 class CreateVendorDTO(BaseModel):
