@@ -90,9 +90,9 @@ class Parcel:
         self.axis = new_axis
         self.is_manual_axis = True
 
-    def assign_to_courier(self, courier_id: int, tour_id: Optional[int] = None) -> None:
-        """Assign parcel to a courier or transit shuttle."""
-        ctx = TransitionContext(courier_id=courier_id)
+    def assign_to_courier(self, courier_id: int, tour_id: Optional[int] = None, reason: Optional[str] = None) -> None:
+        """Assign or reassign parcel to a courier or transit shuttle."""
+        ctx = TransitionContext(courier_id=courier_id, incident_reason=reason)
         ParcelStateMachine.validate_transition(self.status, ParcelStatus.ASSIGNE, ctx)
         self.courier_id = courier_id
         self.tour_id = tour_id

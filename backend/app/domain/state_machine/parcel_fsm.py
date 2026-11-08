@@ -74,6 +74,7 @@ ALLOWED_TRANSITIONS: Dict[Optional[ParcelStatus], Set[ParcelStatus]] = {
         ParcelStatus.LIVRE_ENCAISSE,
         ParcelStatus.REPORTE,
         ParcelStatus.ANNULE_RETOUR,
+        ParcelStatus.ASSIGNE,
     },
     ParcelStatus.SOUS_TRAITE: {
         ParcelStatus.LIVRE_ENCAISSE,

@@ -22,11 +22,13 @@ router = APIRouter(prefix="/tours", tags=["Tournées & Dispatch"])
 def create_tour(
     dto: CreateTourDTO,
     db: Session = Depends(get_db),
-    current_user: UserORM = Depends(require_roles(["SUPERVISEUR", "SUPER_ADMIN"])),
+    current_user: UserORM = Depends(require_roles(["RECEPTIONNISTE", "SUPERVISEUR", "SUPER_ADMIN"])),
 ):
     try:
         use_cases = TourUseCases(db)
-        return use_cases.create_or_assign_tour(dto.courier_id, dto.tour_date, dto.parcel_ids)
+        return use_cases.create_or_assign_tour(
+            dto.courier_id, dto.tour_date, dto.parcel_ids, user_role=current_user.role
+        )
     except DomainException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

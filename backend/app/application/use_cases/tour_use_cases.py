@@ -59,7 +59,14 @@ class TourUseCases:
             closed_at=t.closed_at.isoformat() if t.closed_at else None,
         )
 
-    def create_or_assign_tour(self, courier_id: int, tour_date: str, parcel_ids: List[int]) -> TourResponseDTO:
+    def create_or_assign_tour(
+        self,
+        courier_id: int,
+        tour_date: str,
+        parcel_ids: List[int],
+        user_role: str = "SUPER_ADMIN",
+        reason: Optional[str] = None,
+    ) -> TourResponseDTO:
         # Check if tour exists for courier and date
         existing = self.tour_repo.get_by_courier_and_date(courier_id, tour_date)
         if existing:
@@ -72,22 +79,44 @@ class TourUseCases:
             )
             tour = self.tour_repo.save(tour)
 
-        # Assign parcels
+        # Assign or reassign parcels
         for pid in parcel_ids:
             p = self.parcel_repo.get_by_id(pid)
-            if p and p.status in [ParcelStatus.EN_DEPOT, ParcelStatus.ASSIGNE]:
-                old_status = p.status
-                p.assign_to_courier(courier_id, tour.id)
-                self.parcel_repo.save(p)
-                # Audit trail
-                history = ParcelStatusHistoryORM(
-                    colis_id=p.id,
-                    statut_precedent=old_status.value,
-                    statut_nouveau=ParcelStatus.ASSIGNE.value,
-                    motif=f"Assigné à la tournée #{tour.id}",
-                    horodatage=datetime.utcnow(),
+            if not p:
+                continue
+
+            # Check role-based FSM reassignment rules according to CDC Section 3 & 8.1
+            if p.status == ParcelStatus.EN_COURS:
+                if user_role != "SUPER_ADMIN":
+                    raise BusinessRuleViolationException(
+                        f"Le colis BDR-{p.tracking_number} est déjà en cours de tournée. "
+                        f"Seul le Super Admin est habilité à effectuer une réassignation d'urgence."
+                    )
+            elif p.status not in [ParcelStatus.EN_DEPOT, ParcelStatus.ASSIGNE, ParcelStatus.REPORTE]:
+                raise BusinessRuleViolationException(
+                    f"Impossible d'assigner le colis BDR-{p.tracking_number} au statut '{p.status.value}'."
                 )
-                self.db.add(history)
+
+            old_status = p.status
+            assignment_motif = (
+                reason
+                or (f"Réassignation d'urgence (Super Admin) vers la tournée #{tour.id}"
+                    if old_status == ParcelStatus.EN_COURS
+                    else f"Assigné à la tournée #{tour.id}")
+            )
+
+            p.assign_to_courier(courier_id, tour.id, reason=assignment_motif)
+            self.parcel_repo.save(p)
+
+            # Audit trail
+            history = ParcelStatusHistoryORM(
+                colis_id=p.id,
+                statut_precedent=old_status.value,
+                statut_nouveau=ParcelStatus.ASSIGNE.value,
+                motif=assignment_motif,
+                horodatage=datetime.utcnow(),
+            )
+            self.db.add(history)
 
         self.db.commit()
 

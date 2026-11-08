@@ -104,6 +104,17 @@ class TestParcelStateMachine:
         )
         ParcelStateMachine.validate_transition(ParcelStatus.ASSIGNE, ParcelStatus.SOUS_TRAITE, ctx)
 
+    def test_reassignment_transitions(self):
+        # 1. Reassign before tour start: ASSIGNE -> ASSIGNE
+        assert ParcelStateMachine.can_transition(ParcelStatus.ASSIGNE, ParcelStatus.ASSIGNE)
+        ctx = TransitionContext(courier_id=5)
+        ParcelStateMachine.validate_transition(ParcelStatus.ASSIGNE, ParcelStatus.ASSIGNE, ctx)
+
+        # 2. Urgent reassignment during tour: EN_COURS -> ASSIGNE (Super Admin power)
+        assert ParcelStateMachine.can_transition(ParcelStatus.EN_COURS, ParcelStatus.ASSIGNE)
+        ctx_urgent = TransitionContext(courier_id=7, incident_reason="Panne de moto du livreur initial")
+        ParcelStateMachine.validate_transition(ParcelStatus.EN_COURS, ParcelStatus.ASSIGNE, ctx_urgent)
+
     def test_illegal_transitions_rejected(self):
         illegal_cases = [
             (ParcelStatus.EN_DEPOT, ParcelStatus.LIVRE_ENCAISSE),  # Cannot deliver directly from stock

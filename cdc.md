@@ -70,8 +70,8 @@ flowchart TD
     5.  **Affectation au Magasin de Transit :** Enregistrement initial sous le statut système **`EN_DEPOT`**.
     6.  **Édition des Étiquettes d'Identification :** Impression immédiate de l'étiquette de transport comportant le numéro BDR, le destinataire, l'axe logistique et le montant total à encaisser.
 *   **Habilitations & Restrictions :**
-    *   *Autorisé :* Création de colis, consultation du registre du jour, recherche dans l'annuaire des expéditeurs, impression des étiquettes d'accueil.
-    *   *Strictement Interdit :* Suppression de colis, modification des montants financiers après validation, assignation des livreurs, pointage des statuts de livraison, validation des encaissements de caisse, imputation de dettes ou modification du paramétrage des axes.
+    *   *Autorisé :* Création de colis, consultation du registre du jour, recherche dans l'annuaire des expéditeurs, impression des étiquettes d'accueil, **assignation et réassignation de colis vers un livreur / tournée UNIQUEMENT si le colis n'est pas déjà en cours de livraison (`EN_DEPOT`, `ASSIGNE`, `REPORTE`).**
+    *   *Strictement Interdit :* Suppression de colis, modification des montants financiers après validation, **réassignation d'un colis déjà au statut `EN_COURS` (prérogative exclusive réservée au Super Admin)**, pointage des statuts de livraison, validation des encaissements de caisse, imputation de dettes ou modification du paramétrage des axes.
 
 ### 3.2 Profil 2 : Le Superviseur (Superviseur Logistique & Dispatcher)
 *   **Mission Principale :** Piloter l'activité logistique quotidienne du quai, orchestrer le dispatching des tournées de livraison, évaluer en direct la productivité des coursiers et superviser l'exécution terrain en temps réel.
@@ -101,7 +101,7 @@ flowchart TD
     6.  **Rapprochement & Reversement Cybermarchands :** Calcul automatique et validation des états de reversement financier aux vendeurs partenaires (Montant total des marchandises encaissées déduction faite des frais de livraison et commissions convenues).
     7.  **Administration du Référentiel Logistique :** Création, mise à jour ou désactivation des axes logistiques, des zones de distribution, des tarifs de base, des barèmes de primes et du registre des coopératives.
 *   **Habilitations :**
-    *   *Droits Absolus (Super-Privilège) :* Accès complet en lecture, écriture, modification, suppression logique (`Soft Delete`), paramétrage global, imputation/annulation de dettes et validation financière irréversible.
+    *   *Droits Absolus (Super-Privilège) :* Accès complet en lecture, écriture, modification, suppression logique (`Soft Delete`), paramétrage global, imputation/annulation de dettes, validation financière irréversible, et **droit exclusif de forçage pour la réassignation d'un colis déjà en cours (`EN_COURS`)** vers un autre coursier ou navette en cas d'urgence opérationnelle.
 
 ---
 
@@ -111,7 +111,7 @@ flowchart TD
 | :--- | :---: | :---: | :---: | :---: |
 | **Création Colis (Formulaire par Lot)** | **Création / Saisie** | Création / Saisie | Création / Saisie | Lecture seule (Bordereau) |
 | **Importation Massive (Fichiers Entreprise)** | **Exécution** | **Exécution** | **Exécution** | Aucun accès |
-| **Dispatching & Assignation des Tournées** | Aucun accès | **Opérateur Maître** | **Supervision Totale** | Consultation de sa tournée |
+| **Dispatching & Assignation des Tournées** | **Assignation / Réassignation (colis hors EN_COURS)** | **Opérateur Maître (colis hors EN_COURS)** | **Supervision Totale & Forçage (y compris colis EN_COURS)** | Consultation de sa tournée |
 | **Édition Feuilles de Route & Tickets 80 mm** | Aucun accès | **Édition & Export** | **Édition & Export** | Réceptionnaire |
 | **Pointage des Livraisons en Direct** | Aucun accès | **Validation Opérationnelle** | **Contrôle & Forçage** | Déclaration terrain |
 | **Cockpit & Barres de Progression (KPIs)** | Lecture synthèse | **Pilotage Quotidien** | **Pilotage Stratégique** | Aucun accès |
@@ -134,7 +134,9 @@ flowchart TD
 | Réception physique et contrôle qualité au Hub | **R** | **A** | I | I |
 | Saisie, validation téléphone malgache et création BDR | **R** | A | I | I |
 | Tri géographique et validation de l'axe logistique | C | **R / A** | I | I |
-| Constitution et assignation des tournées urbaines | I | **R / A** | I | C |
+| Constitution et assignation initiale des tournées | **R** | **R / A** | I | C |
+| Réassignation de colis hors départ terrain (`EN_DEPOT`, `ASSIGNE`) | **R** | **R / A** | I | C |
+| Réassignation d'urgence d'un colis déjà en cours (`EN_COURS`) | *Interdit* | *Interdit* | **R / A (Exclusif)** | I |
 | Regroupement et assignation des colis Province (Gares) | I | **R / A** | I | C |
 | Acheminement navette et dépôt au guichet coopérative | I | A | C | **R** |
 | Saisie du numéro de récépissé et frais de fret gare | I | **R** | A | C |
@@ -345,10 +347,12 @@ stateDiagram-v2
     ASSIGNE --> EN_COURS: Départ en tournée de distribution urbaine
     ASSIGNE --> SOUS_TRAITE: Navette dépose en Gare Routière (Récépissé obtenu)
     ASSIGNE --> EN_DEPOT: Annulation d'assignation / Retour au stock
+    ASSIGNE --> ASSIGNE: Réassignation (Réceptionniste, Superviseur, Super Admin)
     
     EN_COURS --> LIVRE_ENCAISSE: Remise colis + Encaissé Espèces / Mobile Money
     EN_COURS --> REPORTE: Client absent / Report demandé (Date obligatoire)
     EN_COURS --> ANNULE_RETOUR: Refus marchandise / Annulation (Motif obligatoire)
+    EN_COURS --> ASSIGNE: Réassignation d'urgence terrain (Super Admin exclusivement)
     
     SOUS_TRAITE --> LIVRE_ENCAISSE: Confirmation retrait guichet Province + Encaissement
     SOUS_TRAITE --> ANNULE_RETOUR: Non réclamé après 7j en gare / Colis rapatrié
@@ -364,7 +368,9 @@ stateDiagram-v2
 | Statut Source | Statut Cible | Profil Habilité | Événement Déclencheur | Données Obligatoires Requises |
 | :--- | :--- | :--- | :--- | :--- |
 | `(Nouveau)` | `EN_DEPOT` | Réceptionniste | Enregistrement Formulaire ou Import Fichier | Expéditeur, Destinataire, Tél (10 chiffres), Lieu, Axe, Frais |
-| `EN_DEPOT` | `ASSIGNE` | Superviseur | Assignation en tournée urbaine ou navette gares | Identifiant et nom du livreur ou de la navette |
+| `EN_DEPOT` | `ASSIGNE` | Réceptionniste / Superviseur / Super Admin | Assignation en tournée urbaine ou navette gares | Identifiant et nom du livreur ou de la navette |
+| `ASSIGNE` | `ASSIGNE` | Réceptionniste / Superviseur / Super Admin | Réassignation vers un autre coursier avant départ quai (colis non encore en cours) | Nouvel identifiant livreur / tournée cible |
+| `EN_COURS` | `ASSIGNE` | **Super Admin exclusivement** | Réassignation d'urgence en cours de tournée (panne mécanique, accident, réallocation de charge) | **Nouvel identifiant coursier + Motif circonstancié obligatoire (Interdit au Réceptionniste & Superviseur)** |
 | `ASSIGNE` | `EN_COURS` | Superviseur / Livreur | Validation du départ physique en tournée | Confirmation du lot de colis |
 | `ASSIGNE` | `SOUS_TRAITE` | Chauffeur Navette / Superviseur | Remise physique au guichet de la coopérative | **Nom coopérative, N° Récépissé, Frais de Fret** |
 | `EN_COURS` | `LIVRE_ENCAISSE` | Superviseur / Livreur | Remise physique au destinataire et encaissement | Mode de règlement (Espèces, MVola, Airtel, Orange) |
@@ -397,8 +403,13 @@ L'application web est structurée en **12 modules applicatifs dédiés** :
 *   **Fonctionnalités :** Téléversement Glisser-Déposer (*Drag & Drop*) pour fichiers Excel (`.xlsx`, `.xls`) et CSV. Analyse sémantique intelligente des colonnes expéditeur et destinataire, validation automatique des formats téléphoniques malgaches, prévisualisation des anomalies avant insertion en base.
 
 ### Écran 03 : Dispatching & Assignation des Tournées
-*   **Utilisateur Principal :** Superviseur Logistique.
-*   **Fonctionnalités :** Vue tabulaire filtrable des colis en stock (`EN_DEPOT`) par corridor routier. Regroupement spécifique des colis Province par gare de départ. Assignation en un clic d'un lot de colis à un coursier titulaire ou à la navette gares.
+*   **Utilisateurs Principaux :** Réceptionniste & Superviseur (assignation et réassignation de colis hors EN_COURS) ; Super Admin (supervision totale & forçage de réassignation d'urgence y compris colis déjà EN_COURS).
+*   **Fonctionnalités :** 
+    1.  **Vue tabulaire filtrable :** Colis en stock (`EN_DEPOT`), colis assignés (`ASSIGNE`) et tournées actives par corridor routier. Regroupement spécifique des colis Province par gare de départ.
+    2.  **Règles de Réassignation Selon le Rôle & le Statut :**
+        *   **Réceptionniste & Superviseur :** Peuvent assigner et réassigner librement tout colis vers un autre coursier ou une autre tournée **tant que le colis n'est pas déjà en cours de livraison (`EN_DEPOT`, `ASSIGNE`, `REPORTE`)**.
+        *   **Verrouillage `EN_COURS` :** Dès qu'une tournée est lancée et que le colis passe au statut **`EN_COURS`** (coursier sur le terrain), la réassignation est **strictement bloquée** pour le Réceptionniste et le Superviseur.
+        *   **Prérogative Exclusive Super Admin (Forçage d'Urgence) :** Le **Super Admin** a le pouvoir d'outrepasser ce verrou pour réassigner un colis **déjà en cours (`EN_COURS`)** vers un autre coursier ou navette (cas de panne mécanique, accident, indisponibilité soudaine ou transfert d'urgence de charge), avec motif circonstancié obligatoire consigné dans l'historique d'audit.
 
 ### Écran 04 : Feuilles de Route & Impression Thermique (Tickets 80 mm)
 *   **Utilisateurs Principaux :** Superviseur & Livreurs.
