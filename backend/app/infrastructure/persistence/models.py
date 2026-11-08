@@ -81,9 +81,10 @@ class AxisORM(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     code = Column(String(30), unique=True, nullable=False, index=True)
     libelle = Column(String(150), nullable=False)
+    type_axe = Column(String(30), default="URBAIN", nullable=True)  # URBAIN or PROVINCE
     actif = Column(Integer, default=1, nullable=False)
 
-    zones = relationship("ZoneORM", back_populates="axe")
+    zones = relationship("ZoneORM", back_populates="axe", cascade="all, delete-orphan")
 
 
 class ZoneORM(Base):

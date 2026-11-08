@@ -786,6 +786,50 @@ export async function createPartner(payload: {
   return await res.json();
 }
 
+export async function createAxis(data: { code: string; libelle: string; type_axe?: string; zones?: string[] }) {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/master/axes`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de la création de l'axe.");
+  }
+  return await res.json();
+}
+
+export async function updateAxis(
+  axisId: number,
+  data: { code?: string; libelle?: string; type_axe?: string; actif?: number }
+) {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/master/axes/${axisId}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de la modification de l'axe.");
+  }
+  return await res.json();
+}
+
+export async function deleteAxis(axisId: number) {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/master/axes/${axisId}`, {
+    method: "DELETE",
+    headers,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de la suppression de l'axe.");
+  }
+  return await res.json();
+}
+
 export async function addZoneToAxis(axisId: number, nom: string) {
   const headers = getAuthHeaders();
   const res = await fetch(`${API_BASE_URL}/master/axes/${axisId}/zones`, {
@@ -796,6 +840,19 @@ export async function addZoneToAxis(axisId: number, nom: string) {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || "Erreur lors de l'ajout de la zone.");
+  }
+  return await res.json();
+}
+
+export async function removeZoneFromAxis(axisId: number, zoneId: number) {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/master/axes/${axisId}/zones/${zoneId}`, {
+    method: "DELETE",
+    headers,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors du retrait de la zone.");
   }
   return await res.json();
 }

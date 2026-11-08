@@ -25,7 +25,15 @@ export type LogisticAxis =
   | "AXE_RN4"
   | "AXE_RN7"
   | "AXE_SUD_EST"
-  | "AXE_PROVINCE";
+  | "AXE_PROVINCE"
+  | "AXE_PROV_RN2_EST"
+  | "AXE_PROV_RN4_OUEST"
+  | "AXE_PROV_RN6_NORD"
+  | "AXE_PROV_RN7_SUD"
+  | "AXE_PROV_RN7_SUD_OUEST"
+  | "AXE_PROV_SUD_EST"
+  | "AXE_PROV_RN44_ALAOTRA"
+  | string;
 
 export interface Parcel {
   id: number;
@@ -80,11 +88,19 @@ export interface Vendor {
   modalite_paiement: string;
 }
 
+export interface ZoneDetail {
+  id: number;
+  nom: string;
+}
+
 export interface AxisInfo {
   id: number;
-  code: LogisticAxis;
+  code: LogisticAxis | string;
   libelle: string;
+  type_axe?: "URBAIN" | "PROVINCE" | string;
+  actif?: number;
   zones: string[];
+  zones_detail?: ZoneDetail[];
 }
 
 export interface Partner {

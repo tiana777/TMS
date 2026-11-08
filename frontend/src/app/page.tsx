@@ -239,38 +239,38 @@ export default function CockpitDashboardPage() {
   return (
     <div className="max-w-7xl mx-auto space-y-5">
       {/* Top Banner & Date Selector */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-white shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200 rounded-xl p-4 text-slate-900 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-500/20 text-blue-300 border border-blue-400/30">
+            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
               Écran 06 • Cockpit & KPIs Temps Réel
             </span>
-            <span className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/40">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="flex items-center gap-1.5 text-[11px] text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               Direct GMT+3 (Indian/Antananarivo)
             </span>
           </div>
-          <h2 className="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
-            <span className="text-blue-400">⚡</span> Cockpit d'Exploitation Logistique
+          <h2 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 flex items-center gap-2">
+            <span className="text-blue-600">⚡</span> Cockpit d'Exploitation Logistique
           </h2>
-          <p className="text-slate-400 text-xs max-w-2xl leading-relaxed">
+          <p className="text-slate-500 text-xs max-w-2xl leading-relaxed">
             Supervision globale des tournées Grand Tanà, du transport régional en Province, du recouvrement de caisse COD et du pilotage de la flotte de distribution.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 bg-slate-950/60 p-1.5 rounded-lg border border-slate-800 shrink-0">
-          <div className="flex items-center gap-2 bg-slate-800 border border-slate-700/80 rounded-md px-2.5 py-1.5 text-white">
-            <Calendar className="w-3.5 h-3.5 text-blue-400" />
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 bg-white border border-slate-200 px-2.5 py-1.5 rounded-lg shadow-xs">
+            <Calendar className="w-3.5 h-3.5 text-slate-400" />
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-transparent text-xs font-medium text-white focus:outline-none cursor-pointer"
+              className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
             />
           </div>
           <button
             onClick={loadData}
-            className="p-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-md transition shadow-xs flex items-center justify-center"
+            className="p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition shadow-xs flex items-center justify-center"
             title="Rafraîchir"
           >
             <RotateCcw className="w-3.5 h-3.5" />
@@ -527,7 +527,7 @@ export default function CockpitDashboardPage() {
                   className="bg-slate-50/60 hover:bg-white p-3.5 rounded-xl border border-slate-200/80 hover:border-blue-300 transition-all space-y-2.5 shadow-xs"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-slate-900 text-white">
+                    <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
                       Tournée #{t.id}
                     </span>
                     <span

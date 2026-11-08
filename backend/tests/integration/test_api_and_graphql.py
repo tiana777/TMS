@@ -251,7 +251,7 @@ class TestRESTandGraphQLAPI:
         data = response.json()
         assert "data" in data
         axes = data["data"]["axes"]
-        assert len(axes) == 8
+        assert len(axes) >= 8
         codes = [a["code"] for a in axes]
         assert "AXE_CENTRE" in codes
         assert "AXE_PROVINCE" in codes
@@ -835,4 +835,122 @@ class TestRESTandGraphQLAPI:
         paid_data = pay_res.json()
         assert paid_data["status"] == "ENCAISSE"
         assert paid_data["payment_method"] == "MVOLA"
+
+    def test_axis_management_crud_and_rbac(self):
+        import uuid
+        uid = uuid.uuid4().hex[:6].upper()
+        urban_code = f"AXE_BYPASS_{uid}"
+        prov_code = f"AXE_PROV_{uid}"
+        zone_name = f"Zone_{uid}"
+
+        # 1. Login as RECEPTIONNISTE and attempt to create an axis -> 403
+        rec_res = client.post("/api/v1/auth/login", json={"username": "reception", "password": "recep123"})
+        assert rec_res.status_code == 200
+        rec_token = rec_res.json()["access_token"]
+        rec_headers = {"Authorization": f"Bearer {rec_token}"}
+
+        forbidden_res = client.post(
+            "/api/v1/master/axes",
+            json={"code": f"AXE_FORBID_{uid}", "libelle": "Axe interdit", "type_axe": "URBAIN"},
+            headers=rec_headers,
+        )
+        assert forbidden_res.status_code == 403
+
+        # 2. Login as SUPERVISEUR -> can create an Urban and a Province axis
+        sup_res = client.post("/api/v1/auth/login", json={"username": "superviseur", "password": "super123"})
+        assert sup_res.status_code == 200
+        sup_token = sup_res.json()["access_token"]
+        sup_headers = {"Authorization": f"Bearer {sup_token}"}
+
+        # Create urban axis
+        create_urban = client.post(
+            "/api/v1/master/axes",
+            json={
+                "code": urban_code,
+                "libelle": "Axe By-Pass Sud (Alasora / Iavoloha)",
+                "type_axe": "URBAIN",
+                "zones": [zone_name, f"PK10_{uid}"],
+            },
+            headers=sup_headers,
+        )
+        assert create_urban.status_code == 201
+        urban_data = create_urban.json()
+        assert urban_data["code"] == urban_code
+        assert urban_data["type_axe"] == "URBAIN"
+        assert zone_name in urban_data["zones"]
+        urban_id = urban_data["id"]
+
+        # Create province axis
+        create_prov = client.post(
+            "/api/v1/master/axes",
+            json={
+                "code": prov_code,
+                "libelle": "Axe Province Sud (RN7 Fianarantsoa / Tuléar)",
+                "type_axe": "PROVINCE",
+                "zones": [f"Antsirabe_{uid}", f"Ambositra_{uid}"],
+            },
+            headers=sup_headers,
+        )
+        assert create_prov.status_code == 201
+        prov_data = create_prov.json()
+        assert prov_data["code"] == prov_code
+        assert prov_data["type_axe"] == "PROVINCE"
+        prov_id = prov_data["id"]
+
+        # 3. Superviseur updates urban axis
+        patch_res = client.patch(
+            f"/api/v1/master/axes/{urban_id}",
+            json={"libelle": "Axe By-Pass Sud Réaménagé"},
+            headers=sup_headers,
+        )
+        assert patch_res.status_code == 200
+        assert patch_res.json()["libelle"] == "Axe By-Pass Sud Réaménagé"
+
+        # 4. Superviseur adds and deletes a zone
+        new_z_name = f"Ambohimiadana_{uid}"
+        add_zone = client.post(
+            f"/api/v1/master/axes/{urban_id}/zones",
+            json={"nom": new_z_name},
+            headers=sup_headers,
+        )
+        assert add_zone.status_code == 200
+        assert new_z_name in add_zone.json()["zones"]
+        new_zone_id = [z["id"] for z in add_zone.json()["zones_detail"] if z["nom"] == new_z_name][0]
+
+        del_zone = client.delete(
+            f"/api/v1/master/axes/{urban_id}/zones/{new_zone_id}",
+            headers=sup_headers,
+        )
+        assert del_zone.status_code == 200
+        assert new_z_name not in del_zone.json()["zones"]
+
+        # 5. Superviseur deletes (soft-delete) the urban axis
+        del_axis = client.delete(f"/api/v1/master/axes/{urban_id}", headers=sup_headers)
+        assert del_axis.status_code == 200
+        assert del_axis.json()["success"] is True
+
+        # Verify active axes list does not include the soft-deleted axis
+        list_res = client.get("/api/v1/master/axes")
+        assert list_res.status_code == 200
+        active_codes = [a["code"] for a in list_res.json()]
+        assert urban_code not in active_codes
+
+        # 6. Admin can also manage all axes
+        admin_res = client.post("/api/v1/auth/login", json={"username": "admin", "password": "admin123"})
+        assert admin_res.status_code == 200
+        admin_headers = {"Authorization": f"Bearer {admin_res.json()['access_token']}"}
+
+        admin_del_prov = client.delete(f"/api/v1/master/axes/{prov_id}", headers=admin_headers)
+        assert admin_del_prov.status_code == 200
+
+        # Cleanup test records
+        from backend.app.infrastructure.database.connection import SessionLocal
+        from backend.app.infrastructure.persistence.models import AxisORM, ZoneORM
+        clean_db = SessionLocal()
+        try:
+            clean_db.query(ZoneORM).filter(ZoneORM.axe_id.in_([urban_id, prov_id])).delete(synchronize_session=False)
+            clean_db.query(AxisORM).filter(AxisORM.id.in_([urban_id, prov_id])).delete(synchronize_session=False)
+            clean_db.commit()
+        finally:
+            clean_db.close()
 

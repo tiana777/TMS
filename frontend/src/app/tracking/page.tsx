@@ -257,6 +257,15 @@ export default function TrackingPage() {
     return tours.find((t) => t.id === selectedTourId) || null;
   }, [tours, selectedTourId]);
 
+  // Helper for status matching
+  const matchesStatusFilter = (status: string, filter: string): boolean => {
+    if (filter === "ALL") return true;
+    if (filter === "IN_PROGRESS") return ["ASSIGNE", "EN_COURS"].includes(status);
+    if (filter === "LIVRE") return ["LIVRE", "LIVRE_ENCAISSE", "CLOTURE_CAISSE"].includes(status);
+    if (filter === "ENCAISSE") return ["ENCAISSE", "LIVRE_ENCAISSE", "CLOTURE_CAISSE"].includes(status);
+    return status === filter;
+  };
+
   // Filter parcels
   const filteredParcels = useMemo(() => {
     return parcels.filter((p) => {
@@ -266,15 +275,7 @@ export default function TrackingPage() {
       }
       // Status filter
       if (statusFilter !== "ALL") {
-        if (statusFilter === "IN_PROGRESS") {
-          if (!["ASSIGNE", "EN_COURS"].includes(p.status)) return false;
-        } else if (statusFilter === "LIVRE") {
-          if (!["LIVRE", "LIVRE_ENCAISSE"].includes(p.status)) return false;
-        } else if (statusFilter === "ENCAISSE") {
-          if (!["ENCAISSE", "LIVRE_ENCAISSE"].includes(p.status)) return false;
-        } else if (p.status !== statusFilter) {
-          return false;
-        }
+        if (!matchesStatusFilter(p.status, statusFilter)) return false;
       }
       // Search query
       if (searchQuery.trim()) {
@@ -291,6 +292,25 @@ export default function TrackingPage() {
       return true;
     });
   }, [parcels, selectedTourId, statusFilter, searchQuery]);
+
+  // Scoped parcels for currently selected tour / courier (used to compute dynamic tab counts)
+  const scopedParcels = useMemo(() => {
+    if (selectedTourId === "ALL") return parcels;
+    return parcels.filter((p) => p.tour_id === selectedTourId);
+  }, [parcels, selectedTourId]);
+
+  // Tab counts dynamically calculated for the selected tour / courier
+  const tabCounts = useMemo(() => {
+    return {
+      ALL: scopedParcels.length,
+      IN_PROGRESS: scopedParcels.filter((p) => matchesStatusFilter(p.status, "IN_PROGRESS")).length,
+      LIVRE: scopedParcels.filter((p) => matchesStatusFilter(p.status, "LIVRE")).length,
+      ENCAISSE: scopedParcels.filter((p) => matchesStatusFilter(p.status, "ENCAISSE")).length,
+      REPORTE: scopedParcels.filter((p) => matchesStatusFilter(p.status, "REPORTE")).length,
+      ANNULE_RETOUR: scopedParcels.filter((p) => matchesStatusFilter(p.status, "ANNULE_RETOUR")).length,
+      SOUS_TRAITE: scopedParcels.filter((p) => matchesStatusFilter(p.status, "SOUS_TRAITE")).length,
+    };
+  }, [scopedParcels]);
 
   // Statistics calculation
   const stats = useMemo(() => {
@@ -683,7 +703,7 @@ export default function TrackingPage() {
           </div>
           <button
             onClick={loadData}
-            className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded-lg transition shadow-xs flex items-center gap-1.5"
+            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg transition shadow-xs flex items-center gap-1.5"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             Actualiser
@@ -719,24 +739,24 @@ export default function TrackingPage() {
       )}
 
       {/* Tour Selection and Summary Card */}
-      <div className="bg-slate-900 text-white rounded-xl p-4 shadow-sm space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+      <div className="bg-white border border-slate-200 text-slate-800 rounded-xl p-4 shadow-xs space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-600/30 text-blue-400 rounded-lg border border-blue-500/20">
+            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg border border-blue-200">
               <Truck className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-[11px] uppercase font-semibold text-slate-400 tracking-wider">
+              <p className="text-[11px] uppercase font-semibold text-slate-500 tracking-wider">
                 Sélection de la Tournée Opérationnelle
               </p>
-              <div className="flex items-center gap-2.5 mt-1">
+              <div className="flex items-center gap-2 mt-1">
                 <select
                   data-cy="tour-selector"
                   value={selectedTourId}
                   onChange={(e) =>
                     setSelectedTourId(e.target.value === "ALL" ? "ALL" : Number(e.target.value))
                   }
-                  className="bg-slate-800 border border-slate-700 text-white font-medium text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-blue-500 cursor-pointer"
+                  className="bg-white border border-slate-300 text-slate-800 font-medium text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-blue-500 cursor-pointer shadow-xs"
                 >
                   <option value="ALL">🌐 Toutes les Tournées ({tours.length} tournées)</option>
                   {tours.map((t) => (
@@ -752,7 +772,7 @@ export default function TrackingPage() {
                     data-cy="btn-start-tour"
                     onClick={() => handleStartTour(currentTour.id)}
                     disabled={isSubmitting}
-                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 font-semibold text-xs rounded-lg transition shadow-xs flex items-center gap-1.5"
+                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-lg transition shadow-xs flex items-center gap-1.5"
                   >
                     <Play className="w-3 h-3 fill-current" />
                     Lancer la Tournée (Départ Quai)
@@ -763,18 +783,18 @@ export default function TrackingPage() {
           </div>
 
           {currentTour && (
-            <div className="flex items-center gap-3 text-xs text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700 font-mono">
+            <div className="flex items-center gap-3 text-xs text-slate-600 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 font-mono">
               <div className="flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-blue-400" />
-                <span className="font-semibold text-white font-sans">{currentTour.courier_name}</span>
+                <User className="w-3.5 h-3.5 text-blue-600" />
+                <span className="font-semibold text-slate-900 font-sans">{currentTour.courier_name}</span>
               </div>
-              <span className="text-slate-500">•</span>
+              <span className="text-slate-300">•</span>
               <div className="flex items-center gap-1.5">
-                <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                <Phone className="w-3.5 h-3.5 text-emerald-600" />
                 <span>{currentTour.courier_phone_formatted || currentTour.courier_phone}</span>
               </div>
-              <span className="text-slate-500">•</span>
-              <span className="px-1.5 py-0.5 rounded bg-slate-700 text-[11px] font-sans text-slate-200">
+              <span className="text-slate-300">•</span>
+              <span className="px-1.5 py-0.5 rounded bg-slate-200 text-[11px] font-sans text-slate-700">
                 {currentTour.courier_vehicle}
               </span>
             </div>
@@ -783,18 +803,18 @@ export default function TrackingPage() {
 
         {/* Live Metrics Row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="bg-slate-800/70 p-3 rounded-lg border border-slate-800 border-l-4 border-l-blue-500">
-            <p className="text-[11px] font-semibold text-slate-400">Total Colis</p>
-            <p className="text-base sm:text-lg font-bold text-white mt-0.5 tabular-nums">{stats.total}</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">
+          <div className="bg-white p-3 rounded-lg border border-slate-200 border-l-4 border-l-blue-500 shadow-xs">
+            <p className="text-[11px] font-semibold text-slate-500">Total Colis</p>
+            <p className="text-base sm:text-lg font-bold text-slate-900 mt-0.5 tabular-nums">{stats.total}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
               {stats.inProgress} en cours de livraison
             </p>
           </div>
 
-          <div className="bg-slate-800/70 p-3 rounded-lg border border-slate-800 border-l-4 border-l-emerald-500">
-            <p className="text-[11px] font-semibold text-slate-400">Taux d'Achèvement</p>
-            <p className="text-base sm:text-lg font-bold text-emerald-400 mt-0.5 tabular-nums">{stats.completionRate} %</p>
-            <div className="w-full bg-slate-700 h-1.5 rounded-full mt-1.5 overflow-hidden">
+          <div className="bg-white p-3 rounded-lg border border-slate-200 border-l-4 border-l-emerald-500 shadow-xs">
+            <p className="text-[11px] font-semibold text-slate-500">Taux d'Achèvement</p>
+            <p className="text-base sm:text-lg font-bold text-emerald-700 mt-0.5 tabular-nums">{stats.completionRate} %</p>
+            <div className="w-full bg-slate-100 h-1.5 rounded-full mt-1.5 overflow-hidden">
               <div
                 className="bg-emerald-500 h-full rounded-full transition-all duration-500"
                 style={{ width: `${stats.completionRate}%` }}
@@ -802,32 +822,32 @@ export default function TrackingPage() {
             </div>
           </div>
 
-          <div className="bg-slate-800/70 p-3 rounded-lg border border-slate-800 border-l-4 border-l-amber-500">
-            <p className="text-[11px] font-semibold text-slate-400">Montant Encaissé</p>
-            <p className="text-base sm:text-lg font-bold text-amber-400 mt-0.5 font-mono tabular-nums">
+          <div className="bg-white p-3 rounded-lg border border-slate-200 border-l-4 border-l-amber-500 shadow-xs">
+            <p className="text-[11px] font-semibold text-slate-500">Montant Encaissé</p>
+            <p className="text-base sm:text-lg font-bold text-amber-700 mt-0.5 font-mono tabular-nums">
               {stats.collectedCash.toLocaleString()} Ar
             </p>
-            <p className="text-[11px] text-slate-400 mt-0.5">
+            <p className="text-[11px] text-slate-500 mt-0.5">
               sur {stats.theoreticalCash.toLocaleString()} Ar attendus
             </p>
           </div>
 
-          <div className="bg-slate-800/70 p-3 rounded-lg border border-slate-800 border-l-4 border-l-purple-500">
-            <p className="text-[11px] font-semibold text-slate-400">Répartition Statuts</p>
+          <div className="bg-white p-3 rounded-lg border border-slate-200 border-l-4 border-l-purple-500 shadow-xs">
+            <p className="text-[11px] font-semibold text-slate-500">Répartition Statuts</p>
             <div className="flex items-center gap-2 mt-1.5 text-xs font-semibold">
-              <span className="text-teal-400" title="Colis Livrés">📦 {stats.delivered}</span>
-              <span className="text-emerald-400" title="Colis Encaissés">💰 {stats.cashed}</span>
-              <span className="text-amber-400" title="Reportés">⏳ {stats.rescheduled}</span>
-              <span className="text-rose-400" title="Refus / Annulés">✕ {stats.canceled}</span>
-              <span className="text-purple-400" title="Sous-traités">🚚 {stats.outsourced}</span>
+              <span className="text-teal-700" title="Colis Livrés">📦 {stats.delivered}</span>
+              <span className="text-emerald-700" title="Colis Encaissés">💰 {stats.cashed}</span>
+              <span className="text-amber-700" title="Reportés">⏳ {stats.rescheduled}</span>
+              <span className="text-rose-700" title="Refus / Annulés">✕ {stats.canceled}</span>
+              <span className="text-purple-700" title="Sous-traités">🚚 {stats.outsourced}</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
-        {/* Status Tabs */}
+      <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
+        {/* Status Tabs with Dynamic Parcel Counts (reactive to selected courier) */}
         <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto">
           {[
             { id: "ALL", label: "Tous les Colis" },
@@ -837,20 +857,33 @@ export default function TrackingPage() {
             { id: "REPORTE", label: "Reportés" },
             { id: "ANNULE_RETOUR", label: "Refus / Annulés" },
             { id: "SOUS_TRAITE", label: "Sous-traités Gare" },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              data-cy={`tab-${tab.id.toLowerCase()}`}
-              onClick={() => setStatusFilter(tab.id)}
-              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition ${
-                statusFilter === tab.id
-                  ? "bg-slate-900 text-white shadow"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          ].map((tab) => {
+            const count = tabCounts[tab.id as keyof typeof tabCounts] ?? 0;
+            const isActive = statusFilter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                data-cy={`tab-${tab.id.toLowerCase()}`}
+                onClick={() => setStatusFilter(tab.id)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition inline-flex items-center gap-1.5 ${
+                  isActive
+                    ? "bg-blue-600 text-white shadow-xs"
+                    : "bg-white hover:bg-slate-50 text-slate-700 border border-slate-200"
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    isActive
+                      ? "bg-white/20 text-white"
+                      : "bg-slate-100 text-slate-600 border border-slate-200"
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Search Input */}
@@ -862,32 +895,37 @@ export default function TrackingPage() {
             placeholder="N° BDR, Destinataire, Tél..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 text-xs font-medium border border-slate-300 rounded-xl focus:outline-none focus:border-blue-500 bg-slate-50 focus:bg-white"
+            className="w-full pl-9 pr-3 py-1.5 text-xs font-medium border border-slate-300 rounded-lg focus:outline-none focus:border-blue-500 bg-slate-50 focus:bg-white transition"
           />
         </div>
       </div>
 
-      {/* Parcels List with Rapid Pointage Controls */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
+      {/* Parcels List with Structured Cards & Rapid Pointage Controls */}
+      <div className="space-y-3">
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <Package className="w-4 h-4 text-slate-600" />
-            <h3 className="font-bold text-sm text-slate-800">
+            <Package className="w-4 h-4 text-blue-600" />
+            <h3 className="font-bold text-xs sm:text-sm text-slate-800">
               Colis de la tournée ({filteredParcels.length} affichés)
             </h3>
+            {selectedTourId !== "ALL" && currentTour && (
+              <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                Livreur : {currentTour.courier_name}
+              </span>
+            )}
           </div>
-          <p className="text-xs text-slate-500">
-            Actions disponibles pour les colis au statut Assigné ou En Cours
+          <p className="text-[11px] text-slate-500">
+            Actions rapides disponibles pour les colis au statut <span className="font-semibold text-blue-700">Assigné</span> ou <span className="font-semibold text-sky-700">En Cours</span>
           </p>
         </div>
 
         {filteredParcels.length === 0 ? (
-          <div className="p-12 text-center text-slate-400">
-            <Package className="w-10 h-10 mx-auto mb-2 opacity-30" />
-            <p className="font-bold text-sm">Aucun colis ne correspond à ce filtre.</p>
+          <div className="p-12 text-center text-slate-400 bg-white rounded-xl border border-slate-200 shadow-xs">
+            <Package className="w-10 h-10 mx-auto mb-2 opacity-30 text-slate-300" />
+            <p className="font-bold text-sm text-slate-600">Aucun colis ne correspond à ce filtre.</p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="space-y-3">
             {filteredParcels.map((parcel) => {
               const isActionable = ["ASSIGNE", "EN_COURS"].includes(parcel.status);
 
@@ -895,42 +933,85 @@ export default function TrackingPage() {
                 <div
                   key={parcel.id}
                   data-cy={`parcel-row-${parcel.id}`}
-                  className="p-5 hover:bg-slate-50/70 transition flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+                  className="bg-white border border-slate-200 hover:border-slate-300 rounded-xl p-3.5 shadow-2xs hover:shadow-xs transition duration-150 space-y-2.5"
                 >
-                  {/* Left Column: BDR & Customer Info */}
-                  <div className="space-y-1.5 flex-1 min-w-0">
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                      <span className="font-black text-sm px-2.5 py-0.5 rounded-lg bg-slate-900 text-white font-mono shadow-sm">
+                  {/* Top Tier: Identifiers, Status Badges and Montant COD */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs">
                         BDR-{parcel.tracking_number}
                       </span>
                       {renderStatusBadge(parcel.status)}
-                      <span className="px-2 py-0.5 text-[11px] font-bold rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                      <span className="px-2 py-0.5 text-[11px] font-semibold rounded bg-slate-100 text-slate-700 border border-slate-200">
                         {parcel.axis_label?.split("(")[0]?.trim() || parcel.axis}
                       </span>
-                      <span className="px-2 py-0.5 text-[11px] font-bold rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                      <span
+                        className={`px-2 py-0.5 text-[11px] font-semibold rounded border ${
+                          parcel.flux_type === "PROVINCE"
+                            ? "bg-purple-50 text-purple-700 border-purple-200"
+                            : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                        }`}
+                      >
                         {parcel.flux_type}
                       </span>
+                      {selectedTourId === "ALL" && parcel.courier_id && (
+                        <span className="px-2 py-0.5 text-[11px] font-medium rounded bg-slate-50 text-slate-600 border border-slate-200 inline-flex items-center gap-1">
+                          <User className="w-3 h-3 text-slate-400" />
+                          Livreur #{parcel.courier_id}
+                        </span>
+                      )}
                     </div>
 
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-x-4 gap-y-1 text-sm text-slate-800">
-                      <span className="font-bold">{parcel.recipient_name}</span>
+                    {/* Financial Block (COD) */}
+                    <div className="text-right shrink-0">
+                      {parcel.total_to_collect === 0 ? (
+                        <span
+                          data-cy={`prepaid-zero-badge-${parcel.id}`}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold"
+                          title="Paiement déjà effectué (0 Ar à percevoir par le livreur)"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          0 Ar (Déjà Réglé)
+                        </span>
+                      ) : (
+                        <div className="flex flex-col items-end">
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-[10px] font-bold uppercase text-slate-400">Montant à recouvrer :</span>
+                            <span className="text-sm sm:text-base font-black text-slate-900 font-mono tabular-nums">
+                              {parcel.total_to_collect?.toLocaleString()} Ar
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-slate-500 font-medium">
+                            Marchandise : {parcel.merchandise_amount?.toLocaleString()} Ar • Port : {parcel.delivery_fee?.toLocaleString()} Ar
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Middle Tier: Customer Info, Phone, Address & Merchandise */}
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-3 text-xs">
+                    {/* Customer & Phone (4 cols) */}
+                    <div className="md:col-span-4 space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="font-bold text-slate-900 text-sm">{parcel.recipient_name}</span>
+                      </div>
                       {(() => {
                         const phoneInfo = detectMalagasyPhone(parcel.recipient_phone);
                         const op = phoneInfo.operator || parcel.operator;
                         const opColors: Record<string, string> = {
-                          TELMA: "bg-emerald-50 text-emerald-800 border-emerald-300",
-                          ORANGE: "bg-orange-50 text-orange-800 border-orange-300",
-                          AIRTEL: "bg-rose-50 text-rose-800 border-rose-300",
+                          TELMA: "bg-emerald-50 text-emerald-700 border-emerald-300",
+                          ORANGE: "bg-orange-50 text-orange-700 border-orange-300",
+                          AIRTEL: "bg-rose-50 text-rose-700 border-rose-300",
                         };
                         const badgeStyle = opColors[op] || "bg-slate-100 text-slate-600 border-slate-200";
 
                         return (
-                          <span className="inline-flex items-center gap-1.5 text-xs text-slate-600 font-mono font-medium">
-                            <Phone className="w-3.5 h-3.5 text-slate-400" />
-                            <span>{phoneInfo.formatted || parcel.recipient_phone}</span>
-                            <span
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-black border uppercase tracking-wider ${badgeStyle}`}
-                            >
+                          <div className="inline-flex items-center gap-1.5 font-mono text-slate-700">
+                            <Phone className="w-3 h-3 text-slate-400" />
+                            <span className="font-semibold text-xs">{phoneInfo.formatted || parcel.recipient_phone}</span>
+                            <span className={`px-1.5 py-0.2 rounded text-[10px] font-black border uppercase tracking-wider ${badgeStyle}`}>
                               {op || "INCONNU"}
                             </span>
                             {phoneInfo.isValid ? (
@@ -948,213 +1029,200 @@ export default function TrackingPage() {
                                 <AlertCircle className="w-3 h-3 mr-0.5" /> Non conforme
                               </span>
                             )}
-                          </span>
+                          </div>
                         );
                       })()}
                     </div>
 
-                    <div className="flex items-start gap-1.5 text-xs text-slate-600">
-                      <MapPin className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
-                      <span className="break-words max-w-xl">{parcel.delivery_address}</span>
+                    {/* Address & Items (8 cols) */}
+                    <div className="md:col-span-8 space-y-1">
+                      <div className="flex items-start gap-1.5 text-slate-700">
+                        <MapPin className="w-3.5 h-3.5 text-blue-500 mt-0.5 shrink-0" />
+                        <span className="font-medium text-slate-800 break-words leading-relaxed">{parcel.delivery_address}</span>
+                      </div>
+                      {parcel.designation && (
+                        <p className="text-[11px] text-slate-500 pl-5">
+                          <span className="font-semibold text-slate-600">Marchandise :</span> {parcel.designation}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Operational Event Alerts / Notes if any */}
+                  {(parcel.reschedule_date || (parcel.status === "ANNULE_RETOUR" && parcel.incident_reason) || parcel.status === "SOUS_TRAITE" || parcel.payment_method || (parcel.observation && parcel.observation.includes("Marchandise payée"))) && (
+                    <div className="flex flex-wrap gap-1.5 pt-1 text-xs">
+                      {parcel.reschedule_date && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 font-semibold text-[11px]">
+                          🗓️ Reporté au {parcel.reschedule_date} • Motif : {parcel.incident_reason}
+                        </span>
+                      )}
+                      {parcel.status === "ANNULE_RETOUR" && parcel.incident_reason && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-800 border border-rose-200 font-semibold text-[11px]">
+                          ✕ Motif annulation : {parcel.incident_reason}
+                        </span>
+                      )}
+                      {parcel.status === "SOUS_TRAITE" && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-50 text-purple-800 border border-purple-200 font-semibold text-[11px]">
+                          🚌 Gare / Coopérative : {parcel.partner_name} • Récépissé : {parcel.partner_reference} ({parcel.partner_fee?.toLocaleString()} Ar frais)
+                          {parcel.vehicle_plate && ` • 🚗 ${parcel.vehicle_plate}`}
+                          {parcel.driver_contact && ` • 📞 ${parcel.driver_contact}`}
+                        </span>
+                      )}
+                      {parcel.payment_method && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold text-[11px]">
+                          ✓ Encaissé via {parcel.payment_method}
+                        </span>
+                      )}
+                      {parcel.observation && parcel.observation.includes("Marchandise payée") && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 font-semibold text-[11px]">
+                          ✓ Marchandise déjà réglée au siège
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Bottom Tier: Rapid Pointage Action Bar */}
+                  <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="text-[11px] text-slate-500 font-medium">
+                      {isActionable ? (
+                        <span className="inline-flex items-center gap-1.5 text-blue-700 font-semibold bg-blue-50/80 px-2 py-0.5 rounded border border-blue-100">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
+                          Prêt pour pointage terrain
+                        </span>
+                      ) : parcel.status === "LIVRE" ? (
+                        <span className="inline-flex items-center gap-1 text-teal-700 font-semibold bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                          <CheckCircle2 className="w-3 h-3 text-teal-600" />
+                          Colis remis au destinataire (en attente d'encaissement)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-slate-400 italic">
+                          <CheckCircle2 className="w-3 h-3 text-slate-400" />
+                          Pointage clôturé
+                        </span>
+                      )}
                     </div>
 
-                    {parcel.designation && (
-                      <p className="text-xs text-slate-500 italic">
-                        Marchandise : {parcel.designation}
-                      </p>
-                    )}
-
-                    {/* Operational notes if any */}
-                    {parcel.reschedule_date && (
-                      <p className="text-xs font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 inline-block">
-                        🗓️ Reporté au {parcel.reschedule_date} • Motif : {parcel.incident_reason}
-                      </p>
-                    )}
-                    {parcel.status === "ANNULE_RETOUR" && parcel.incident_reason && (
-                      <p className="text-xs font-semibold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 inline-block">
-                        ✕ Motif annulation : {parcel.incident_reason}
-                      </p>
-                    )}
-                    {parcel.status === "SOUS_TRAITE" && (
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <p className="text-xs font-semibold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200 inline-block">
-                          🚌 Gare / Coopérative : {parcel.partner_name} • Récépissé :{" "}
-                          {parcel.partner_reference} ({parcel.partner_fee?.toLocaleString()} Ar frais)
-                        </p>
-                        {(parcel.vehicle_plate || parcel.driver_contact) && (
-                          <p className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200 inline-block">
-                            🚗 Voiture : {parcel.vehicle_plate || "N/A"} • 📞 Chauffeur : {parcel.driver_contact || "N/A"}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                    {parcel.payment_method && (
-                      <p className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 inline-block">
-                        ✓ Encaissé via {parcel.payment_method}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Middle Column: Financial Amount */}
-                  <div className="text-left lg:text-right shrink-0 bg-slate-50 p-3 rounded-xl border border-slate-100 lg:bg-transparent lg:p-0 lg:border-none">
-                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                      Montant à Recouvrer
-                    </p>
-                    {parcel.total_to_collect === 0 ? (
-                      <div className="mt-1">
-                        <span
-                          data-cy={`prepaid-zero-badge-${parcel.id}`}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-black"
-                          title="Paiement déjà effectué (0 Ar à percevoir par le livreur)"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          0 Ar (Déjà Réglé)
-                        </span>
-                        {parcel.observation && (
-                          <p className="text-[10px] text-emerald-700 font-semibold mt-0.5 max-w-[200px] truncate" title={parcel.observation}>
-                            {parcel.observation}
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <>
-                        <p className="text-lg font-black text-slate-900 mt-0.5">
-                          {parcel.total_to_collect?.toLocaleString()} Ar
-                        </p>
-                        <p className="text-[11px] text-slate-500">
-                          Marchandise : {parcel.merchandise_amount?.toLocaleString()} Ar • Port :{" "}
-                          {parcel.delivery_fee?.toLocaleString()} Ar
-                        </p>
-                        {parcel.observation && parcel.observation.includes("Marchandise payée") && (
-                          <p className="text-[10px] text-emerald-700 font-bold mt-0.5 max-w-[200px] truncate" title={parcel.observation}>
-                            ✓ Marchandise déjà réglée
-                          </p>
-                        )}
-                      </>
-                    )}
-                  </div>
-
-                  {/* Right Column: Rapid Pointage Buttons */}
-                  <div className="flex items-center gap-2 flex-wrap lg:flex-nowrap shrink-0">
-                    {isActionable ? (
-                      <>
-                        <button
-                          data-cy={`btn-deliver-only-${parcel.id}`}
-                          onClick={() => openModal("MARK_DELIVERED", parcel)}
-                          className="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl transition shadow flex items-center gap-1.5"
-                          title="Valider la remise physique au destinataire (Statut LIVRÉ)"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          Livré
-                        </button>
-
-                        {parcel.total_to_collect > 0 && (
-                          <>
-                            <button
-                              data-cy={`btn-deliver-${parcel.id}`}
-                              onClick={() => openModal("DELIVER", parcel)}
-                              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition shadow flex items-center gap-1.5"
-                              title="Valider l'encaissement et marquer ENCAISSÉ"
-                            >
-                              <DollarSign className="w-3.5 h-3.5" />
-                              Encaisser
-                            </button>
-
-                            <button
-                              data-cy={`btn-prepaid-${parcel.id}`}
-                              onClick={() => openModal("PREPAID", parcel)}
-                              className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 font-bold text-xs rounded-xl transition flex items-center gap-1.5"
-                              title="Le client a déjà payé à distance (Siège / Boutique) : neutraliser le COD à 0 Ar"
-                            >
-                              <CreditCard className="w-3.5 h-3.5 text-indigo-600" />
-                              Déjà Réglé
-                            </button>
-                          </>
-                        )}
-
-                        <button
-                          data-cy={`btn-reschedule-${parcel.id}`}
-                          onClick={() => openModal("RESCHEDULE", parcel)}
-                          className="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold text-xs rounded-xl transition flex items-center gap-1.5"
-                        >
-                          <Clock className="w-3.5 h-3.5 text-amber-600" />
-                          Reporter
-                        </button>
-
-                        <button
-                          data-cy={`btn-cancel-${parcel.id}`}
-                          onClick={() => openModal("CANCEL", parcel)}
-                          className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 font-bold text-xs rounded-xl transition flex items-center gap-1.5"
-                        >
-                          <XCircle className="w-3.5 h-3.5 text-rose-600" />
-                          Refus
-                        </button>
-
-                        {parcel.flux_type === "PROVINCE" && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {isActionable ? (
+                        <>
                           <button
-                            data-cy={`btn-outsource-${parcel.id}`}
-                            onClick={() => openModal("OUTSOURCE", parcel)}
-                            className="px-3 py-2 bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-300 font-bold text-xs rounded-xl transition flex items-center gap-1.5"
+                            data-cy={`btn-deliver-only-${parcel.id}`}
+                            onClick={() => openModal("MARK_DELIVERED", parcel)}
+                            className="px-2.5 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center gap-1"
+                            title="Valider la remise physique au destinataire (Statut LIVRÉ)"
                           >
-                            <Building2 className="w-3.5 h-3.5 text-purple-600" />
-                            Gare
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Livré
                           </button>
-                        )}
 
+                          {parcel.total_to_collect > 0 && (
+                            <>
+                              <button
+                                data-cy={`btn-deliver-${parcel.id}`}
+                                onClick={() => openModal("DELIVER", parcel)}
+                                className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center gap-1"
+                                title="Valider l'encaissement et marquer ENCAISSÉ"
+                              >
+                                <DollarSign className="w-3.5 h-3.5" />
+                                Encaisser
+                              </button>
+
+                              <button
+                                data-cy={`btn-prepaid-${parcel.id}`}
+                                onClick={() => openModal("PREPAID", parcel)}
+                                className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs rounded-lg transition flex items-center gap-1"
+                                title="Le client a déjà payé à distance (Siège / Boutique) : neutraliser le COD à 0 Ar"
+                              >
+                                <CreditCard className="w-3.5 h-3.5 text-indigo-600" />
+                                Déjà Réglé
+                              </button>
+                            </>
+                          )}
+
+                          <button
+                            data-cy={`btn-reschedule-${parcel.id}`}
+                            onClick={() => openModal("RESCHEDULE", parcel)}
+                            className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold text-xs rounded-lg transition flex items-center gap-1"
+                          >
+                            <Clock className="w-3.5 h-3.5 text-amber-600" />
+                            Reporter
+                          </button>
+
+                          <button
+                            data-cy={`btn-cancel-${parcel.id}`}
+                            onClick={() => openModal("CANCEL", parcel)}
+                            className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 font-bold text-xs rounded-lg transition flex items-center gap-1"
+                          >
+                            <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                            Refus
+                          </button>
+
+                          {parcel.flux_type === "PROVINCE" && (
+                            <button
+                              data-cy={`btn-outsource-${parcel.id}`}
+                              onClick={() => openModal("OUTSOURCE", parcel)}
+                              className="px-2.5 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-300 font-bold text-xs rounded-lg transition flex items-center gap-1"
+                            >
+                              <Building2 className="w-3.5 h-3.5 text-purple-600" />
+                              Gare
+                            </button>
+                          )}
+
+                          <button
+                            data-cy={`btn-reassign-${parcel.id}`}
+                            onClick={() => handleOpenReassignModal(parcel)}
+                            className={`px-2.5 py-1.5 border font-bold text-xs rounded-lg transition flex items-center gap-1 ${
+                              parcel.status === "EN_COURS"
+                                ? currentUserRole === "SUPER_ADMIN"
+                                  ? "bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300"
+                                  : "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60"
+                                : "bg-blue-50 hover:bg-blue-100 text-blue-800 border-blue-300"
+                            }`}
+                            title={
+                              parcel.status === "EN_COURS"
+                                ? currentUserRole === "SUPER_ADMIN"
+                                  ? "👑 Réassignation d'urgence (Super Admin)"
+                                  : "🔒 Réservé au Super Admin pour les colis en cours"
+                                : "Réassigner à un autre coursier"
+                            }
+                          >
+                            <Truck className="w-3.5 h-3.5 text-blue-600" />
+                            {parcel.status === "EN_COURS" && currentUserRole === "SUPER_ADMIN" ? "👑 Urgence" : "Réassigner"}
+                          </button>
+                        </>
+                      ) : parcel.status === "LIVRE" ? (
+                        parcel.total_to_collect > 0 ? (
+                          <button
+                            data-cy={`btn-deliver-${parcel.id}`}
+                            onClick={() => openModal("DELIVER", parcel)}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center gap-1 animate-pulse"
+                            title="Valider l'encaissement pour ce colis déjà livré"
+                          >
+                            <DollarSign className="w-3.5 h-3.5" />
+                            Encaisser ({parcel.total_to_collect?.toLocaleString()} Ar)
+                          </button>
+                        ) : (
+                          <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            Livré & Réglé (0 Ar)
+                          </span>
+                        )
+                      ) : parcel.status === "SOUS_TRAITE" && parcel.total_to_collect > 0 ? (
                         <button
-                          data-cy={`btn-reassign-${parcel.id}`}
-                          onClick={() => handleOpenReassignModal(parcel)}
-                          className={`px-3 py-2 border font-bold text-xs rounded-xl transition flex items-center gap-1.5 ${
-                            parcel.status === "EN_COURS"
-                              ? currentUserRole === "SUPER_ADMIN"
-                                ? "bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300"
-                                : "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60"
-                              : "bg-blue-50 hover:bg-blue-100 text-blue-800 border-blue-300"
-                          }`}
-                          title={
-                            parcel.status === "EN_COURS"
-                              ? currentUserRole === "SUPER_ADMIN"
-                                ? "👑 Réassignation d'urgence (Super Admin)"
-                                : "🔒 Réservé au Super Admin pour les colis en cours"
-                              : "Réassigner à un autre coursier"
-                          }
-                        >
-                          <Truck className="w-3.5 h-3.5 text-blue-600" />
-                          {parcel.status === "EN_COURS" && currentUserRole === "SUPER_ADMIN" ? "👑 Urgence" : "Réassigner"}
-                        </button>
-                      </>
-                    ) : parcel.status === "LIVRE" ? (
-                      parcel.total_to_collect > 0 ? (
-                        <button
-                          data-cy={`btn-deliver-${parcel.id}`}
+                          data-cy={`btn-collect-province-cod-${parcel.id}`}
                           onClick={() => openModal("DELIVER", parcel)}
-                          className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition shadow flex items-center gap-1.5 animate-pulse"
-                          title="Valider l'encaissement pour ce colis déjà livré"
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center gap-1 animate-pulse"
+                          title="Encaisser le COD Mobile Money versé par le client après réception des coordonnées chauffeur & n° voiture"
                         >
                           <DollarSign className="w-3.5 h-3.5" />
-                          Encaisser ({parcel.total_to_collect?.toLocaleString()} Ar)
+                          Encaisser COD ({parcel.total_to_collect?.toLocaleString()} Ar)
                         </button>
                       ) : (
-                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          Livré & Réglé (0 Ar)
+                        <span className="text-xs font-semibold text-slate-400 italic px-2 py-1">
+                          Pointage clôturé
                         </span>
-                      )
-                    ) : parcel.status === "SOUS_TRAITE" && parcel.total_to_collect > 0 ? (
-                      <button
-                        data-cy={`btn-collect-province-cod-${parcel.id}`}
-                        onClick={() => openModal("DELIVER", parcel)}
-                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition shadow flex items-center gap-1.5 animate-pulse"
-                        title="Encaisser le COD Mobile Money versé par le client après réception des coordonnées chauffeur & n° voiture"
-                      >
-                        <DollarSign className="w-3.5 h-3.5" />
-                        Encaisser COD ({parcel.total_to_collect?.toLocaleString()} Ar)
-                      </button>
-                    ) : (
-                      <span className="text-xs font-bold text-slate-400 italic px-2 py-1">
-                        Pointage clôturé
-                      </span>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
               );

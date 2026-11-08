@@ -708,14 +708,14 @@ export default function CRMVendorsPage() {
       {isStatementModalOpen && selectedVendor && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-2xl rounded-2xl border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
-            <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-900 text-white">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-white text-slate-900">
               <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-blue-400" />
-                <h3 className="text-base font-black">
+                <FileText className="w-5 h-5 text-blue-600" />
+                <h3 className="text-sm font-bold text-slate-900">
                   Bordereau Officiel de Reversement Financier
                 </h3>
               </div>
-              <button onClick={() => setIsStatementModalOpen(false)} className="text-slate-400 hover:text-white p-1">
+              <button onClick={() => setIsStatementModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1">
                 <X className="w-5 h-5" />
               </button>
             </div>

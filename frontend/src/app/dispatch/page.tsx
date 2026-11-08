@@ -129,7 +129,7 @@ export default function DispatchPage() {
                 axis: targetAxis,
                 is_manual_axis: true,
                 flux_type:
-                  targetAxis === "AXE_PROVINCE"
+                  targetAxis.includes("PROV")
                     ? "PROVINCE"
                     : p.merchandise_amount > 0
                     ? "COD"
@@ -151,7 +151,7 @@ export default function DispatchPage() {
                     axis: targetAxis,
                     is_manual_axis: true,
                     flux_type:
-                      targetAxis === "AXE_PROVINCE"
+                      targetAxis.includes("PROV")
                         ? "PROVINCE"
                         : p.merchandise_amount > 0
                         ? "COD"
@@ -409,26 +409,26 @@ export default function DispatchPage() {
     .reduce((sum, p) => sum + p.total_to_collect, 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* ========================================================================= */}
       {/* SÉPARATION STRICTE : BANDEAU NAVIGATION VILLE VS PROVINCE                 */}
       {/* ========================================================================= */}
-      <div className="grid grid-cols-2 gap-3 p-1.5 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl">
+      <div className="grid grid-cols-2 gap-2 p-1 bg-white border border-slate-200 rounded-xl shadow-xs">
         <Link
           href="/dispatch"
           data-cy="nav-dispatch-urban"
-          className="py-3 px-4 rounded-xl text-xs md:text-sm font-black flex items-center justify-center gap-2.5 transition-all bg-blue-600 text-white shadow-lg shadow-blue-900/40 border border-blue-500/50"
+          className="py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all bg-blue-600 text-white shadow-xs border border-blue-600"
         >
           <span>🛵 1. LIVRAISON EN VILLE (URBAIN • 7 CORRIDORS)</span>
         </Link>
         <Link
           href="/dispatch/province"
           data-cy="nav-dispatch-province"
-          className="py-3 px-4 rounded-xl text-xs md:text-sm font-black flex items-center justify-center gap-2.5 transition-all text-slate-400 hover:text-white hover:bg-slate-800/80 border border-transparent"
+          className="py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-transparent"
         >
           <span>🚌 2. EXPÉDITIONS PROVINCE (GARES ROUTIÈRES)</span>
           {totalProvinceStock > 0 && (
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-500/30 text-purple-300 border border-purple-500/40">
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700 border border-purple-200">
               {totalProvinceStock} en attente
             </span>
           )}
@@ -436,31 +436,31 @@ export default function DispatchPage() {
       </div>
 
       {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-200">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-              <Truck className="w-5 h-5 text-blue-500" />
+            <h1 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+              <Truck className="w-4 h-4 text-blue-600" />
               03A. Dispatching Urbain — Livraison en Ville
             </h1>
-            <span className="px-2 py-0.5 text-[11px] font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded">
+            <span className="px-2 py-0.5 text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 rounded">
               Hub Tsiazotafo • Grand Tanà
             </span>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-500 mt-0.5">
             03. Dispatching & Feuilles de Route • Affectation matinale des 7 axes radiaux urbains aux coursiers (Plafond de colis paramétrable)
           </p>
         </div>
 
         {/* Date Selector & Refresh */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-2.5 py-1.5 rounded-lg">
+          <div className="flex items-center gap-2 bg-white border border-slate-200 px-2.5 py-1.5 rounded-lg shadow-xs">
             <Calendar className="w-3.5 h-3.5 text-slate-400" />
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-transparent text-xs text-white font-medium focus:outline-none cursor-pointer"
+              className="bg-transparent text-xs text-slate-800 font-medium focus:outline-none cursor-pointer"
             />
           </div>
           <button
@@ -468,7 +468,7 @@ export default function DispatchPage() {
               loadStockParcels();
               loadTours();
             }}
-            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors border border-slate-700"
+            className="p-1.5 bg-white hover:bg-slate-100 text-slate-600 rounded-lg transition-colors border border-slate-200 shadow-xs"
             title="Rafraîchir"
           >
             <RotateCcw className="w-3.5 h-3.5" />
@@ -477,19 +477,19 @@ export default function DispatchPage() {
       </div>
 
       {/* Screen Mode Tabs (Écran 03 vs Écran 04) */}
-      <div className="flex border-b border-slate-800 bg-slate-900/50 p-1 rounded-xl">
+      <div className="flex border-b border-slate-200 bg-slate-100/80 p-1 rounded-xl">
         <button
           onClick={() => setActiveTab("dispatch")}
           data-cy="tab-dispatch"
-          className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
             activeTab === "dispatch"
-              ? "bg-blue-600 text-white shadow-xs"
-              : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+              ? "bg-white text-blue-700 shadow-xs border border-slate-200/60"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
           }`}
         >
-          <Package className="w-3.5 h-3.5" />
+          <Package className="w-3.5 h-3.5 text-blue-600" />
           <span>Écran 03 • Dispatching Matinal</span>
-          <span className="ml-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-slate-950/40 text-blue-200">
+          <span className="ml-1 px-1.5 py-0.2 text-[10px] font-semibold rounded bg-blue-50 text-blue-700 border border-blue-200/60">
             {totalStockCount} en stock
           </span>
         </button>
@@ -497,15 +497,15 @@ export default function DispatchPage() {
         <button
           onClick={() => setActiveTab("roadmaps")}
           data-cy="tab-roadmaps"
-          className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
             activeTab === "roadmaps"
-              ? "bg-blue-600 text-white shadow-xs"
-              : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+              ? "bg-white text-blue-700 shadow-xs border border-slate-200/60"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
           }`}
         >
-          <Printer className="w-3.5 h-3.5" />
+          <Printer className="w-3.5 h-3.5 text-slate-500" />
           <span>Écran 04 • Feuilles de Route & Tickets 80 mm</span>
-          <span className="ml-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-slate-950/40 text-blue-200">
+          <span className="ml-1 px-1.5 py-0.2 text-[10px] font-semibold rounded bg-slate-200 text-slate-700">
             {tours.length} tournées
           </span>
         </button>
@@ -515,15 +515,15 @@ export default function DispatchPage() {
       {assignSuccessMessage && (
         <div
           data-cy="assign-success-banner"
-          className="p-3 bg-emerald-950/80 border border-emerald-600/50 text-emerald-200 rounded-xl flex items-center justify-between shadow-xs text-xs font-medium"
+          className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl flex items-center justify-between shadow-xs text-xs font-medium"
         >
           <div className="flex items-center gap-2.5">
-            <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+            <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{assignSuccessMessage}</span>
           </div>
           <button
             onClick={() => setActiveTab("roadmaps")}
-            className="text-xs font-semibold text-white underline hover:text-emerald-300 ml-4 flex items-center gap-1"
+            className="text-xs font-semibold text-emerald-700 underline hover:text-emerald-900 ml-4 flex items-center gap-1"
           >
             <span>Voir les feuilles de route</span>
             <ArrowRight className="w-3 h-3" />
@@ -535,15 +535,15 @@ export default function DispatchPage() {
       {axisFeedback && (
         <div
           data-cy="axis-feedback-banner"
-          className="p-2.5 bg-emerald-950/80 border border-emerald-600/50 text-emerald-200 rounded-xl flex items-center justify-between shadow-xs text-xs font-medium"
+          className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl flex items-center justify-between shadow-xs text-xs font-medium"
         >
           <div className="flex items-center gap-2">
-            <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
             <span>{axisFeedback}</span>
           </div>
           <button
             onClick={() => setAxisFeedback(null)}
-            className="text-slate-400 hover:text-white text-xs underline"
+            className="text-slate-500 hover:text-slate-800 text-xs underline"
           >
             Fermer
           </button>
@@ -554,48 +554,48 @@ export default function DispatchPage() {
       {/* TAB 1: ÉCRAN 03 - DISPATCHING MATINAL                                     */}
       {/* ========================================================================= */}
       {activeTab === "dispatch" && (
-        <div className="space-y-4">
+        <div className="space-y-3.5">
           {/* KPI Summary Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-slate-900/90 border border-slate-800 border-l-4 border-l-amber-500 p-3 rounded-xl shadow-xs">
-              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Colis en Stock (Hub)</p>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-base sm:text-lg font-bold text-amber-400 tabular-nums">{totalStockCount}</span>
-                <span className="text-[11px] text-slate-500">statut EN_DEPOT</span>
+            <div className="bg-white border border-slate-200 border-l-4 border-l-amber-500 p-3 rounded-xl shadow-xs">
+              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Colis en Stock (Hub)</p>
+              <div className="flex items-baseline gap-2 mt-0.5">
+                <span className="text-base sm:text-lg font-bold text-amber-600 tabular-nums">{totalStockCount}</span>
+                <span className="text-[11px] text-slate-400">statut EN_DEPOT</span>
               </div>
             </div>
 
-            <div className="bg-slate-900/90 border border-slate-800 border-l-4 border-l-emerald-500 p-3 rounded-xl shadow-xs">
-              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total COD à Répartir</p>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-base sm:text-lg font-bold text-emerald-400 font-mono tabular-nums">
+            <div className="bg-white border border-slate-200 border-l-4 border-l-emerald-500 p-3 rounded-xl shadow-xs">
+              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total COD à Répartir</p>
+              <div className="flex items-baseline gap-2 mt-0.5">
+                <span className="text-base sm:text-lg font-bold text-emerald-700 font-mono tabular-nums">
                   {totalStockCOD.toLocaleString("fr-FR")} Ar
                 </span>
               </div>
             </div>
 
-            <div className="bg-slate-900/90 border border-slate-800 border-l-4 border-l-purple-500 p-3 rounded-xl shadow-xs">
-              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Colis Gares / Province</p>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-base sm:text-lg font-bold text-purple-400 tabular-nums">{totalProvinceStock}</span>
-                <span className="text-[11px] text-slate-500">dépôt coopératives</span>
+            <div className="bg-white border border-slate-200 border-l-4 border-l-purple-500 p-3 rounded-xl shadow-xs">
+              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Colis Gares / Province</p>
+              <div className="flex items-baseline gap-2 mt-0.5">
+                <span className="text-base sm:text-lg font-bold text-purple-700 tabular-nums">{totalProvinceStock}</span>
+                <span className="text-[11px] text-slate-400">dépôt coopératives</span>
               </div>
             </div>
 
-            <div className="bg-slate-900/90 border border-slate-800 border-l-4 border-l-blue-500 p-3 rounded-xl shadow-xs">
-              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Coursiers Actifs</p>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-base sm:text-lg font-bold text-blue-400 tabular-nums">{couriers.length}</span>
-                <span className="text-[11px] text-slate-500">disponibles quai</span>
+            <div className="bg-white border border-slate-200 border-l-4 border-l-blue-500 p-3 rounded-xl shadow-xs">
+              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Coursiers Actifs</p>
+              <div className="flex items-baseline gap-2 mt-0.5">
+                <span className="text-base sm:text-lg font-bold text-blue-700 tabular-nums">{couriers.length}</span>
+                <span className="text-[11px] text-slate-400">disponibles quai</span>
               </div>
             </div>
           </div>
 
           {/* Axis Radial Tabs */}
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Filter className="w-3.5 h-3.5" />
+              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                <Filter className="w-3.5 h-3.5 text-slate-500" />
                 Filtrer par Axe Logistique Radial :
               </p>
               <span className="text-xs text-slate-500">
@@ -603,7 +603,7 @@ export default function DispatchPage() {
               </span>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {AXIS_OPTIONS.map((ax) => {
                 const count =
                   ax.code === "ALL"
@@ -616,16 +616,16 @@ export default function DispatchPage() {
                     key={ax.code}
                     onClick={() => setSelectedAxis(ax.code)}
                     data-cy={`axis-filter-${ax.code}`}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 border ${
                       isSelected
-                        ? "bg-blue-600 text-white shadow-md shadow-blue-900/40"
-                        : "bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800"
+                        ? "bg-blue-600 text-white border-blue-600 shadow-xs font-semibold"
+                        : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-xs"
                     }`}
                   >
                     <span>{ax.short}</span>
                     <span
-                      className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                        isSelected ? "bg-blue-800 text-white" : "bg-slate-800 text-slate-400"
+                      className={`px-1.5 py-0.2 rounded-full text-[10px] tabular-nums ${
+                        isSelected ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-500"
                       }`}
                     >
                       {count}
@@ -637,18 +637,18 @@ export default function DispatchPage() {
 
             {/* Sub-filters for Province Gares */}
             {selectedAxis === "AXE_PROVINCE" && (
-              <div className="p-3 bg-purple-950/30 border border-purple-800/40 rounded-xl mt-2 flex flex-wrap items-center gap-2">
-                <span className="text-xs font-bold text-purple-300 flex items-center gap-1">
+              <div className="p-2.5 bg-purple-50/70 border border-purple-200 rounded-xl mt-1.5 flex flex-wrap items-center gap-1.5">
+                <span className="text-xs font-semibold text-purple-800 flex items-center gap-1">
                   <Building2 className="w-3.5 h-3.5" /> Gares d&apos;Antananarivo :
                 </span>
                 {GARE_FILTERS.map((g) => (
                   <button
                     key={g.id}
                     onClick={() => setSelectedGare(g.id)}
-                    className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors ${
+                    className={`px-2 py-0.5 text-xs rounded-md font-medium transition-colors ${
                       selectedGare === g.id
-                        ? "bg-purple-600 text-white font-bold"
-                        : "bg-slate-900/60 text-purple-200 hover:bg-purple-900/40"
+                        ? "bg-purple-600 text-white font-semibold"
+                        : "bg-white text-purple-700 hover:bg-purple-100 border border-purple-200"
                     }`}
                   >
                     {g.label}
@@ -657,31 +657,30 @@ export default function DispatchPage() {
               </div>
             )}
           </div>
-
-          {/* Quick Assignment Toolbar (Sticky control) */}
-          <div className="bg-slate-900 border border-blue-500/30 p-4 rounded-2xl shadow-xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+          {/* Quick Assignment Toolbar */}
+          <div className="bg-white border border-slate-200 p-3 rounded-xl shadow-xs flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
             {/* Selection indicators */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               <button
                 onClick={handleSelectAllVisible}
                 data-cy="select-all-btn"
-                className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold transition-colors border border-slate-700"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-200"
               >
                 {filteredParcels.length > 0 &&
                 filteredParcels.every((p) => selectedParcelIds.includes(p.id)) ? (
-                  <CheckSquare className="w-4 h-4 text-blue-400" />
+                  <CheckSquare className="w-3.5 h-3.5 text-blue-600" />
                 ) : (
-                  <Square className="w-4 h-4 text-slate-400" />
+                  <Square className="w-3.5 h-3.5 text-slate-400" />
                 )}
                 <span>Tout sélectionner ({filteredParcels.length})</span>
               </button>
 
               <div className="text-xs">
-                <span className="font-bold text-white" data-cy="selected-count">
+                <span className="font-semibold text-slate-800" data-cy="selected-count">
                   {selectedParcelIds.length} sélectionné(s)
                 </span>
                 {selectedParcelIds.length > 0 && (
-                  <span className="text-emerald-400 ml-2 font-bold">
+                  <span className="text-emerald-700 ml-2 font-semibold">
                     • Valeur COD : {selectedParcelsTotal.toLocaleString("fr-FR")} Ar
                   </span>
                 )}
@@ -689,14 +688,14 @@ export default function DispatchPage() {
             </div>
 
             {/* Courier picker & Assign Action */}
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400 font-bold">Affecter à :</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-slate-500 font-medium">Affecter à :</span>
                 <select
                   value={assignedCourierId}
                   onChange={(e) => setAssignedCourierId(Number(e.target.value))}
                   data-cy="select-courier"
-                  className="bg-slate-950 border border-slate-700 text-white text-xs font-semibold px-3 py-2 rounded-xl focus:border-blue-500 focus:outline-none"
+                  className="bg-white border border-slate-300 text-slate-900 text-xs font-medium px-2.5 py-1.5 rounded-lg focus:border-blue-500 focus:outline-none"
                 >
                   {couriers.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -708,18 +707,18 @@ export default function DispatchPage() {
 
               {/* Courier Capacity Indicator & Configurator */}
               {selectedCourier && (
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-xs">
-                  <span className="text-slate-400 font-medium">Capacité :</span>
+                <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs">
+                  <span className="text-slate-500 font-medium">Capacité :</span>
                   <span
                     data-cy="courier-capacity-display"
                     className={`font-mono font-bold ${
-                      isOverCapacity ? "text-red-400" : "text-emerald-400"
+                      isOverCapacity ? "text-red-600" : "text-emerald-600"
                     }`}
                   >
                     {selectedParcelIds.length} / {courierCapacity} max
                   </span>
-                  <div className="flex items-center gap-1.5 ml-2 border-l border-slate-800 pl-2">
-                    <span className="text-[10px] text-slate-400">Plafond :</span>
+                  <div className="flex items-center gap-1 ml-1.5 border-l border-slate-200 pl-1.5">
+                    <span className="text-[10px] text-slate-500">Plafond :</span>
                     <input
                       type="number"
                       min={1}
@@ -727,7 +726,7 @@ export default function DispatchPage() {
                       data-cy="input-courier-capacity"
                       value={courierCapacityInput}
                       onChange={(e) => setCourierCapacityInput(Number(e.target.value))}
-                      className="w-14 px-1.5 py-0.5 text-center font-mono font-bold text-xs bg-slate-900 border border-slate-700 rounded text-white focus:outline-none focus:border-blue-500"
+                      className="w-12 px-1 py-0.5 text-center font-mono font-semibold text-xs bg-white border border-slate-300 rounded text-slate-900 focus:outline-none focus:border-blue-500"
                     />
                     <button
                       type="button"
@@ -746,13 +745,13 @@ export default function DispatchPage() {
                 onClick={handleAssignToTour}
                 disabled={selectedParcelIds.length === 0 || !assignedCourierId || isAssigning || isOverCapacity}
                 data-cy="assign-tour-btn"
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg ${
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all shadow-xs ${
                   selectedParcelIds.length > 0 && assignedCourierId && !isAssigning && !isOverCapacity
-                    ? "bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/50 cursor-pointer"
-                    : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
+                    ? "bg-blue-600 hover:bg-blue-500 text-white cursor-pointer"
+                    : "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
                 }`}
               >
-                <Sparkles className="w-4 h-4" />
+                <Sparkles className="w-3.5 h-3.5" />
                 <span>
                   {isAssigning
                     ? "Assignation en cours..."
@@ -768,9 +767,9 @@ export default function DispatchPage() {
           {isOverCapacity && (
             <div
               data-cy="capacity-warning-banner"
-              className="p-3 bg-red-950/90 border border-red-500/80 text-red-200 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg"
+              className="p-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-medium flex items-center gap-2 shadow-xs"
             >
-              <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
               <span>
                 Capacité maximale dépassée : le livreur {selectedCourier?.name} ne peut prendre que {courierCapacity} colis maximum ({selectedParcelIds.length} sélectionnés). Réduisez la sélection ou ajustez le plafond paramétrable.
               </span>
@@ -779,23 +778,23 @@ export default function DispatchPage() {
 
           {/* Search bar */}
           <div className="relative">
-            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
             <input
               type="text"
               placeholder="Recherche rapide : N° BDR, client, téléphone, lieu, article ou expéditeur..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-900/80 border border-slate-800 text-slate-200 pl-9 pr-4 py-2 rounded-xl text-sm focus:border-blue-500 focus:outline-none placeholder-slate-500"
+              className="w-full bg-white border border-slate-200 text-slate-800 pl-8 pr-3 py-1.5 rounded-lg text-xs focus:border-blue-500 focus:outline-none placeholder-slate-400 shadow-xs"
             />
           </div>
 
           {/* Parcels Table */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs" data-cy="stock-parcels-table">
-                <thead className="bg-slate-950/80 text-slate-400 font-bold uppercase tracking-wider border-b border-slate-800 text-[11px]">
+                <thead className="bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200 text-[11px]">
                   <tr>
-                    <th className="py-3 px-3 w-10 text-center">
+                    <th className="py-2.5 px-3 w-10 text-center">
                       <input
                         type="checkbox"
                         checked={
@@ -803,26 +802,26 @@ export default function DispatchPage() {
                           filteredParcels.every((p) => selectedParcelIds.includes(p.id))
                         }
                         onChange={handleSelectAllVisible}
-                        className="rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-0 cursor-pointer"
+                        className="rounded border-slate-300 text-blue-600 focus:ring-0 cursor-pointer"
                       />
                     </th>
-                    <th className="py-3 px-3">BDR</th>
-                    <th className="py-3 px-3">Donneur d&apos;Ordre</th>
-                    <th className="py-3 px-3">Destinataire & Contact</th>
-                    <th className="py-3 px-3">Lieu & Axe Logistique</th>
-                    <th className="py-3 px-3">Désignation Marchandise</th>
-                    <th className="py-3 px-3">Flux</th>
-                    <th className="py-3 px-3 text-right">À Encaisser</th>
-                    <th className="py-3 px-3 text-center">Statut</th>
+                    <th className="py-2.5 px-3">BDR</th>
+                    <th className="py-2.5 px-3">Donneur d&apos;Ordre</th>
+                    <th className="py-2.5 px-3">Destinataire & Contact</th>
+                    <th className="py-2.5 px-3">Lieu & Axe Logistique</th>
+                    <th className="py-2.5 px-3">Désignation Marchandise</th>
+                    <th className="py-2.5 px-3">Flux</th>
+                    <th className="py-2.5 px-3 text-right">À Encaisser</th>
+                    <th className="py-2.5 px-3 text-center">Statut</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 font-medium">
+                <tbody className="divide-y divide-slate-100 text-slate-700">
                   {filteredParcels.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="py-12 text-center text-slate-500">
-                        <Package className="w-10 h-10 mx-auto text-slate-600 mb-2" />
-                        <p className="font-bold text-sm text-slate-400">Aucun colis en attente de dispatch</p>
-                        <p className="text-xs text-slate-500 mt-1">
+                      <td colSpan={9} className="py-12 text-center text-slate-400">
+                        <Package className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                        <p className="font-semibold text-xs text-slate-600">Aucun colis en attente de dispatch</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
                           Tous les colis de ce filtre ont été assignés ou le stock est vide.
                         </p>
                       </td>
@@ -835,38 +834,38 @@ export default function DispatchPage() {
                           key={p.id}
                           onClick={() => handleToggleSelectParcel(p.id)}
                           data-cy={`parcel-row-${p.id}`}
-                          className={`hover:bg-slate-800/50 cursor-pointer transition-colors ${
-                            isSelected ? "bg-blue-950/30" : ""
+                          className={`hover:bg-blue-50/40 cursor-pointer transition-colors ${
+                            isSelected ? "bg-blue-50/70" : ""
                           }`}
                         >
-                          <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
                             <input
                               type="checkbox"
                               checked={isSelected}
                               onChange={() => handleToggleSelectParcel(p.id)}
-                              className="rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-0 cursor-pointer"
+                              className="rounded border-slate-300 text-blue-600 focus:ring-0 cursor-pointer"
                             />
                           </td>
-                          <td className="py-3 px-3 font-mono font-bold text-blue-400">
+                          <td className="py-2.5 px-3 font-mono font-bold text-blue-700 text-xs">
                             {p.tracking_number}
                           </td>
-                          <td className="py-3 px-3">
-                            <div className="font-bold text-white">{p.sender_name || "N/A"}</div>
-                            <span className="text-[10px] text-slate-400 uppercase">
+                          <td className="py-2.5 px-3">
+                            <div className="font-semibold text-slate-900 text-xs">{p.sender_name || "N/A"}</div>
+                            <span className="text-[10px] text-slate-400 uppercase font-medium">
                               {p.sender_type || "CYBERMARCHAND"}
                             </span>
                           </td>
-                          <td className="py-3 px-3">
-                            <div className="font-bold text-white">{p.recipient_name}</div>
+                          <td className="py-2.5 px-3">
+                            <div className="font-semibold text-slate-900 text-xs">{p.recipient_name}</div>
                             <div className="flex items-center gap-1.5 mt-0.5">
-                              <span className="font-mono text-slate-300">
+                              <span className="font-mono text-slate-600 text-xs tabular-nums">
                                 {p.recipient_phone_formatted}
                               </span>
-                              <OperatorBadge operator={p.operator} />
+                              <OperatorBadge operator={p.operator} isSmall />
                             </div>
                           </td>
-                          <td className="py-3 px-3 max-w-xs">
-                            <div className="truncate text-slate-200" title={p.delivery_address}>
+                          <td className="py-2.5 px-3 max-w-xs">
+                            <div className="truncate text-slate-800 text-xs font-medium" title={p.delivery_address}>
                               {p.delivery_address}
                             </div>
                             <div className="mt-1 flex items-center gap-1.5 flex-wrap">
@@ -879,36 +878,36 @@ export default function DispatchPage() {
                                 }}
                                 data-cy={`edit-axis-btn-${p.id}`}
                                 title="Modifier manuellement l'axe logistique"
-                                className="px-1.5 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-blue-300 border border-slate-700 rounded text-[10px] font-semibold flex items-center gap-1 transition shadow-sm"
+                                className="px-1.5 py-0.5 bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-blue-700 border border-slate-200 rounded text-[10px] font-medium flex items-center gap-1 transition shadow-xs"
                               >
-                                <MapPin className="w-3 h-3 text-blue-400" />
+                                <MapPin className="w-3 h-3 text-blue-500" />
                                 <span>Modifier</span>
                               </button>
                             </div>
                           </td>
-                          <td className="py-3 px-3 max-w-[180px]">
-                            <div className="text-slate-300 truncate" title={p.designation || "-"}>
-                              {p.designation || <span className="text-slate-600 italic">-</span>}
+                          <td className="py-2.5 px-3 max-w-[180px]">
+                            <div className="text-slate-600 truncate text-xs" title={p.designation || "-"}>
+                              {p.designation || <span className="text-slate-400 italic">-</span>}
                             </div>
                           </td>
-                          <td className="py-3 px-3">
+                          <td className="py-2.5 px-3">
                             <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
                                 p.flux_type === "COD"
-                                  ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200"
                                   : p.flux_type === "PROVINCE"
-                                  ? "bg-purple-500/10 text-purple-400 border border-purple-500/20"
-                                  : "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                                  ? "bg-purple-50 text-purple-700 border border-purple-200"
+                                  : "bg-blue-50 text-blue-700 border border-blue-200"
                               }`}
                             >
                               {p.flux_type}
                             </span>
                           </td>
-                          <td className="py-3 px-3 text-right font-black text-emerald-400 font-mono text-sm">
+                          <td className="py-2.5 px-3 text-right font-bold text-emerald-700 font-mono text-xs tabular-nums">
                             {p.total_to_collect.toLocaleString("fr-FR")} Ar
                           </td>
-                          <td className="py-3 px-3 text-center">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-900/30 text-amber-400 border border-amber-800">
+                          <td className="py-2.5 px-3 text-center">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
                               En Dépôt
                             </span>
                           </td>
@@ -927,12 +926,12 @@ export default function DispatchPage() {
       {/* TAB 2: ÉCRAN 04 - FEUILLES DE ROUTE & TICKETS 80 MM                      */}
       {/* ========================================================================= */}
       {activeTab === "roadmaps" && (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Tours List Header / Selector */}
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <Truck className="w-5 h-5 text-blue-400" />
+            <div className="flex items-center justify-between mb-2.5">
+              <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Truck className="w-4 h-4 text-blue-600" />
                 Tournées Assignées pour le {selectedDate} ({tours.length})
               </h2>
             </div>
@@ -940,19 +939,19 @@ export default function DispatchPage() {
             {reassignFeedback && (
               <div
                 data-cy="reassign-feedback-banner"
-                className="mb-3 p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center justify-between"
+                className="mb-3 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center justify-between"
               >
                 <span>✓ {reassignFeedback}</span>
-                <button onClick={() => setReassignFeedback(null)} className="underline text-[10px]">
+                <button onClick={() => setReassignFeedback(null)} className="underline text-[10px] font-bold">
                   Fermer
                 </button>
               </div>
             )}
 
             {tours.length === 0 ? (
-              <div className="p-8 bg-slate-900 border border-slate-800 rounded-2xl text-center text-slate-500">
-                <Truck className="w-10 h-10 mx-auto text-slate-600 mb-2" />
-                <p className="font-bold text-slate-400">Aucune tournée active pour cette date</p>
+              <div className="p-8 bg-white border border-slate-200 rounded-xl text-center text-slate-500 shadow-xs">
+                <Truck className="w-9 h-9 mx-auto text-slate-400 mb-2" />
+                <p className="font-bold text-slate-700 text-sm">Aucune tournée active pour cette date</p>
                 <p className="text-xs text-slate-500 mt-1">
                   Passez sur l&apos;onglet &quot;Écran 03 • Dispatching&quot; pour affecter des colis aux coursiers.
                 </p>
@@ -966,40 +965,40 @@ export default function DispatchPage() {
                       key={t.id}
                       onClick={() => handleSelectTour(t.id)}
                       data-cy={`tour-card-${t.id}`}
-                      className={`p-4 rounded-xl border cursor-pointer transition-all ${
+                      className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
                         isSelected
-                          ? "bg-blue-950/40 border-blue-500 shadow-lg shadow-blue-950/50"
-                          : "bg-slate-900/80 border-slate-800 hover:bg-slate-800/60"
+                          ? "bg-blue-50/80 border-blue-500 shadow-xs ring-1 ring-blue-500/20"
+                          : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50 shadow-xs"
                       }`}
                     >
                       <div className="flex items-start justify-between">
                         <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-mono font-bold text-blue-400">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-mono font-bold text-blue-700">
                               #TOUR-{String(t.id).padStart(4, "0")}
                             </span>
                             <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
                                 t.status === "CLOTURE"
-                                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                                   : t.status === "EN_COURS"
-                                  ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
-                                  : "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
+                                  ? "bg-blue-50 text-blue-700 border border-blue-200"
+                                  : "bg-indigo-50 text-indigo-700 border border-indigo-200"
                               }`}
                             >
                               {t.status}
                             </span>
                           </div>
-                          <h3 className="text-sm font-bold text-white mt-1">
+                          <h3 className="text-xs font-bold text-slate-900 mt-1">
                             {t.courier_name || `Livreur #${t.courier_id}`}
                           </h3>
-                          <p className="text-xs text-slate-400">{t.courier_vehicle || "Deux-roues"}</p>
+                          <p className="text-[11px] text-slate-500">{t.courier_vehicle || "Deux-roues"}</p>
                         </div>
                         <div className="text-right">
-                          <span className="text-xs font-bold text-slate-300">
+                          <span className="text-xs font-semibold text-slate-600">
                             {t.parcels_count || t.parcels?.length || 0} colis
                           </span>
-                          <p className="text-sm font-black text-emerald-400 font-mono mt-0.5">
+                          <p className="text-xs font-bold text-emerald-700 font-mono mt-0.5">
                             {t.theoretical_total.toLocaleString("fr-FR")} Ar
                           </p>
                         </div>
@@ -1013,20 +1012,20 @@ export default function DispatchPage() {
 
           {/* Selected Tour Detailed Roadmap */}
           {selectedTour && (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {/* Tour Header Action Card */}
-              <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-xl">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-xs">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono font-black px-2.5 py-1 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-lg">
+                      <span className="text-xs font-mono font-bold px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded">
                         #TOUR-{String(selectedTour.id).padStart(4, "0")}
                       </span>
-                      <h2 className="text-xl font-black text-white">
+                      <h2 className="text-base font-bold text-slate-900">
                         Feuille de Route : {selectedTour.courier_name}
                       </h2>
                     </div>
-                    <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 mt-2">
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 mt-1.5">
                       <span>
                         📞 <strong>Contact :</strong> {selectedTour.courier_phone_formatted || selectedTour.courier_phone || "N/A"}
                       </span>
@@ -1036,7 +1035,7 @@ export default function DispatchPage() {
                       <span>
                         📦 <strong>Total Colis :</strong> {selectedTour.parcels?.length || 0}
                       </span>
-                      <span className="text-emerald-400 font-bold">
+                      <span className="text-emerald-700 font-bold">
                         💰 <strong>Total COD :</strong> {selectedTour.theoretical_total.toLocaleString("fr-FR")} Ar
                       </span>
                     </div>
@@ -1047,18 +1046,18 @@ export default function DispatchPage() {
                     <button
                       onClick={() => setShowThermalTicket(true)}
                       data-cy="open-thermal-btn"
-                      className="flex items-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-colors border border-slate-700 shadow"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-200 shadow-xs"
                     >
-                      <Printer className="w-4 h-4 text-blue-400" />
+                      <Printer className="w-3.5 h-3.5 text-blue-600" />
                       <span>Ticket 80 mm</span>
                     </button>
 
                     <button
                       onClick={() => setShowWhatsAppModal(true)}
                       data-cy="open-whatsapp-btn"
-                      className="flex items-center gap-2 px-3.5 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 rounded-xl text-xs font-bold transition-colors border border-emerald-500/30 shadow"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-semibold transition-colors border border-emerald-200 shadow-xs"
                     >
-                      <MessageSquare className="w-4 h-4 text-emerald-400" />
+                      <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
                       <span>WhatsApp</span>
                     </button>
 
@@ -1066,9 +1065,9 @@ export default function DispatchPage() {
                       <button
                         onClick={handleStartTour}
                         data-cy="start-tour-btn"
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-colors shadow-lg shadow-blue-900/40"
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-xs"
                       >
-                        <Play className="w-4 h-4" />
+                        <Play className="w-3.5 h-3.5" />
                         <span>Démarrer la Tournée (En Cours)</span>
                       </button>
                     )}
@@ -1077,11 +1076,11 @@ export default function DispatchPage() {
               </div>
 
               {/* Roadmap Table with Emargement Column */}
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-                <div className="p-4 bg-slate-950/60 border-b border-slate-800 flex items-center justify-between">
-                  <h3 className="font-bold text-sm text-white flex items-center gap-2">
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                  <h3 className="font-bold text-xs text-slate-800 flex items-center gap-2">
                     <span>Bordereaux de Tournée & Emargements Clients</span>
-                    <span className="text-xs text-slate-400 font-normal">
+                    <span className="text-xs text-slate-500 font-normal">
                       ({selectedTour.parcels?.length || 0} livraisons)
                     </span>
                   </h3>
@@ -1089,40 +1088,40 @@ export default function DispatchPage() {
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs" data-cy="roadmap-parcels-table">
-                    <thead className="bg-slate-950 text-slate-400 font-bold uppercase tracking-wider border-b border-slate-800 text-[11px]">
+                    <thead className="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider border-b border-slate-200 text-[10px]">
                       <tr>
-                        <th className="py-3 px-3 w-12 text-center">N°</th>
-                        <th className="py-3 px-3">BDR</th>
-                        <th className="py-3 px-3">Destinataire & Tél</th>
-                        <th className="py-3 px-3">Adresse / Lieu</th>
-                        <th className="py-3 px-3">Marchandise</th>
-                        <th className="py-3 px-3">Flux</th>
-                        <th className="py-3 px-3 text-right">À Recouvrer</th>
-                        <th className="py-3 px-3 text-center">Statut</th>
-                        <th className="py-3 px-3 text-center w-36">Émargement Client</th>
-                        <th className="py-3 px-3 text-center w-24">Action</th>
+                        <th className="py-2.5 px-3 w-12 text-center">N°</th>
+                        <th className="py-2.5 px-3">BDR</th>
+                        <th className="py-2.5 px-3">Destinataire & Tél</th>
+                        <th className="py-2.5 px-3">Adresse / Lieu</th>
+                        <th className="py-2.5 px-3">Marchandise</th>
+                        <th className="py-2.5 px-3">Flux</th>
+                        <th className="py-2.5 px-3 text-right">À Recouvrer</th>
+                        <th className="py-2.5 px-3 text-center">Statut</th>
+                        <th className="py-2.5 px-3 text-center w-36">Émargement Client</th>
+                        <th className="py-2.5 px-3 text-center w-24">Action</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60 font-medium">
+                    <tbody className="divide-y divide-slate-100 font-medium">
                       {selectedTour.parcels?.map((p, index) => (
-                        <tr key={p.id} className="hover:bg-slate-800/40 transition-colors">
-                          <td className="py-3 px-3 text-center font-bold text-slate-400">
+                        <tr key={p.id} className="hover:bg-blue-50/30 transition-colors border-b border-slate-100">
+                          <td className="py-2.5 px-3 text-center font-semibold text-slate-400">
                             {index + 1}
                           </td>
-                          <td className="py-3 px-3 font-mono font-bold text-blue-400">
+                          <td className="py-2.5 px-3 font-mono font-bold text-blue-600">
                             {p.tracking_number}
                           </td>
-                          <td className="py-3 px-3">
-                            <div className="font-bold text-white">{p.recipient_name}</div>
+                          <td className="py-2.5 px-3">
+                            <div className="font-bold text-slate-900">{p.recipient_name}</div>
                             <div className="flex items-center gap-1.5 mt-0.5">
-                              <span className="font-mono text-slate-300">
+                              <span className="font-mono text-slate-500 text-[11px]">
                                 {p.recipient_phone_formatted}
                               </span>
                               <OperatorBadge operator={p.operator} />
                             </div>
                           </td>
-                          <td className="py-3 px-3 max-w-xs">
-                            <div className="truncate text-slate-200" title={p.delivery_address}>
+                          <td className="py-2.5 px-3 max-w-xs">
+                            <div className="truncate text-slate-700" title={p.delivery_address}>
                               {p.delivery_address}
                             </div>
                             <div className="mt-1 flex items-center gap-1.5 flex-wrap">
@@ -1135,58 +1134,58 @@ export default function DispatchPage() {
                                 }}
                                 data-cy={`edit-axis-btn-${p.id}`}
                                 title="Modifier manuellement l'axe logistique"
-                                className="px-1.5 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-blue-300 border border-slate-700 rounded text-[10px] font-semibold flex items-center gap-1 transition shadow-sm"
+                                className="px-1.5 py-0.5 bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-blue-600 border border-slate-200 rounded text-[10px] font-semibold flex items-center gap-1 transition shadow-xs"
                               >
-                                <MapPin className="w-3 h-3 text-blue-400" />
+                                <MapPin className="w-3 h-3 text-blue-600" />
                                 <span>Modifier</span>
                               </button>
                             </div>
                           </td>
-                          <td className="py-3 px-3 max-w-[160px]">
-                            <span className="text-slate-300 truncate block">
+                          <td className="py-2.5 px-3 max-w-[160px]">
+                            <span className="text-slate-600 truncate block">
                               {p.designation || "-"}
                             </span>
                           </td>
-                          <td className="py-3 px-3">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-slate-800 text-slate-300 border border-slate-700">
+                          <td className="py-2.5 px-3">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-slate-100 text-slate-700 border border-slate-200">
                               {p.flux_type}
                             </span>
                           </td>
-                          <td className="py-3 px-3 text-right font-black text-emerald-400 font-mono text-sm">
+                          <td className="py-2.5 px-3 text-right font-bold text-emerald-700 font-mono text-xs tabular-nums">
                             {p.total_to_collect.toLocaleString("fr-FR")} Ar
                           </td>
-                          <td className="py-3 px-3 text-center">
+                          <td className="py-2.5 px-3 text-center">
                             <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                                 p.status === "ENCAISSE" || p.status === "LIVRE_ENCAISSE"
-                                  ? "bg-emerald-900/40 text-emerald-300 border border-emerald-800"
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                                   : p.status === "LIVRE"
-                                  ? "bg-teal-900/40 text-teal-300 border border-teal-800"
+                                  ? "bg-teal-50 text-teal-700 border border-teal-200"
                                   : p.status === "EN_COURS"
-                                  ? "bg-blue-900/40 text-blue-300 border border-blue-800"
-                                  : "bg-indigo-900/40 text-indigo-300 border border-indigo-800"
+                                  ? "bg-blue-50 text-blue-700 border border-blue-200"
+                                  : "bg-indigo-50 text-indigo-700 border border-indigo-200"
                               }`}
                             >
                               {p.status}
                             </span>
                           </td>
-                          <td className="py-3 px-3 text-center">
-                            <div className="h-8 border border-dashed border-slate-700 rounded-lg flex items-center justify-center text-[10px] text-slate-500 bg-slate-950/40">
+                          <td className="py-2.5 px-3 text-center">
+                            <div className="h-7 border border-dashed border-slate-300 rounded flex items-center justify-center text-[10px] text-slate-400 bg-slate-50/50">
                               Signature Dest.
                             </div>
                           </td>
-                          <td className="py-3 px-3 text-center">
+                          <td className="py-2.5 px-3 text-center">
                             <div className="flex items-center justify-center gap-1.5">
                               {!["LIVRE", "ENCAISSE", "LIVRE_ENCAISSE", "CLOTURE_CAISSE"].includes(p.status) && (
                                 <button
                                   onClick={() => handleOpenReassignModal(p)}
                                   data-cy={`reassign-btn-${p.id}`}
-                                  className={`px-2 py-1 text-[10px] font-bold rounded-md transition-colors flex items-center gap-1 ${
+                                  className={`px-2 py-1 text-[10px] font-semibold rounded transition-colors flex items-center gap-1 ${
                                     p.status === "EN_COURS"
                                       ? currentUserRole === "SUPER_ADMIN"
-                                        ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30"
-                                        : "bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60"
-                                      : "bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20"
+                                        ? "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
+                                        : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60"
+                                      : "bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200"
                                   }`}
                                   title={
                                     p.status === "EN_COURS"
@@ -1204,7 +1203,7 @@ export default function DispatchPage() {
                                 <button
                                   onClick={() => handleUnassignParcel(p.id)}
                                   data-cy={`unassign-btn-${p.id}`}
-                                  className="px-2 py-1 text-[10px] font-bold bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-md transition-colors"
+                                  className="px-2 py-1 text-[10px] font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded transition-colors"
                                   title="Retirer de la tournée et remettre en dépôt"
                                 >
                                   Retirer
@@ -1237,46 +1236,46 @@ export default function DispatchPage() {
       {reassigningParcel && (
         <div
           data-cy="reassign-modal"
-          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in"
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in"
         >
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-5 space-y-3.5 shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <span className="p-2 bg-blue-500/20 text-blue-400 rounded-lg">
-                  <Truck className="w-5 h-5" />
+                <span className="p-2 bg-blue-50 text-blue-600 rounded-lg border border-blue-100">
+                  <Truck className="w-4 h-4" />
                 </span>
                 <div>
-                  <h3 className="font-black text-white text-base">
+                  <h3 className="font-bold text-slate-900 text-sm">
                     {reassigningParcel.status === "EN_COURS"
                       ? "👑 Réassignation d'Urgence Terrain (Super Admin)"
                       : "Réassignation de Colis"}
                   </h3>
-                  <p className="text-xs text-slate-400 font-mono">
+                  <p className="text-[11px] text-slate-500 font-mono">
                     BDR-{reassigningParcel.tracking_number} • {reassigningParcel.recipient_name}
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setReassigningParcel(null)}
-                className="text-slate-400 hover:text-white text-sm"
+                className="text-slate-400 hover:text-slate-700 text-sm p-1"
               >
                 ✕
               </button>
             </div>
 
-            <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 space-y-1 text-xs">
-              <p className="text-slate-400">
-                <strong>Destinataire :</strong> {reassigningParcel.recipient_name} (
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1 text-xs text-slate-600">
+              <p>
+                <strong className="text-slate-700">Destinataire :</strong> {reassigningParcel.recipient_name} (
                 {reassigningParcel.recipient_phone_formatted || reassigningParcel.recipient_phone})
               </p>
-              <p className="text-slate-400 truncate">
-                <strong>Adresse :</strong> {reassigningParcel.delivery_address}
+              <p className="truncate">
+                <strong className="text-slate-700">Adresse :</strong> {reassigningParcel.delivery_address}
               </p>
-              <p className="text-slate-400">
-                <strong>Statut actuel :</strong>{" "}
+              <p>
+                <strong className="text-slate-700">Statut actuel :</strong>{" "}
                 <span
-                  className={`font-bold ${
-                    reassigningParcel.status === "EN_COURS" ? "text-blue-400" : "text-indigo-400"
+                  className={`font-semibold ${
+                    reassigningParcel.status === "EN_COURS" ? "text-blue-700" : "text-indigo-700"
                   }`}
                 >
                   {reassigningParcel.status}
@@ -1284,15 +1283,15 @@ export default function DispatchPage() {
               </p>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-300 block uppercase tracking-wider">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700 block uppercase tracking-wider">
                 Sélectionner le Nouveau Coursier
               </label>
               <select
                 data-cy="reassign-courier-select"
                 value={reassignTargetCourierId}
                 onChange={(e) => setReassignTargetCourierId(Number(e.target.value))}
-                className="w-full bg-slate-800 border border-slate-700 text-white font-bold text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:border-blue-500"
+                className="w-full bg-white border border-slate-300 text-slate-800 font-medium text-xs rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
               >
                 <option value="">-- Choisir un coursier --</option>
                 {couriers.map((c) => (
@@ -1305,7 +1304,7 @@ export default function DispatchPage() {
 
             {reassigningParcel.status === "EN_COURS" && (
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                <label className="text-xs font-semibold text-amber-800 flex items-center gap-1.5">
                   <AlertCircle className="w-3.5 h-3.5" />
                   Motif Circonstancié d'Urgence (Obligatoire)
                 </label>
@@ -1315,16 +1314,16 @@ export default function DispatchPage() {
                   value={reassignReason}
                   onChange={(e) => setReassignReason(e.target.value)}
                   placeholder="Ex: Panne de moto, accident, renfort quai..."
-                  className="w-full bg-slate-800 border border-amber-500/40 text-white text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-amber-400"
+                  className="w-full bg-white border border-amber-300 text-slate-800 text-xs rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
                 />
               </div>
             )}
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => setReassigningParcel(null)}
-                className="px-4 py-2 font-bold text-xs text-slate-400 hover:text-white transition"
+                className="px-3.5 py-1.5 font-medium text-xs text-slate-600 hover:text-slate-900 transition"
               >
                 Annuler
               </button>
@@ -1333,7 +1332,7 @@ export default function DispatchPage() {
                 type="button"
                 disabled={isReassigning || !reassignTargetCourierId}
                 onClick={handleConfirmReassign}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl transition shadow flex items-center gap-1.5"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-xs uppercase tracking-wider rounded-lg transition shadow-xs flex items-center gap-1.5"
               >
                 {isReassigning ? "En cours..." : "Confirmer la Réassignation"}
               </button>
@@ -1346,52 +1345,52 @@ export default function DispatchPage() {
       {editingAxisParcel && (
         <div
           data-cy="modal-edit-axis"
-          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in"
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in"
         >
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-5 space-y-3.5 shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <span className="p-2 bg-blue-500/20 text-blue-400 rounded-lg">
-                  <MapPin className="w-5 h-5" />
+                <span className="p-2 bg-blue-50 text-blue-600 rounded-lg border border-blue-100">
+                  <MapPin className="w-4 h-4" />
                 </span>
                 <div>
-                  <h3 className="font-black text-white text-base">
+                  <h3 className="font-bold text-slate-900 text-sm">
                     Sélection Manuelle de l&apos;Axe Logistique
                   </h3>
-                  <p className="text-xs text-slate-400 font-mono">
+                  <p className="text-[11px] text-slate-500 font-mono">
                     BDR-{editingAxisParcel.tracking_number} • {editingAxisParcel.recipient_name}
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setEditingAxisParcel(null)}
-                className="text-slate-400 hover:text-white text-sm"
+                className="text-slate-400 hover:text-slate-700 text-sm p-1"
               >
                 ✕
               </button>
             </div>
 
             {/* Info card */}
-            <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 space-y-1 text-xs">
-              <p className="text-slate-400">
-                <strong>Destinataire :</strong> {editingAxisParcel.recipient_name} ({editingAxisParcel.recipient_phone_formatted || editingAxisParcel.recipient_phone})
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1 text-xs text-slate-600">
+              <p>
+                <strong className="text-slate-700">Destinataire :</strong> {editingAxisParcel.recipient_name} ({editingAxisParcel.recipient_phone_formatted || editingAxisParcel.recipient_phone})
               </p>
-              <p className="text-slate-400 truncate">
-                <strong>Adresse / Lieu :</strong> {editingAxisParcel.delivery_address}
+              <p className="truncate">
+                <strong className="text-slate-700">Adresse / Lieu :</strong> {editingAxisParcel.delivery_address}
               </p>
               <div className="flex items-center gap-2 pt-1">
-                <span className="text-slate-400 font-bold">Axe actuel :</span>
+                <span className="text-slate-700 font-semibold">Axe actuel :</span>
                 <AxisBadge axis={editingAxisParcel.axis} isManual={editingAxisParcel.is_manual_axis} />
               </div>
             </div>
 
             {/* Form select with isolated Optgroups (Urbain vs Province) */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-slate-300 block uppercase tracking-wider">
+                <label className="text-xs font-semibold text-slate-700 block uppercase tracking-wider">
                   Choisir le Nouvel Axe
                 </label>
-                <span className="text-[10px] text-amber-400 font-medium">
+                <span className="text-[10px] text-amber-600 font-medium">
                   ⚡ Choix manuel prioritaire
                 </span>
               </div>
@@ -1399,7 +1398,7 @@ export default function DispatchPage() {
                 data-cy="select-override-axis"
                 value={targetAxis}
                 onChange={(e) => setTargetAxis(e.target.value as LogisticAxis)}
-                className="w-full bg-slate-800 border border-slate-700 text-white font-bold text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:border-blue-500"
+                className="w-full bg-white border border-slate-300 text-slate-800 font-medium text-xs rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
               >
                 <optgroup label="🛵 Réseau Urbain (Grand Tanà)">
                   <option value="AXE_CENTRE">1. AXE_CENTRE (Tsiazotafo & Hyper-Centre)</option>
@@ -1410,22 +1409,29 @@ export default function DispatchPage() {
                   <option value="AXE_RN7">6. AXE_RN7 (Tanjombato / Iavoloha / Sud)</option>
                   <option value="AXE_SUD_EST">7. AXE_SUD_EST (Ankatso / Alasora)</option>
                 </optgroup>
-                <optgroup label="🚐 Expéditions Nationales (Province)">
-                  <option value="AXE_PROVINCE">8. AXE_PROVINCE (Gares Routières & Coopératives)</option>
+                <optgroup label="🚐 Expéditions Nationales (Province & Gares)">
+                  <option value="AXE_PROVINCE">8. AXE_PROVINCE (Toutes Gares Routières)</option>
+                  <option value="AXE_PROV_RN2_EST">9. AXE_PROV_RN2_EST (Tamatave / Moramanga / Sainte-Marie)</option>
+                  <option value="AXE_PROV_RN4_OUEST">10. AXE_PROV_RN4_OUEST (Majunga / Maevatanana / Marovoay)</option>
+                  <option value="AXE_PROV_RN6_NORD">11. AXE_PROV_RN6_NORD (Diego-Suarez / Nosy Be / Sambava)</option>
+                  <option value="AXE_PROV_RN7_SUD">12. AXE_PROV_RN7_SUD (Antsirabe / Ambositra / Fianar)</option>
+                  <option value="AXE_PROV_RN7_SUD_OUEST">13. AXE_PROV_RN7_SUD_OUEST (Tuléar / Morondava)</option>
+                  <option value="AXE_PROV_SUD_EST">14. AXE_PROV_SUD_EST (Manakara / Fort-Dauphin)</option>
+                  <option value="AXE_PROV_RN44_ALAOTRA">15. AXE_PROV_RN44_ALAOTRA (Ambatondrazaka / Alaotra)</option>
                 </optgroup>
               </select>
             </div>
 
             {/* Explanatory note */}
-            <div className="p-2.5 bg-blue-950/30 border border-blue-900/50 rounded-xl text-[11px] text-blue-300">
+            <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-[11px] text-blue-900 leading-relaxed">
               💡 <strong>Règle Métier (CDC 5.2) :</strong> La sélection de l&apos;axe est 100% manuelle et modifiable. Si l&apos;axe Province est choisi, le flux bascule automatiquement en <strong>PROVINCE</strong>. S&apos;il est rebasculé en corridor urbain, le flux redevient <strong>COD</strong> ou <strong>SIMPLE</strong>.
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => setEditingAxisParcel(null)}
-                className="px-4 py-2 font-bold text-xs text-slate-400 hover:text-white transition"
+                className="px-3.5 py-1.5 font-medium text-xs text-slate-600 hover:text-slate-900 transition"
               >
                 Annuler
               </button>
@@ -1434,7 +1440,7 @@ export default function DispatchPage() {
                 type="button"
                 disabled={isSavingAxis}
                 onClick={handleConfirmOverrideAxis}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl transition shadow flex items-center gap-1.5"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-xs uppercase tracking-wider rounded-lg transition shadow-xs flex items-center gap-1.5"
               >
                 {isSavingAxis ? "Modification..." : "Valider l'Axe"}
               </button>

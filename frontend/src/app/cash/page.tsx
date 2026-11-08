@@ -1126,7 +1126,7 @@ export default function CashAndClosurePage() {
                         <button
                           onClick={handleConfirmCloseTour}
                           disabled={isClosingTour}
-                          className="w-full py-3.5 bg-slate-900 hover:bg-black text-white font-black text-sm rounded-xl shadow-lg transition flex items-center justify-center gap-2"
+                          className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-xs transition flex items-center justify-center gap-2"
                           data-cy="btn-confirm-close-tour"
                         >
                           <CheckCircle2 className="w-4 h-4 text-emerald-400" />
@@ -1286,7 +1286,7 @@ export default function CashAndClosurePage() {
               </button>
               <button
                 onClick={() => setReceiptData(null)}
-                className="px-4 py-2 bg-slate-900 hover:bg-black text-white font-bold text-xs rounded-xl transition"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs rounded-lg transition"
                 data-cy="btn-close-receipt-modal"
               >
                 Fermer

@@ -1,16 +1,18 @@
 """Master Reference Data REST Router (Axes, Zones, Partners, Vendors)."""
 
 from typing import List, Optional
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from backend.app.infrastructure.database.connection import get_db
 from backend.app.infrastructure.persistence.models import (
     AxisORM,
     PartnerORM,
+    UserORM,
     VendorORM,
     ZoneORM,
 )
+from backend.app.infrastructure.security.auth import require_roles
 
 router = APIRouter(prefix="/master", tags=["Référentiel Métier"])
 
@@ -20,11 +22,33 @@ class ZoneResponseDTO(BaseModel):
     nom: str
 
 
+class ZoneDetailDTO(BaseModel):
+    id: int
+    nom: str
+
+
 class AxisResponseDTO(BaseModel):
     id: int
     code: str
     libelle: str
+    type_axe: str = "URBAIN"
+    actif: int = 1
     zones: List[str]
+    zones_detail: List[ZoneDetailDTO] = []
+
+
+class CreateAxisInputDTO(BaseModel):
+    code: str
+    libelle: str
+    type_axe: str = "URBAIN"  # URBAIN or PROVINCE
+    zones: Optional[List[str]] = []
+
+
+class UpdateAxisInputDTO(BaseModel):
+    code: Optional[str] = None
+    libelle: Optional[str] = None
+    type_axe: Optional[str] = None
+    actif: Optional[int] = None
 
 
 class PartnerResponseDTO(BaseModel):
@@ -82,13 +106,151 @@ class CreateVendorInputDTO(BaseModel):
 
 
 @router.get("/axes", response_model=List[AxisResponseDTO])
-def get_axes(db: Session = Depends(get_db)):
-    axes = db.query(AxisORM).filter(AxisORM.actif == 1).order_by(AxisORM.id.asc()).all()
+def get_axes(type_axe: Optional[str] = None, actif: Optional[int] = 1, db: Session = Depends(get_db)):
+    q = db.query(AxisORM)
+    if actif is not None:
+        q = q.filter(AxisORM.actif == actif)
+    if type_axe:
+        q = q.filter(AxisORM.type_axe == type_axe.upper())
+    axes = q.order_by(AxisORM.id.asc()).all()
     results = []
     for a in axes:
+        zones_detail = [ZoneDetailDTO(id=z.id, nom=z.nom) for z in a.zones]
         zones = [z.nom for z in a.zones]
-        results.append(AxisResponseDTO(id=a.id, code=a.code, libelle=a.libelle, zones=zones))
+        results.append(
+            AxisResponseDTO(
+                id=a.id,
+                code=a.code,
+                libelle=a.libelle,
+                type_axe=a.type_axe or ("PROVINCE" if "PROVINCE" in a.code else "URBAIN"),
+                actif=a.actif,
+                zones=zones,
+                zones_detail=zones_detail,
+            )
+        )
     return results
+
+
+@router.post("/axes", response_model=AxisResponseDTO, status_code=201)
+def create_axis(
+    data: CreateAxisInputDTO,
+    db: Session = Depends(get_db),
+    current_user: UserORM = Depends(require_roles(["SUPER_ADMIN", "SUPERVISEUR"])),
+):
+    clean_code = data.code.strip().upper()
+    if not clean_code:
+        raise HTTPException(status_code=400, detail="Le code de l'axe est obligatoire.")
+    if not clean_code.startswith("AXE_"):
+        clean_code = f"AXE_{clean_code}"
+
+    existing = db.query(AxisORM).filter(AxisORM.code == clean_code).first()
+    if existing:
+        if existing.actif == 0:
+            existing.actif = 1
+            existing.libelle = data.libelle.strip() or existing.libelle
+            existing.type_axe = data.type_axe.upper()
+            db.commit()
+            db.refresh(existing)
+            zones_detail = [ZoneDetailDTO(id=z.id, nom=z.nom) for z in existing.zones]
+            return AxisResponseDTO(
+                id=existing.id,
+                code=existing.code,
+                libelle=existing.libelle,
+                type_axe=existing.type_axe or "URBAIN",
+                actif=existing.actif,
+                zones=[z.nom for z in existing.zones],
+                zones_detail=zones_detail,
+            )
+        raise HTTPException(status_code=400, detail=f"L'axe avec le code '{clean_code}' existe déjà.")
+
+    axis = AxisORM(
+        code=clean_code,
+        libelle=data.libelle.strip(),
+        type_axe=data.type_axe.upper() if data.type_axe else "URBAIN",
+        actif=1,
+    )
+    db.add(axis)
+    db.commit()
+    db.refresh(axis)
+
+    if data.zones:
+        for z_name in data.zones:
+            name_clean = z_name.strip()
+            if name_clean:
+                existing_z = db.query(ZoneORM).filter(ZoneORM.nom == name_clean).first()
+                if existing_z:
+                    existing_z.axe_id = axis.id
+                else:
+                    z = ZoneORM(axe_id=axis.id, nom=name_clean)
+                    db.add(z)
+        db.commit()
+        db.refresh(axis)
+
+    zones_detail = [ZoneDetailDTO(id=z.id, nom=z.nom) for z in axis.zones]
+    return AxisResponseDTO(
+        id=axis.id,
+        code=axis.code,
+        libelle=axis.libelle,
+        type_axe=axis.type_axe or "URBAIN",
+        actif=axis.actif,
+        zones=[z.nom for z in axis.zones],
+        zones_detail=zones_detail,
+    )
+
+
+@router.patch("/axes/{axis_id}", response_model=AxisResponseDTO)
+def update_axis(
+    axis_id: int,
+    data: UpdateAxisInputDTO,
+    db: Session = Depends(get_db),
+    current_user: UserORM = Depends(require_roles(["SUPER_ADMIN", "SUPERVISEUR"])),
+):
+    axis = db.query(AxisORM).filter(AxisORM.id == axis_id).first()
+    if not axis:
+        raise HTTPException(status_code=404, detail="Axe introuvable.")
+
+    if data.code is not None:
+        clean_code = data.code.strip().upper()
+        if clean_code and clean_code != axis.code:
+            existing = db.query(AxisORM).filter(AxisORM.code == clean_code, AxisORM.id != axis_id).first()
+            if existing:
+                raise HTTPException(status_code=400, detail=f"Un axe avec le code '{clean_code}' existe déjà.")
+            axis.code = clean_code
+
+    if data.libelle is not None:
+        axis.libelle = data.libelle.strip()
+    if data.type_axe is not None:
+        axis.type_axe = data.type_axe.upper()
+    if data.actif is not None:
+        axis.actif = data.actif
+
+    db.commit()
+    db.refresh(axis)
+    zones_detail = [ZoneDetailDTO(id=z.id, nom=z.nom) for z in axis.zones]
+    return AxisResponseDTO(
+        id=axis.id,
+        code=axis.code,
+        libelle=axis.libelle,
+        type_axe=axis.type_axe or "URBAIN",
+        actif=axis.actif,
+        zones=[z.nom for z in axis.zones],
+        zones_detail=zones_detail,
+    )
+
+
+@router.delete("/axes/{axis_id}")
+def delete_axis(
+    axis_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserORM = Depends(require_roles(["SUPER_ADMIN", "SUPERVISEUR"])),
+):
+    axis = db.query(AxisORM).filter(AxisORM.id == axis_id).first()
+    if not axis:
+        raise HTTPException(status_code=404, detail="Axe introuvable.")
+
+    axis.actif = 0  # Soft delete compliant with CDC section 14
+    db.commit()
+    return {"success": True, "message": f"Axe '{axis.code}' désactivé avec succès."}
 
 
 @router.get("/partners", response_model=List[PartnerResponseDTO])
@@ -223,16 +385,64 @@ def create_partner(data: CreatePartnerInputDTO, db: Session = Depends(get_db)):
 
 
 @router.post("/axes/{axis_id}/zones", response_model=AxisResponseDTO)
-def add_zone_to_axis(axis_id: int, data: CreateZoneInputDTO, db: Session = Depends(get_db)):
-    from fastapi import HTTPException
+def add_zone_to_axis(
+    axis_id: int,
+    data: CreateZoneInputDTO,
+    db: Session = Depends(get_db),
+    current_user: UserORM = Depends(require_roles(["SUPER_ADMIN", "SUPERVISEUR"])),
+):
     axis = db.query(AxisORM).filter(AxisORM.id == axis_id).first()
     if not axis:
         raise HTTPException(status_code=404, detail="Axe introuvable")
 
-    zone = ZoneORM(axe_id=axis.id, nom=data.nom)
-    db.add(zone)
+    existing_zone = db.query(ZoneORM).filter(ZoneORM.nom == data.nom.strip()).first()
+    if existing_zone:
+        if existing_zone.axe_id != axis.id:
+            existing_zone.axe_id = axis.id
+            db.commit()
+    else:
+        zone = ZoneORM(axe_id=axis.id, nom=data.nom.strip())
+        db.add(zone)
+        db.commit()
+
+    db.refresh(axis)
+    zones_detail = [ZoneDetailDTO(id=z.id, nom=z.nom) for z in axis.zones]
+    return AxisResponseDTO(
+        id=axis.id,
+        code=axis.code,
+        libelle=axis.libelle,
+        type_axe=axis.type_axe or "URBAIN",
+        actif=axis.actif,
+        zones=[z.nom for z in axis.zones],
+        zones_detail=zones_detail,
+    )
+
+
+@router.delete("/axes/{axis_id}/zones/{zone_id}", response_model=AxisResponseDTO)
+def remove_zone_from_axis(
+    axis_id: int,
+    zone_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserORM = Depends(require_roles(["SUPER_ADMIN", "SUPERVISEUR"])),
+):
+    axis = db.query(AxisORM).filter(AxisORM.id == axis_id).first()
+    if not axis:
+        raise HTTPException(status_code=404, detail="Axe introuvable.")
+
+    zone = db.query(ZoneORM).filter(ZoneORM.id == zone_id, ZoneORM.axe_id == axis_id).first()
+    if not zone:
+        raise HTTPException(status_code=404, detail="Quartier/Zone introuvable pour cet axe.")
+
+    db.delete(zone)
     db.commit()
     db.refresh(axis)
-
-    zones = [z.nom for z in axis.zones]
-    return AxisResponseDTO(id=axis.id, code=axis.code, libelle=axis.libelle, zones=zones)
+    zones_detail = [ZoneDetailDTO(id=z.id, nom=z.nom) for z in axis.zones]
+    return AxisResponseDTO(
+        id=axis.id,
+        code=axis.code,
+        libelle=axis.libelle,
+        type_axe=axis.type_axe or "URBAIN",
+        actif=axis.actif,
+        zones=[z.nom for z in axis.zones],
+        zones_detail=zones_detail,
+    )

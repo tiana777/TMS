@@ -159,7 +159,7 @@ export default function DispatchProvincePage() {
 
   // Strictly province parcels
   const provinceParcels = stockParcels.filter(
-    (p) => p.axis === "AXE_PROVINCE" || p.flux_type === "PROVINCE"
+    (p) => p.axis === "AXE_PROVINCE" || p.flux_type === "PROVINCE" || (p.axis && p.axis.startsWith("AXE_PROV"))
   );
 
   const filteredParcels = provinceParcels.filter((p) => {
@@ -309,52 +309,53 @@ export default function DispatchProvincePage() {
     .reduce((sum, p) => sum + p.total_to_collect, 0);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+    <div className="space-y-4">
       {/* ========================================================================= */}
       {/* SÉPARATION STRICTE : BANDEAU NAVIGATION VILLE VS PROVINCE                 */}
       {/* ========================================================================= */}
-      <div className="grid grid-cols-2 gap-2 p-1 bg-slate-900/90 border border-slate-800 rounded-xl shadow-xs">
+      <div className="grid grid-cols-2 gap-2 p-1 bg-white border border-slate-200 rounded-xl shadow-xs">
         <Link
           href="/dispatch"
           data-cy="nav-dispatch-urban"
-          className="py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all text-slate-400 hover:text-white hover:bg-slate-800/80 border border-transparent"
+          className="py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-transparent"
         >
           <span>🛵 1. LIVRAISON EN VILLE (URBAIN • 7 CORRIDORS)</span>
         </Link>
         <Link
           href="/dispatch/province"
           data-cy="nav-dispatch-province"
-          className="py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all bg-purple-600 text-white shadow-xs border border-purple-500/50"
+          className="py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all bg-purple-600 text-white shadow-xs border border-purple-600"
         >
           <span>🚌 2. EXPÉDITIONS PROVINCE (GARES ROUTIÈRES)</span>
         </Link>
       </div>
 
       {/* Header bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-200">
         <div>
           <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded text-[11px] font-semibold uppercase tracking-wider">
+            <h1 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+              <Truck className="w-4 h-4 text-purple-600" />
+              03B. Dispatching Régional — Expéditions Province
+            </h1>
+            <span className="px-2 py-0.5 text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 rounded">
               Écran 03B • Gares Routières
             </span>
-            <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">
-              Dispatching Régional — Expéditions Province
-            </h1>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-500 mt-0.5">
             Gestion exclusive des dépôts en gares routières d&apos;Antananarivo (Ambodivona, Fasan&apos;ny Karana, Andohatapenaka).
           </p>
         </div>
 
         {/* Global Controls */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-800">
-            <Calendar className="w-3.5 h-3.5 text-purple-400" />
+          <div className="flex items-center gap-2 bg-white border border-slate-200 px-2.5 py-1.5 rounded-lg shadow-xs">
+            <Calendar className="w-3.5 h-3.5 text-slate-400" />
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-transparent text-xs font-medium text-white focus:outline-none cursor-pointer"
+              className="bg-transparent text-xs text-slate-800 font-medium focus:outline-none cursor-pointer"
             />
           </div>
           <button
@@ -362,7 +363,7 @@ export default function DispatchProvincePage() {
               loadStockParcels();
               loadTours();
             }}
-            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors border border-slate-700"
+            className="p-1.5 bg-white hover:bg-slate-100 text-slate-600 rounded-lg transition-colors border border-slate-200 shadow-xs"
             title="Rafraîchir"
           >
             <RotateCcw className="w-3.5 h-3.5" />
@@ -371,19 +372,19 @@ export default function DispatchProvincePage() {
       </div>
 
       {/* Screen Mode Tabs (Écran 03B vs Écran 04) */}
-      <div className="flex border-b border-slate-800 bg-slate-900/50 p-1 rounded-xl">
+      <div className="flex border-b border-slate-200 bg-slate-100/80 p-1 rounded-xl">
         <button
           onClick={() => setActiveTab("dispatch")}
           data-cy="tab-dispatch"
-          className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
             activeTab === "dispatch"
-              ? "bg-purple-600 text-white shadow-xs"
-              : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+              ? "bg-white text-purple-700 shadow-xs border border-slate-200/60"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
           }`}
         >
-          <Package className="w-3.5 h-3.5" />
+          <Package className="w-3.5 h-3.5 text-purple-600" />
           <span>Écran 03B • Dépôts Gares en Attente</span>
-          <span className="ml-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-slate-950/40 text-purple-200">
+          <span className="ml-1 px-1.5 py-0.2 text-[10px] font-semibold rounded bg-purple-50 text-purple-700 border border-purple-200/60">
             {totalStockCount} en stock
           </span>
         </button>
@@ -391,15 +392,15 @@ export default function DispatchProvincePage() {
         <button
           onClick={() => setActiveTab("roadmaps")}
           data-cy="tab-roadmaps"
-          className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
             activeTab === "roadmaps"
-              ? "bg-purple-600 text-white shadow-xs"
-              : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+              ? "bg-white text-purple-700 shadow-xs border border-slate-200/60"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
           }`}
         >
-          <Printer className="w-3.5 h-3.5" />
+          <Printer className="w-3.5 h-3.5 text-slate-500" />
           <span>Écran 04 • Feuilles de Route Gares</span>
-          <span className="ml-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-slate-950/40 text-purple-200">
+          <span className="ml-1 px-1.5 py-0.2 text-[10px] font-semibold rounded bg-slate-200 text-slate-700">
             {tours.length} tournées
           </span>
         </button>
@@ -409,15 +410,15 @@ export default function DispatchProvincePage() {
       {assignSuccessMessage && (
         <div
           data-cy="assign-success-banner"
-          className="p-3 bg-emerald-950/80 border border-emerald-600/50 text-emerald-200 rounded-xl flex items-center justify-between shadow-xs text-xs font-medium"
+          className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl flex items-center justify-between shadow-xs text-xs font-medium"
         >
           <div className="flex items-center gap-2.5">
-            <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+            <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{assignSuccessMessage}</span>
           </div>
           <button
             onClick={() => setActiveTab("roadmaps")}
-            className="text-xs font-semibold text-white underline hover:text-emerald-300 ml-4 flex items-center gap-1"
+            className="text-xs font-semibold text-emerald-700 underline hover:text-emerald-900 ml-4 flex items-center gap-1"
           >
             <span>Voir les feuilles de route</span>
             <ArrowRight className="w-3 h-3" />
@@ -429,13 +430,13 @@ export default function DispatchProvincePage() {
       {axisFeedback && (
         <div
           data-cy="axis-feedback-banner"
-          className="p-2.5 bg-emerald-950/80 border border-emerald-600/50 text-emerald-200 rounded-xl flex items-center justify-between shadow-xs text-xs font-medium"
+          className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl flex items-center justify-between shadow-xs text-xs font-medium"
         >
           <div className="flex items-center gap-2">
-            <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
             <span>{axisFeedback}</span>
           </div>
-          <button onClick={() => setAxisFeedback(null)} className="text-slate-400 hover:text-white text-xs underline">
+          <button onClick={() => setAxisFeedback(null)} className="text-slate-500 hover:text-slate-800 text-xs underline">
             Fermer
           </button>
         </div>
@@ -448,41 +449,45 @@ export default function DispatchProvincePage() {
         <div className="space-y-4">
           {/* KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            <div className="bg-slate-900/90 border border-slate-800 border-l-4 border-l-purple-500 p-3 rounded-xl shadow-xs">
-              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Colis Province en Stock</p>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-base sm:text-lg font-bold text-purple-400 tabular-nums">{totalStockCount}</span>
-                <span className="text-[11px] text-slate-500">dépôt coopératives</span>
+            <div className="bg-white border border-slate-200 border-l-4 border-l-purple-500 p-3 rounded-xl shadow-xs">
+              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Colis Province en Stock</p>
+              <div className="flex items-baseline gap-2 mt-0.5">
+                <span className="text-base sm:text-lg font-bold text-purple-700 tabular-nums">{totalStockCount}</span>
+                <span className="text-[11px] text-slate-400">dépôt coopératives</span>
               </div>
             </div>
 
-            <div className="bg-slate-900/90 border border-slate-800 border-l-4 border-l-emerald-500 p-3 rounded-xl shadow-xs">
-              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total COD Province</p>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-base sm:text-lg font-bold text-emerald-400 font-mono tabular-nums">
+            <div className="bg-white border border-slate-200 border-l-4 border-l-emerald-500 p-3 rounded-xl shadow-xs">
+              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total COD Province</p>
+              <div className="flex items-baseline gap-2 mt-0.5">
+                <span className="text-base sm:text-lg font-bold text-emerald-700 font-mono tabular-nums">
                   {totalStockCOD.toLocaleString("fr-FR")} Ar
                 </span>
               </div>
             </div>
 
-            <div className="bg-slate-900/90 border border-slate-800 border-l-4 border-l-blue-500 p-3 rounded-xl shadow-xs">
-              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Livreurs Disponibles</p>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-base sm:text-lg font-bold text-blue-400 tabular-nums">{couriers.length}</span>
-                <span className="text-[11px] text-slate-500">pour liaisons gares</span>
+            <div className="bg-white border border-slate-200 border-l-4 border-l-blue-500 p-3 rounded-xl shadow-xs">
+              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Livreurs Disponibles</p>
+              <div className="flex items-baseline gap-2 mt-0.5">
+                <span className="text-base sm:text-lg font-bold text-blue-700 tabular-nums">{couriers.length}</span>
+                <span className="text-[11px] text-slate-400">pour liaisons gares</span>
               </div>
             </div>
           </div>
 
           {/* Gare Filter Pills */}
-          <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-3">
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-slate-500" />
                 Gares Routières de Correspondance :
+              </span>
+              <span className="text-xs text-slate-500">
+                {filteredParcels.length} colis affiché(s)
               </span>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {GARE_FILTERS.map((g) => {
                 const isSelected = selectedGare === g.id;
                 return (
@@ -490,10 +495,10 @@ export default function DispatchProvincePage() {
                     key={g.id}
                     onClick={() => setSelectedGare(g.id)}
                     data-cy={`gare-filter-${g.id}`}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 border ${
                       isSelected
-                        ? "bg-purple-600 text-white shadow-md shadow-purple-900/40"
-                        : "bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800"
+                        ? "bg-purple-600 text-white border-purple-600 shadow-xs font-semibold"
+                        : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-xs"
                     }`}
                   >
                     {g.short}
@@ -503,30 +508,30 @@ export default function DispatchProvincePage() {
             </div>
           </div>
 
-          {/* Search bar & Capacity / Assign Action Header */}
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-900/40 p-4 rounded-2xl border border-slate-800">
+          {/* Quick Assignment Toolbar */}
+          <div className="bg-white border border-slate-200 p-3 rounded-xl shadow-xs flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
             {/* Selection actions */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               <button
                 onClick={handleSelectAllVisible}
                 data-cy="select-all-btn"
-                className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold transition-colors border border-slate-700"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-200"
               >
                 {filteredParcels.length > 0 &&
                 filteredParcels.every((p) => selectedParcelIds.includes(p.id)) ? (
-                  <CheckSquare className="w-4 h-4 text-purple-400" />
+                  <CheckSquare className="w-3.5 h-3.5 text-purple-600" />
                 ) : (
-                  <Square className="w-4 h-4 text-slate-400" />
+                  <Square className="w-3.5 h-3.5 text-slate-400" />
                 )}
                 <span>Tout sélectionner ({filteredParcels.length})</span>
               </button>
 
               <div className="text-xs">
-                <span className="font-bold text-white" data-cy="selected-count">
+                <span className="font-semibold text-slate-800" data-cy="selected-count">
                   {selectedParcelIds.length} sélectionné(s)
                 </span>
                 {selectedParcelIds.length > 0 && (
-                  <span className="text-emerald-400 ml-2 font-bold">
+                  <span className="text-emerald-700 ml-2 font-semibold">
                     • COD : {selectedParcelsTotal.toLocaleString("fr-FR")} Ar
                   </span>
                 )}
@@ -534,14 +539,14 @@ export default function DispatchProvincePage() {
             </div>
 
             {/* Courier Selection & Parametric Capacity */}
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400 font-bold">Affecter au livreur :</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-slate-500 font-medium">Affecter au livreur :</span>
                 <select
                   value={assignedCourierId}
                   onChange={(e) => setAssignedCourierId(Number(e.target.value))}
                   data-cy="select-courier"
-                  className="bg-slate-950 border border-slate-700 text-white text-xs font-semibold px-3 py-2 rounded-xl focus:border-purple-500 focus:outline-none"
+                  className="bg-white border border-slate-300 text-slate-900 text-xs font-medium px-2.5 py-1.5 rounded-lg focus:border-purple-500 focus:outline-none"
                 >
                   {couriers.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -553,18 +558,18 @@ export default function DispatchProvincePage() {
 
               {/* Courier Capacity Indicator & Configurator */}
               {selectedCourier && (
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-xs">
-                  <span className="text-slate-400 font-medium">Capacité :</span>
+                <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs">
+                  <span className="text-slate-500 font-medium">Capacité :</span>
                   <span
                     data-cy="courier-capacity-display"
                     className={`font-mono font-bold ${
-                      isOverCapacity ? "text-red-400" : "text-emerald-400"
+                      isOverCapacity ? "text-red-600" : "text-emerald-600"
                     }`}
                   >
                     {selectedParcelIds.length} / {courierCapacity} max
                   </span>
-                  <div className="flex items-center gap-1.5 ml-2 border-l border-slate-800 pl-2">
-                    <span className="text-[10px] text-slate-400">Plafond :</span>
+                  <div className="flex items-center gap-1 ml-1.5 border-l border-slate-200 pl-1.5">
+                    <span className="text-[10px] text-slate-500">Plafond :</span>
                     <input
                       type="number"
                       min={1}
@@ -572,7 +577,7 @@ export default function DispatchProvincePage() {
                       data-cy="input-courier-capacity"
                       value={courierCapacityInput}
                       onChange={(e) => setCourierCapacityInput(Number(e.target.value))}
-                      className="w-14 px-1.5 py-0.5 text-center font-mono font-bold text-xs bg-slate-900 border border-slate-700 rounded text-white focus:outline-none focus:border-purple-500"
+                      className="w-12 px-1 py-0.5 text-center font-mono font-semibold text-xs bg-white border border-slate-300 rounded text-slate-900 focus:outline-none focus:border-purple-500"
                     />
                     <button
                       type="button"
@@ -592,13 +597,13 @@ export default function DispatchProvincePage() {
                 onClick={handleAssignToTour}
                 disabled={selectedParcelIds.length === 0 || !assignedCourierId || isAssigning || isOverCapacity}
                 data-cy="assign-tour-btn"
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg ${
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all shadow-xs ${
                   selectedParcelIds.length > 0 && assignedCourierId && !isAssigning && !isOverCapacity
-                    ? "bg-purple-600 hover:bg-purple-500 text-white shadow-purple-900/50 cursor-pointer"
-                    : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
+                    ? "bg-purple-600 hover:bg-purple-500 text-white cursor-pointer"
+                    : "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
                 }`}
               >
-                <Sparkles className="w-4 h-4" />
+                <Sparkles className="w-3.5 h-3.5" />
                 <span>
                   {isAssigning
                     ? "Assignation..."
@@ -614,9 +619,9 @@ export default function DispatchProvincePage() {
           {isOverCapacity && (
             <div
               data-cy="capacity-warning-banner"
-              className="p-3 bg-red-950/90 border border-red-500/80 text-red-200 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg"
+              className="p-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-medium flex items-center gap-2 shadow-xs"
             >
-              <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
               <span>
                 Capacité maximale dépassée : le livreur {selectedCourier?.name} ne peut prendre que {courierCapacity} colis maximum ({selectedParcelIds.length} sélectionnés). Réduisez la sélection ou ajustez le plafond paramétrable.
               </span>
@@ -625,37 +630,38 @@ export default function DispatchProvincePage() {
 
           {/* Search Input */}
           <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Rechercher par N° BDR, Destinataire, Téléphone, Adresse..."
-              className="w-full pl-9 pr-4 py-2.5 bg-slate-900/80 border border-slate-800 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-purple-500"
+              className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-purple-500 shadow-xs"
             />
           </div>
 
           {/* Province Table */}
-          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs" data-cy="stock-parcels-table">
-                <thead className="bg-slate-950 text-slate-400 text-[11px] uppercase tracking-wider font-bold border-b border-slate-800">
+                <thead className="bg-slate-50 text-slate-600 text-[11px] uppercase tracking-wider font-semibold border-b border-slate-200">
                   <tr>
-                    <th className="py-3 px-3 w-10 text-center">Sel.</th>
-                    <th className="py-3 px-3">N° BDR</th>
-                    <th className="py-3 px-3">Expéditeur</th>
-                    <th className="py-3 px-3">Destinataire Province</th>
-                    <th className="py-3 px-3">Gare / Adresse</th>
-                    <th className="py-3 px-3">Flux & Axe</th>
-                    <th className="py-3 px-3 text-right">Montant COD</th>
-                    <th className="py-3 px-3 text-center">Action</th>
+                    <th className="py-2.5 px-3 w-10 text-center">Sel.</th>
+                    <th className="py-2.5 px-3">N° BDR</th>
+                    <th className="py-2.5 px-3">Expéditeur</th>
+                    <th className="py-2.5 px-3">Destinataire Province</th>
+                    <th className="py-2.5 px-3">Gare / Adresse</th>
+                    <th className="py-2.5 px-3">Flux & Axe</th>
+                    <th className="py-2.5 px-3 text-right">Montant COD</th>
+                    <th className="py-2.5 px-3 text-center">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 font-medium">
+                <tbody className="divide-y divide-slate-100 text-slate-700">
                   {filteredParcels.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-500 font-bold">
-                        Aucun colis Province en dépôt pour ces filtres.
+                      <td colSpan={8} className="py-12 text-center text-slate-400">
+                        <Package className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                        <p className="font-semibold text-xs text-slate-600">Aucun colis Province en dépôt pour ces filtres.</p>
                       </td>
                     </tr>
                   ) : (
@@ -666,56 +672,61 @@ export default function DispatchProvincePage() {
                           key={p.id}
                           onClick={() => handleToggleSelectParcel(p.id)}
                           data-cy={`parcel-row-${p.id}`}
-                          className={`hover:bg-slate-800/50 cursor-pointer transition-colors ${
-                            isSelected ? "bg-purple-950/30" : ""
+                          className={`hover:bg-purple-50/40 cursor-pointer transition-colors ${
+                            isSelected ? "bg-purple-50/70" : ""
                           }`}
                         >
-                          <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
                             <input
                               type="checkbox"
                               checked={isSelected}
                               onChange={() => handleToggleSelectParcel(p.id)}
-                              className="rounded border-slate-700 bg-slate-900 text-purple-600 focus:ring-0 cursor-pointer"
+                              className="rounded border-slate-300 text-purple-600 focus:ring-0 cursor-pointer"
                             />
                           </td>
-                          <td className="py-3 px-3 font-mono font-bold text-purple-400">
+                          <td className="py-2.5 px-3 font-mono font-bold text-purple-700 text-xs">
                             {p.tracking_number}
                           </td>
-                          <td className="py-3 px-3">
-                            <div className="font-bold text-white">{p.sender_name || "N/A"}</div>
-                            <span className="text-[10px] text-slate-400 uppercase">
+                          <td className="py-2.5 px-3">
+                            <div className="font-semibold text-slate-900 text-xs">{p.sender_name || "N/A"}</div>
+                            <span className="text-[10px] text-slate-400 uppercase font-medium">
                               {p.sender_type || "CYBERMARCHAND"}
                             </span>
                           </td>
-                          <td className="py-3 px-3">
-                            <div className="font-bold text-white">{p.recipient_name}</div>
-                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono">
-                              <span>{p.recipient_phone_formatted || p.recipient_phone}</span>
-                              <OperatorBadge operator={p.operator} />
+                          <td className="py-2.5 px-3">
+                            <div className="font-semibold text-slate-900 text-xs">{p.recipient_name}</div>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="font-mono text-slate-600 text-xs tabular-nums">
+                                {p.recipient_phone_formatted || p.recipient_phone}
+                              </span>
+                              <OperatorBadge operator={p.operator} isSmall />
                             </div>
                           </td>
-                          <td className="py-3 px-3 max-w-xs truncate text-slate-300">
+                          <td className="py-2.5 px-3 max-w-xs truncate text-slate-800 text-xs font-medium" title={p.delivery_address}>
                             {p.delivery_address}
                           </td>
-                          <td className="py-3 px-3">
-                            <AxisBadge axis={p.axis} isManual={p.is_manual_axis} />
-                            <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[10px] font-black uppercase bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                              {p.flux_type}
-                            </span>
+                          <td className="py-2.5 px-3">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <AxisBadge axis={p.axis} isManual={p.is_manual_axis} />
+                              <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold uppercase bg-purple-50 text-purple-700 border border-purple-200">
+                                {p.flux_type}
+                              </span>
+                            </div>
                           </td>
-                          <td className="py-3 px-3 text-right font-mono font-bold text-emerald-400">
+                          <td className="py-2.5 px-3 text-right font-bold text-emerald-700 font-mono text-xs tabular-nums">
                             {p.total_to_collect_formatted || `${p.total_to_collect.toLocaleString("fr-FR")} Ar`}
                           </td>
-                          <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
                             <button
                               onClick={() => {
                                 setEditingAxisParcel(p);
                                 setTargetAxis(p.axis);
                               }}
                               data-cy={`edit-axis-btn-${p.id}`}
-                              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-purple-300 border border-slate-700 rounded text-[11px] font-bold"
+                              className="px-2 py-0.5 bg-slate-50 hover:bg-purple-50 text-slate-600 hover:text-purple-700 border border-slate-200 rounded text-[10px] font-medium flex items-center gap-1 mx-auto transition shadow-xs"
                             >
-                              ✏️ Axe
+                              <MapPin className="w-3 h-3 text-purple-600" />
+                              <span>Axe</span>
                             </button>
                           </td>
                         </tr>
@@ -733,130 +744,167 @@ export default function DispatchProvincePage() {
       {/* TAB 2: ROADMAPS & FEUILLES DE ROUTE PROVINCE                              */}
       {/* ========================================================================= */}
       {activeTab === "roadmaps" && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
-              <Truck className="w-5 h-5 text-purple-400" />
-              Tournées Province pour le {selectedDate} ({tours.length})
-            </h2>
-          </div>
-
-          {reassignFeedback && (
-            <div
-              data-cy="reassign-feedback-banner"
-              className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center justify-between"
-            >
-              <span>✓ {reassignFeedback}</span>
-              <button onClick={() => setReassignFeedback(null)} className="underline text-[10px]">
-                Fermer
-              </button>
+        <div className="space-y-4">
+          <div>
+            <div className="flex items-center justify-between mb-2.5">
+              <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Truck className="w-4 h-4 text-purple-600" />
+                Tournées Province pour le {selectedDate} ({tours.length})
+              </h2>
             </div>
-          )}
 
-          {tours.length === 0 ? (
-            <div className="p-8 bg-slate-900 border border-slate-800 rounded-2xl text-center text-slate-500">
-              <Truck className="w-10 h-10 mx-auto text-slate-600 mb-2" />
-              <p className="font-bold text-slate-400">Aucune tournée active pour cette date</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {tours.map((t) => {
-                const isSelected = selectedTourId === t.id;
-                return (
-                  <div
-                    key={t.id}
-                    onClick={() => handleSelectTour(t.id)}
-                    data-cy={`tour-card-${t.id}`}
-                    className={`p-4 rounded-xl border cursor-pointer transition-all ${
-                      isSelected
-                        ? "bg-purple-950/40 border-purple-500 shadow-lg shadow-purple-950/50"
-                        : "bg-slate-900/80 border-slate-800 hover:bg-slate-800/60"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <span className="text-xs font-mono font-bold text-purple-400">
-                          #TOUR-{String(t.id).padStart(4, "0")}
-                        </span>
-                        <h3 className="text-sm font-bold text-white mt-1">
-                          {t.courier_name || `Livreur #${t.courier_id}`}
-                        </h3>
-                        <p className="text-xs text-slate-400">{t.courier_vehicle || "Deux-roues"}</p>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-xs font-bold text-slate-300">
-                          {t.parcels_count || t.parcels?.length || 0} colis
-                        </span>
-                        <p className="text-sm font-black text-emerald-400 font-mono mt-0.5">
-                          {t.theoretical_total.toLocaleString("fr-FR")} Ar
-                        </p>
+            {reassignFeedback && (
+              <div
+                data-cy="reassign-feedback-banner"
+                className="mb-3 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center justify-between"
+              >
+                <span>✓ {reassignFeedback}</span>
+                <button onClick={() => setReassignFeedback(null)} className="underline text-[10px] font-bold">
+                  Fermer
+                </button>
+              </div>
+            )}
+
+            {tours.length === 0 ? (
+              <div className="p-8 bg-white border border-slate-200 rounded-xl text-center text-slate-500 shadow-xs">
+                <Truck className="w-9 h-9 mx-auto text-slate-400 mb-2" />
+                <p className="font-bold text-slate-700 text-sm">Aucune tournée active pour cette date</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Passez sur l&apos;onglet &quot;Écran 03B • Dépôts Gares&quot; pour affecter des colis aux coursiers.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {tours.map((t) => {
+                  const isSelected = selectedTourId === t.id;
+                  return (
+                    <div
+                      key={t.id}
+                      onClick={() => handleSelectTour(t.id)}
+                      data-cy={`tour-card-${t.id}`}
+                      className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                        isSelected
+                          ? "bg-purple-50/80 border-purple-500 shadow-xs ring-1 ring-purple-500/20"
+                          : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50 shadow-xs"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-mono font-bold text-purple-700">
+                              #TOUR-{String(t.id).padStart(4, "0")}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
+                                t.status === "CLOTURE"
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : t.status === "EN_COURS"
+                                  ? "bg-purple-50 text-purple-700 border border-purple-200"
+                                  : "bg-indigo-50 text-indigo-700 border border-indigo-200"
+                              }`}
+                            >
+                              {t.status}
+                            </span>
+                          </div>
+                          <h3 className="text-xs font-bold text-slate-900 mt-1">
+                            {t.courier_name || `Livreur #${t.courier_id}`}
+                          </h3>
+                          <p className="text-[11px] text-slate-500">{t.courier_vehicle || "Deux-roues"}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-semibold text-slate-600">
+                            {t.parcels_count || t.parcels?.length || 0} colis
+                          </span>
+                          <p className="text-xs font-bold text-emerald-700 font-mono mt-0.5">
+                            {t.theoretical_total.toLocaleString("fr-FR")} Ar
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           {/* Selected tour detail */}
           {selectedTour && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
-                <div>
-                  <h3 className="text-lg font-black text-white">
-                    Feuille de Route : Tournée #{selectedTour.id} — {selectedTour.courier_name}
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Statut : <span className="font-bold text-purple-400">{selectedTour.status}</span>
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setShowThermalTicket(true)}
-                    data-cy="print-ticket-btn"
-                    className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold border border-slate-700"
-                  >
-                    <Printer className="w-4 h-4 text-purple-400" />
-                    <span>Ticket 80 mm</span>
-                  </button>
-                  <button
-                    onClick={() => setShowWhatsAppModal(true)}
-                    data-cy="share-whatsapp-btn"
-                    className="flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold"
-                  >
-                    <MessageSquare className="w-4 h-4" />
-                    <span>WhatsApp</span>
-                  </button>
-                  {selectedTour.status === "ASSIGNE" && (
+            <div className="space-y-3">
+              <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-xs">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 rounded">
+                        #TOUR-{String(selectedTour.id).padStart(4, "0")}
+                      </span>
+                      <h2 className="text-base font-bold text-slate-900">
+                        Feuille de Route : {selectedTour.courier_name}
+                      </h2>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 mt-1.5">
+                      <span>
+                        📞 <strong>Contact :</strong> {selectedTour.courier_phone_formatted || selectedTour.courier_phone || "N/A"}
+                      </span>
+                      <span>
+                        🛵 <strong>Véhicule :</strong> {selectedTour.courier_vehicle || "Standard"}
+                      </span>
+                      <span>
+                        📦 <strong>Total Colis :</strong> {selectedTour.parcels?.length || 0}
+                      </span>
+                      <span className="text-emerald-700 font-bold">
+                        💰 <strong>Total COD :</strong> {selectedTour.theoretical_total.toLocaleString("fr-FR")} Ar
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
-                      onClick={() => handleStartTour(selectedTour.id)}
-                      data-cy="start-tour-btn"
-                      className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-black shadow-lg"
+                      onClick={() => setShowThermalTicket(true)}
+                      data-cy="print-ticket-btn"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-200 shadow-xs"
                     >
-                      <Play className="w-4 h-4" />
-                      <span>Démarrer</span>
+                      <Printer className="w-3.5 h-3.5 text-purple-600" />
+                      <span>Ticket 80 mm</span>
                     </button>
-                  )}
+                    <button
+                      onClick={() => setShowWhatsAppModal(true)}
+                      data-cy="share-whatsapp-btn"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-semibold transition-colors border border-emerald-200 shadow-xs"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>WhatsApp</span>
+                    </button>
+                    {selectedTour.status === "ASSIGNE" && (
+                      <button
+                        onClick={() => handleStartTour(selectedTour.id)}
+                        data-cy="start-tour-btn"
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-xs"
+                      >
+                        <Play className="w-3.5 h-3.5" />
+                        <span>Démarrer</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
               {/* Parcels in tour */}
-              <div className="divide-y divide-slate-800/60">
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs divide-y divide-slate-100">
                 {selectedTour.parcels?.map((p, idx) => (
-                  <div key={p.id} className="py-3 flex items-center justify-between">
+                  <div key={p.id} className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors">
                     <div>
-                      <span className="font-bold text-white mr-2">#{idx + 1} BDR-{p.tracking_number}</span>
-                      <span className="text-xs text-slate-400">{p.recipient_name} ({p.delivery_address})</span>
+                      <span className="font-bold text-slate-900 mr-2 text-xs">#{idx + 1} BDR-{p.tracking_number}</span>
+                      <span className="text-xs text-slate-500">{p.recipient_name} ({p.delivery_address})</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="font-mono font-bold text-emerald-400 text-xs">
-                        {p.total_to_collect_formatted || `${p.total_to_collect} Ar`}
+                      <span className="font-mono font-bold text-emerald-700 text-xs tabular-nums">
+                        {p.total_to_collect_formatted || `${p.total_to_collect.toLocaleString("fr-FR")} Ar`}
                       </span>
                       {selectedTour.status === "ASSIGNE" && (
                         <button
                           onClick={() => handleUnassign(selectedTour.id, p.id)}
                           data-cy={`unassign-btn-${p.id}`}
-                          className="px-2 py-1 bg-red-950/60 hover:bg-red-900 border border-red-800/60 text-red-200 text-xs font-bold rounded"
+                          className="px-2 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-[10px] font-semibold rounded transition-colors"
                         >
                           Désassigner
                         </button>
@@ -872,34 +920,74 @@ export default function DispatchProvincePage() {
 
       {/* MODAL: EDIT AXIS */}
       {editingAxisParcel && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div data-cy="modal-edit-axis" className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 space-y-4">
-            <h3 className="text-base font-bold text-white">Sélection Manuelle de l&apos;Axe Logistique</h3>
-            <p className="text-xs text-slate-400">Colis BDR-{editingAxisParcel.tracking_number}</p>
-            <select
-              data-cy="select-override-axis"
-              value={targetAxis}
-              onChange={(e) => setTargetAxis(e.target.value as LogisticAxis)}
-              className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl p-2.5 text-xs font-bold"
-            >
-              <option value="AXE_CENTRE">AXE CENTRE (Tsiazotafo & Centre)</option>
-              <option value="AXE_RN1">AXE RN1 OUEST (Itaosy / Fenoarivo)</option>
-              <option value="AXE_RN2">AXE RN2 EST (Ambohimangakely)</option>
-              <option value="AXE_RN3">AXE RN3 NORD (Sabotsy Namehana)</option>
-              <option value="AXE_RN4">AXE RN4 / DIGUE (Ivato Aéroport)</option>
-              <option value="AXE_RN7">AXE RN7 SUD (Tanjombato / Iavoloha)</option>
-              <option value="AXE_SUD_EST">AXE SUD-EST (Ankatso / Alasora)</option>
-              <option value="AXE_PROVINCE">AXE PROVINCES & GARES ROUTIÈRES</option>
-            </select>
-            <div className="flex justify-end gap-2 pt-2">
-              <button onClick={() => setEditingAxisParcel(null)} className="px-4 py-2 bg-slate-800 text-white rounded-xl text-xs font-bold">
+        <div
+          data-cy="modal-edit-axis"
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in"
+        >
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-5 space-y-3.5 shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="p-2 bg-purple-50 text-purple-600 rounded-lg border border-purple-100">
+                  <MapPin className="w-4 h-4" />
+                </span>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Sélection Manuelle de l&apos;Axe Logistique</h3>
+                  <p className="text-[11px] text-slate-500 font-mono">Colis BDR-{editingAxisParcel.tracking_number}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingAxisParcel(null)}
+                className="text-slate-400 hover:text-slate-700 text-sm p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700 block uppercase tracking-wider">
+                Choisir le Nouvel Axe
+              </label>
+              <select
+                data-cy="select-override-axis"
+                value={targetAxis}
+                onChange={(e) => setTargetAxis(e.target.value as LogisticAxis)}
+                className="w-full bg-white border border-slate-300 text-slate-800 font-medium text-xs rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+              >
+                <optgroup label="🛵 Réseau Urbain (Grand Tanà)">
+                  <option value="AXE_CENTRE">1. AXE_CENTRE (Tsiazotafo & Centre)</option>
+                  <option value="AXE_RN1">2. AXE_RN1 OUEST (Itaosy / Fenoarivo)</option>
+                  <option value="AXE_RN2">3. AXE_RN2 EST (Ambohimangakely)</option>
+                  <option value="AXE_RN3">4. AXE_RN3 NORD (Sabotsy Namehana)</option>
+                  <option value="AXE_RN4">5. AXE_RN4 / DIGUE (Ivato Aéroport)</option>
+                  <option value="AXE_RN7">6. AXE_RN7 SUD (Tanjombato / Iavoloha)</option>
+                  <option value="AXE_SUD_EST">7. AXE_SUD-EST (Ankatso / Alasora)</option>
+                </optgroup>
+                <optgroup label="🚐 Expéditions Nationales (Province & Gares)">
+                  <option value="AXE_PROVINCE">8. AXE_PROVINCE (Toutes Gares Routières)</option>
+                  <option value="AXE_PROV_RN2_EST">9. AXE_PROV_RN2_EST (Tamatave / Moramanga / Sainte-Marie)</option>
+                  <option value="AXE_PROV_RN4_OUEST">10. AXE_PROV_RN4_OUEST (Majunga / Maevatanana / Marovoay)</option>
+                  <option value="AXE_PROV_RN6_NORD">11. AXE_PROV_RN6_NORD (Diego-Suarez / Nosy Be / Sambava)</option>
+                  <option value="AXE_PROV_RN7_SUD">12. AXE_PROV_RN7_SUD (Antsirabe / Ambositra / Fianar)</option>
+                  <option value="AXE_PROV_RN7_SUD_OUEST">13. AXE_PROV_RN7_SUD_OUEST (Tuléar / Morondava)</option>
+                  <option value="AXE_PROV_SUD_EST">14. AXE_PROV_SUD_EST (Manakara / Fort-Dauphin)</option>
+                  <option value="AXE_PROV_RN44_ALAOTRA">15. AXE_PROV_RN44_ALAOTRA (Ambatondrazaka / Alaotra)</option>
+                </optgroup>
+              </select>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setEditingAxisParcel(null)}
+                className="px-3.5 py-1.5 font-medium text-xs text-slate-600 hover:text-slate-900 transition"
+              >
                 Annuler
               </button>
               <button
                 data-cy="btn-confirm-override-axis"
                 onClick={handleConfirmOverrideAxis}
                 disabled={isSavingAxis}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold"
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-semibold text-xs uppercase tracking-wider rounded-lg transition shadow-xs flex items-center gap-1.5"
               >
                 {isSavingAxis ? "Enregistrement..." : "Confirmer"}
               </button>

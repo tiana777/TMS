@@ -450,25 +450,25 @@ export default function InboundPage() {
 
       {/* Lot Financial Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <span className="text-xs text-slate-500 font-medium">Nombre de Colis</span>
-          <p className="text-2xl font-black text-slate-800 mt-1">{totalParcels}</p>
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 border-l-4 border-l-slate-400 shadow-xs">
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Nombre de Colis</span>
+          <p className="text-lg font-bold text-slate-900 mt-0.5 tabular-nums">{totalParcels}</p>
         </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <span className="text-xs text-slate-500 font-medium">Total Marchandise</span>
-          <p className="text-xl font-bold text-slate-800 mt-1">
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 border-l-4 border-l-blue-500 shadow-xs">
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Marchandise</span>
+          <p className="text-lg font-bold text-slate-900 mt-0.5 font-mono tabular-nums">
             {totalMerchandise.toLocaleString("fr-FR")} Ar
           </p>
         </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <span className="text-xs text-slate-500 font-medium">Total Frais Livraison</span>
-          <p className="text-xl font-bold text-slate-800 mt-1">
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 border-l-4 border-l-indigo-500 shadow-xs">
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Frais Livraison</span>
+          <p className="text-lg font-bold text-slate-900 mt-0.5 font-mono tabular-nums">
             {totalFees.toLocaleString("fr-FR")} Ar
           </p>
         </div>
-        <div className="bg-gradient-to-br from-blue-900 to-indigo-900 text-white p-4 rounded-xl shadow-md">
-          <span className="text-xs text-blue-300 font-medium">Total Global à Encaisser</span>
-          <p data-testid="total-to-collect" className="text-2xl font-black text-emerald-400 mt-1">
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 border-l-4 border-l-emerald-500 shadow-xs">
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Global à Encaisser</span>
+          <p data-testid="total-to-collect" className="text-lg font-bold text-emerald-700 font-mono mt-0.5 tabular-nums">
             {formatAriary(totalToCollect)}
           </p>
         </div>

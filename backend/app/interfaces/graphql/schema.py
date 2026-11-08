@@ -128,6 +128,7 @@ class AxisType:
     id: int
     code: str
     libelle: str
+    type_axe: Optional[str] = "URBAIN"
     zones: List[str]
 
 
@@ -347,7 +348,13 @@ class Query:
         try:
             axes = db.query(AxisORM).filter(AxisORM.actif == 1).order_by(AxisORM.id.asc()).all()
             return [
-                AxisType(id=a.id, code=a.code, libelle=a.libelle, zones=[z.nom for z in a.zones])
+                AxisType(
+                    id=a.id,
+                    code=a.code,
+                    libelle=a.libelle,
+                    type_axe=a.type_axe or ("PROVINCE" if "PROVINCE" in a.code else "URBAIN"),
+                    zones=[z.nom for z in a.zones],
+                )
                 for a in axes
             ]
         finally:

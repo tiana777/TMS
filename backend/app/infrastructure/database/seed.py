@@ -34,6 +34,8 @@ def seed_master_data():
                 ALTER TABLE colis ADD CONSTRAINT colis_mode_paiement_check 
                 CHECK (mode_paiement IS NULL OR mode_paiement IN ('ESPECES', 'MVOLA', 'AIRTEL', 'ORANGE_MONEY', 'VIREMENT'));
             """))
+            conn.execute(text("ALTER TABLE axes ADD COLUMN IF NOT EXISTS type_axe VARCHAR(30) DEFAULT 'URBAIN';"))
+            conn.execute(text("UPDATE axes SET type_axe = 'PROVINCE' WHERE code LIKE '%PROVINCE%' AND (type_axe IS NULL OR type_axe != 'PROVINCE');"))
             conn.commit()
     except Exception as e:
         print(f"Notice during constraint update: {e}")
@@ -149,7 +151,8 @@ def seed_master_data():
             ]
 
             for code, libelle, zones_list in axes_data:
-                axis = AxisORM(code=code, libelle=libelle, actif=1)
+                type_axe = "PROVINCE" if "PROVINCE" in code else "URBAIN"
+                axis = AxisORM(code=code, libelle=libelle, type_axe=type_axe, actif=1)
                 session.add(axis)
                 session.flush()
 
@@ -293,6 +296,15 @@ def seed_master_data():
         print("Master reference data seeded successfully.")
     finally:
         session.close()
+
+    # 6. Seed all Madagascar province corridors, bus stations and authentic parcels
+    try:
+        from backend.app.infrastructure.database.seed_provinces_and_test_parcels import (
+            seed_provinces_and_test_parcels,
+        )
+        seed_provinces_and_test_parcels()
+    except Exception as e:
+        print(f"Notice during province seeder execution: {e}")
 
 
 if __name__ == "__main__":
