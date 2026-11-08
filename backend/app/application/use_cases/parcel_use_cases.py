@@ -222,6 +222,49 @@ class ParcelUseCases:
         saved = self.repo.save(parcel)
         return self._to_response_dto(saved)
 
+    def update_parcel_contact(
+        self,
+        parcel_id: int,
+        recipient_phone: Optional[str] = None,
+        recipient_name: Optional[str] = None,
+        delivery_address: Optional[str] = None,
+        user_id: Optional[int] = None,
+    ) -> ParcelResponseDTO:
+        parcel = self.repo.get_by_id(parcel_id)
+        if not parcel:
+            raise BusinessRuleViolationException(f"Colis introuvable (ID: {parcel_id})")
+
+        validated_phone = None
+        notes = []
+        if recipient_phone:
+            validated_phone = PhoneNumber(recipient_phone)
+            notes.append(f"Téléphone destinataire corrigé : {validated_phone.formatted}")
+        if recipient_name and recipient_name.strip():
+            notes.append(f"Nom destinataire : {recipient_name.strip()}")
+        if delivery_address and delivery_address.strip():
+            notes.append(f"Adresse : {delivery_address.strip()}")
+
+        parcel.update_contact_info(
+            recipient_phone=validated_phone,
+            recipient_name=recipient_name,
+            delivery_address=delivery_address,
+        )
+        saved = self.repo.save(parcel)
+
+        if notes and user_id:
+            audit = ParcelStatusHistoryORM(
+                parcel_id=parcel.id,
+                old_status=parcel.status.value,
+                new_status=parcel.status.value,
+                changed_by_user_id=user_id,
+                reason=" • ".join(notes),
+                horodatage=datetime.now(timezone.utc),
+            )
+            self.db.add(audit)
+            self.db.commit()
+
+        return self._to_response_dto(saved)
+
     def get_parcel(self, parcel_id: int) -> Optional[ParcelResponseDTO]:
         p = self.repo.get_by_id(parcel_id)
         return self._to_response_dto(p) if p else None

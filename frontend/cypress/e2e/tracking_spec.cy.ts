@@ -223,6 +223,18 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
         partner_fee: 10000,
       },
     }).as("outsourceParcel");
+
+    cy.intercept("PATCH", "**/api/v1/parcels/*/contact", (req) => {
+      req.reply({
+        statusCode: 200,
+        body: {
+          ...mockParcels[2],
+          recipient_phone: req.body.recipient_phone || "0349988776",
+          recipient_phone_formatted: "034 99 887 76",
+          operator: "TELMA",
+        },
+      });
+    }).as("updateParcelContact");
   });
 
   it("Test 1: Écran 06 Cockpit - Vérification de la Barre de Progression Segmentée et des 4 Métriques d'Activité", () => {
@@ -392,5 +404,112 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
       cy.contains("Cotisse Transport").should("be.visible");
       cy.contains("COT-99482").should("be.visible");
     });
+  });
+
+  it("Test 6: Écran 05 - Création Dynamique et Persistance d'un Nouveau Motif de Refus (Non codé en dur)", () => {
+    cy.visit("/tracking");
+    cy.wait(["@getParcels", "@getTours", "@getCouriers"]);
+
+    // Ouvrir la modale Refus sur le colis 303
+    cy.get('[data-cy="btn-cancel-303"]').should("be.visible").click();
+    cy.get('[data-cy="modal-cancel"]').should("be.visible");
+
+    // Cliquer sur le bouton de création d'un motif
+    cy.get('[data-cy="btn-toggle-create-cancel-reason"]').should("be.visible").click();
+    cy.get('[data-cy="input-new-cancel-reason"]')
+      .should("be.visible")
+      .type("Client parti en voyage imprévu à Antsirabe");
+
+    cy.get('[data-cy="btn-save-new-cancel-reason"]').click();
+
+    // Vérifier que le nouveau motif est maintenant sélectionné dans le menu déroulant
+    cy.get('[data-cy="cancel-reason-select"]').should(
+      "have.value",
+      "Client parti en voyage imprévu à Antsirabe"
+    );
+
+    // Valider le refus avec ce nouveau motif
+    cy.get('[data-cy="btn-confirm-cancel"]').click();
+
+    cy.wait("@cancelParcel").its("request.body").should((body) => {
+      expect(body.status).to.equal("ANNULE_RETOUR");
+      expect(body.incident_reason).to.equal("Client parti en voyage imprévu à Antsirabe");
+    });
+  });
+
+  it("Test 7: Écran 05 - Vérification Regex Stricte des Numéros Malgaches (CDC 7.1) & Correction en Direct", () => {
+    cy.visit("/tracking");
+    cy.wait(["@getParcels", "@getTours", "@getCouriers"]);
+
+    // Ouvrir la modale de refus sur le colis 303
+    cy.get('[data-cy="btn-cancel-303"]').should("be.visible").click();
+    cy.get('[data-cy="phone-verification-box"]').should("be.visible");
+
+    // 1. Tester un numéro avec préfixe invalide (039)
+    cy.get('[data-cy="test-recipient-phone-input"]')
+      .clear()
+      .type("0391234567");
+    cy.get('[data-cy="phone-regex-error"]')
+      .should("be.visible")
+      .and("contain", "039")
+      .and("contain", "non valide");
+    cy.get('[data-cy="btn-update-parcel-phone"]').should("be.disabled");
+
+    // 2. Tester un numéro incomplet (trop court : 7 chiffres)
+    cy.get('[data-cy="test-recipient-phone-input"]')
+      .clear()
+      .type("0341234");
+    cy.get('[data-cy="phone-regex-error"]')
+      .should("be.visible")
+      .and("contain", "7/10 chiffres");
+    cy.get('[data-cy="btn-update-parcel-phone"]').should("be.disabled");
+
+    // 3. Tester un numéro valide Telma avec espaces et international (+261 34 99 887 76)
+    cy.get('[data-cy="test-recipient-phone-input"]')
+      .clear()
+      .type("+261 34 99 887 76");
+    cy.get('[data-cy="phone-regex-success"]')
+      .should("be.visible")
+      .and("contain", "034 99 887 76")
+      .and("contain", "TELMA");
+    cy.get('[data-cy="btn-update-parcel-phone"]').should("not.be.disabled");
+
+    // 4. Appliquer la correction du numéro sur le colis
+    cy.get('[data-cy="btn-update-parcel-phone"]').click();
+    cy.wait("@updateParcelContact");
+
+    cy.get('[data-cy="phone-update-success"]')
+      .should("be.visible")
+      .and("contain", "034 99 887 76");
+  });
+
+  it("Test 8: Écran 05 - Encaissement Mobile Money avec Détection de l'Opérateur (Telma/Orange/Airtel)", () => {
+    cy.visit("/tracking");
+    cy.wait(["@getParcels", "@getTours", "@getCouriers"]);
+
+    // Ouvrir la modale d'encaissement sur le colis 301
+    cy.get('[data-cy="btn-deliver-301"]').should("be.visible").click();
+    cy.get('[data-cy="payment-method-mvola"]').click();
+
+    // La boîte de vérification Mobile Money s'affiche
+    cy.get('[data-cy="mobile-money-verification-box"]').should("be.visible");
+
+    // Saisir un numéro Orange (032) alors qu'on encaisse par MVola (Telma)
+    cy.get('[data-cy="mobile-money-phone-input"]')
+      .clear()
+      .type("0321122334");
+    cy.get('[data-cy="mm-phone-success"]')
+      .should("be.visible")
+      .and("contain", "ORANGE")
+      .and("contain", "Attention");
+
+    // Saisir un numéro Telma (034) conforme
+    cy.get('[data-cy="mobile-money-phone-input"]')
+      .clear()
+      .type("0341234567");
+    cy.get('[data-cy="mm-phone-success"]')
+      .should("be.visible")
+      .and("contain", "034 12 345 67")
+      .and("contain", "TELMA");
   });
 });

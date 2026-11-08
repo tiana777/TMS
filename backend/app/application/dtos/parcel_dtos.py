@@ -32,6 +32,12 @@ class UpdateParcelAxisDTO(BaseModel):
     axis: str
 
 
+class UpdateParcelContactDTO(BaseModel):
+    recipient_name: Optional[str] = None
+    recipient_phone: Optional[str] = None
+    delivery_address: Optional[str] = None
+
+
 class ReassignParcelDTO(BaseModel):
     courier_id: int
     tour_id: Optional[int] = None

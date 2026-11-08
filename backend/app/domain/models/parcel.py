@@ -90,6 +90,20 @@ class Parcel:
         self.axis = new_axis
         self.is_manual_axis = True
 
+    def update_contact_info(
+        self,
+        recipient_phone: Optional[PhoneNumber] = None,
+        recipient_name: Optional[str] = None,
+        delivery_address: Optional[str] = None,
+    ) -> None:
+        """Allow correction of recipient contact info according to CDC section 3.2."""
+        if recipient_phone is not None:
+            self.recipient_phone = recipient_phone
+        if recipient_name and recipient_name.strip():
+            self.recipient_name = recipient_name.strip()
+        if delivery_address and delivery_address.strip():
+            self.delivery_address = delivery_address.strip()
+
     def assign_to_courier(self, courier_id: int, tour_id: Optional[int] = None, reason: Optional[str] = None) -> None:
         """Assign or reassign parcel to a courier or transit shuttle."""
         ctx = TransitionContext(courier_id=courier_id, incident_reason=reason)

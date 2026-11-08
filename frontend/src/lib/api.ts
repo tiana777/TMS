@@ -406,6 +406,26 @@ export async function updateParcelStatus(parcelId: number, payload: UpdateParcel
   return await res.json();
 }
 
+export async function updateParcelContact(
+  parcelId: number,
+  payload: { recipient_phone?: string; recipient_name?: string; delivery_address?: string }
+) {
+  const headers = getAuthHeaders();
+
+  const res = await fetch(`${API_BASE_URL}/parcels/${parcelId}/contact`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de la mise à jour des coordonnées.");
+  }
+
+  return await res.json();
+}
+
 export async function closeTour(tourId: number, cashAndMobileRemitted: number) {
   const headers = getAuthHeaders();
 

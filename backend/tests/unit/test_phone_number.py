@@ -45,6 +45,26 @@ class TestPhoneNumber:
         p3 = PhoneNumber("261334455667")
         assert p3.raw_digits == "0334455667"
 
+        p4 = PhoneNumber("+261 034 12 345 67")
+        assert p4.raw_digits == "0341234567"
+
+        p5 = PhoneNumber("00261 038 99 887 76")
+        assert p5.raw_digits == "0389988776"
+        assert p5.operator == Operator.TELMA
+
+    def test_all_operator_prefixes(self):
+        from backend.app.domain.value_objects.phone_number import MALAGASY_PHONE_REGEX
+        assert MALAGASY_PHONE_REGEX.match("0341234567")
+        assert MALAGASY_PHONE_REGEX.match("0381234567")
+        assert MALAGASY_PHONE_REGEX.match("0321234567")
+        assert MALAGASY_PHONE_REGEX.match("0371234567")
+        assert MALAGASY_PHONE_REGEX.match("0331234567")
+
+        # Invalid prefixes
+        assert not MALAGASY_PHONE_REGEX.match("0391234567")
+        assert not MALAGASY_PHONE_REGEX.match("0351234567")
+        assert not MALAGASY_PHONE_REGEX.match("0201234567")
+
     def test_invalid_length_too_short(self):
         with pytest.raises(InvalidPhoneNumberException) as exc:
             PhoneNumber("03412345")

@@ -21,6 +21,9 @@ import {
   ShieldCheck,
   User,
   Package,
+  Plus,
+  Trash2,
+  Sparkles,
 } from "lucide-react";
 import {
   fetchTours,
@@ -28,10 +31,35 @@ import {
   fetchCouriers,
   fetchParcels,
   updateParcelStatus,
+  updateParcelContact,
   reassignParcel,
   startTour,
   UpdateParcelStatusPayload,
 } from "../../lib/api";
+import {
+  detectMalagasyPhone,
+  cleanMalagasyPhone,
+  formatMalagasyPhone,
+  isValidMalagasyPhone,
+  MALAGASY_PHONE_REGEX,
+} from "../../lib/phone";
+
+const DEFAULT_CANCEL_REASONS = [
+  "Refus client : article non conforme",
+  "Refus client : emballage endommagé",
+  "Client a annulé la commande",
+  "Refus du client de régler le montant COD",
+  "Numéro faux ou destinataire inconnu",
+  "Client introuvable à l'adresse indiquée",
+];
+
+const DEFAULT_RESCHEDULE_REASONS = [
+  "Client absent au rendez-vous",
+  "Client injoignable après 3 appels",
+  "Demande expresse du client (report de date)",
+  "Adresse inaccessible temporairement",
+  "Fonds indisponibles au moment du passage",
+];
 
 interface Courier {
   id: number;
@@ -123,18 +151,69 @@ export default function TrackingPage() {
     return () => window.removeEventListener("tms_role_change", updateRole);
   }, []);
 
-  // Form states for modals
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("ESPECES");
-  const [rescheduleDate, setRescheduleDate] = useState<string>("2026-11-09");
-  const [rescheduleReason, setRescheduleReason] = useState<string>("Client absent au rendez-vous");
-  const [customRescheduleReason, setCustomRescheduleReason] = useState<string>("");
+  // Dynamic lists for modal reasons (editable, non-hardcoded & persisted in localStorage)
+  const [cancelReasonsList, setCancelReasonsList] = useState<string[]>(DEFAULT_CANCEL_REASONS);
+  const [rescheduleReasonsList, setRescheduleReasonsList] = useState<string[]>(DEFAULT_RESCHEDULE_REASONS);
 
-  const [cancelReason, setCancelReason] = useState<string>("Refus client : article non conforme");
+  // Form states for modals (initialized dynamically from lists)
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("ESPECES");
+  const [mobileMoneyPhone, setMobileMoneyPhone] = useState<string>("");
+
+  const [rescheduleDate, setRescheduleDate] = useState<string>("2026-11-09");
+  const [rescheduleReason, setRescheduleReason] = useState<string>("");
+  const [customRescheduleReason, setCustomRescheduleReason] = useState<string>("");
+  const [isCreatingRescheduleReason, setIsCreatingRescheduleReason] = useState<boolean>(false);
+  const [newRescheduleReasonInput, setNewRescheduleReasonInput] = useState<string>("");
+
+  const [cancelReason, setCancelReason] = useState<string>("");
   const [customCancelReason, setCustomCancelReason] = useState<string>("");
+  const [isCreatingCancelReason, setIsCreatingCancelReason] = useState<boolean>(false);
+  const [newCancelReasonInput, setNewCancelReasonInput] = useState<string>("");
+
+  // Phone verification & live correction states (CDC 7.1)
+  const [testPhoneInput, setTestPhoneInput] = useState<string>("");
+  const [isUpdatingPhone, setIsUpdatingPhone] = useState<boolean>(false);
+  const [phoneUpdateSuccess, setPhoneUpdateSuccess] = useState<string | null>(null);
+  const [phoneUpdateError, setPhoneUpdateError] = useState<string | null>(null);
 
   const [partnerName, setPartnerName] = useState<string>("Cotisse Transport");
   const [partnerReference, setPartnerReference] = useState<string>("");
   const [partnerFee, setPartnerFee] = useState<number>(10000);
+
+  // Load custom reasons from localStorage or fallback to defaults
+  useEffect(() => {
+    try {
+      const storedCancel = localStorage.getItem("tms_cancel_reasons");
+      if (storedCancel) {
+        const parsed = JSON.parse(storedCancel);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setCancelReasonsList(parsed);
+          setCancelReason(parsed[0]);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Erreur chargement tms_cancel_reasons", e);
+    }
+    setCancelReason(DEFAULT_CANCEL_REASONS[0]);
+  }, []);
+
+  useEffect(() => {
+    try {
+      const storedReschedule = localStorage.getItem("tms_reschedule_reasons");
+      if (storedReschedule) {
+        const parsed = JSON.parse(storedReschedule);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setRescheduleReasonsList(parsed);
+          setRescheduleReason(parsed[0]);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Erreur chargement tms_reschedule_reasons", e);
+    }
+    setRescheduleReason(DEFAULT_RESCHEDULE_REASONS[0]);
+  }, []);
 
   // Load data
   useEffect(() => {
@@ -256,10 +335,131 @@ export default function TrackingPage() {
       });
       return;
     }
-    setTargetParcel(parcel);
+    openModal("REASSIGN", parcel);
     const otherCourier = couriers.find((c) => c.id !== parcel.courier_id);
     setReassignTargetCourierId(otherCourier ? otherCourier.id : "");
-    setActiveModal("REASSIGN");
+  };
+
+  const openModal = (
+    modalType: "DELIVER" | "RESCHEDULE" | "CANCEL" | "OUTSOURCE" | "REASSIGN",
+    parcel: Parcel
+  ) => {
+    setTargetParcel(parcel);
+    setActiveModal(modalType);
+    setTestPhoneInput(parcel.recipient_phone || "");
+    setMobileMoneyPhone(parcel.recipient_phone || "");
+    setPhoneUpdateSuccess(null);
+    setPhoneUpdateError(null);
+    setIsCreatingCancelReason(false);
+    setIsCreatingRescheduleReason(false);
+    setNewCancelReasonInput("");
+    setNewRescheduleReasonInput("");
+  };
+
+  // Dynamic Reason Creators & Managers (never hardcoded, persistent in localStorage)
+  const handleAddCancelReason = (reasonToAdd?: string) => {
+    const text = (reasonToAdd || newCancelReasonInput).trim();
+    if (!text) return;
+    let nextList = cancelReasonsList;
+    if (!cancelReasonsList.includes(text)) {
+      nextList = [...cancelReasonsList, text];
+      setCancelReasonsList(nextList);
+      try {
+        localStorage.setItem("tms_cancel_reasons", JSON.stringify(nextList));
+      } catch (e) {}
+    }
+    setCancelReason(text);
+    setNewCancelReasonInput("");
+    setIsCreatingCancelReason(false);
+  };
+
+  const handleDeleteCancelReason = (reasonToDelete: string) => {
+    const filtered = cancelReasonsList.filter((r) => r !== reasonToDelete);
+    const updated = filtered.length > 0 ? filtered : DEFAULT_CANCEL_REASONS;
+    setCancelReasonsList(updated);
+    try {
+      localStorage.setItem("tms_cancel_reasons", JSON.stringify(updated));
+    } catch (e) {}
+    if (cancelReason === reasonToDelete) {
+      setCancelReason(updated[0] || "");
+    }
+  };
+
+  const handleAddRescheduleReason = (reasonToAdd?: string) => {
+    const text = (reasonToAdd || newRescheduleReasonInput).trim();
+    if (!text) return;
+    let nextList = rescheduleReasonsList;
+    if (!rescheduleReasonsList.includes(text)) {
+      nextList = [...rescheduleReasonsList, text];
+      setRescheduleReasonsList(nextList);
+      try {
+        localStorage.setItem("tms_reschedule_reasons", JSON.stringify(nextList));
+      } catch (e) {}
+    }
+    setRescheduleReason(text);
+    setNewRescheduleReasonInput("");
+    setIsCreatingRescheduleReason(false);
+  };
+
+  const handleDeleteRescheduleReason = (reasonToDelete: string) => {
+    const filtered = rescheduleReasonsList.filter((r) => r !== reasonToDelete);
+    const updated = filtered.length > 0 ? filtered : DEFAULT_RESCHEDULE_REASONS;
+    setRescheduleReasonsList(updated);
+    try {
+      localStorage.setItem("tms_reschedule_reasons", JSON.stringify(updated));
+    } catch (e) {}
+    if (rescheduleReason === reasonToDelete) {
+      setRescheduleReason(updated[0] || "");
+    }
+  };
+
+  // Live Phone Number Verification & Customer Contact Update (CDC Section 7.1)
+  const handleUpdateParcelPhone = async () => {
+    if (!targetParcel) return;
+    const phoneCheck = detectMalagasyPhone(testPhoneInput);
+    if (!phoneCheck.isValid) {
+      setPhoneUpdateError(phoneCheck.errorMessage || "Numéro malgache non conforme");
+      return;
+    }
+
+    try {
+      setIsUpdatingPhone(true);
+      setPhoneUpdateError(null);
+      await updateParcelContact(targetParcel.id, {
+        recipient_phone: phoneCheck.cleaned,
+      });
+
+      // Update in local state for instantaneous feedback
+      setParcels((prev) =>
+        prev.map((p) =>
+          p.id === targetParcel.id
+            ? {
+                ...p,
+                recipient_phone: phoneCheck.cleaned,
+                recipient_phone_formatted: phoneCheck.formatted,
+                operator: phoneCheck.operator || p.operator,
+              }
+            : p
+        )
+      );
+
+      setTargetParcel((prev) =>
+        prev
+          ? {
+              ...prev,
+              recipient_phone: phoneCheck.cleaned,
+              recipient_phone_formatted: phoneCheck.formatted,
+              operator: phoneCheck.operator || prev.operator,
+            }
+          : null
+      );
+
+      setPhoneUpdateSuccess(`Numéro mis à jour avec succès : ${phoneCheck.formatted} (${phoneCheck.operator})`);
+    } catch (e: any) {
+      setPhoneUpdateError(e.message || "Erreur lors de la mise à jour du numéro");
+    } finally {
+      setIsUpdatingPhone(false);
+    }
   };
 
   // Submit Pointage
@@ -359,6 +559,14 @@ export default function TrackingPage() {
     setTargetParcel(null);
     setCustomRescheduleReason("");
     setCustomCancelReason("");
+    setIsCreatingCancelReason(false);
+    setIsCreatingRescheduleReason(false);
+    setNewCancelReasonInput("");
+    setNewRescheduleReasonInput("");
+    setTestPhoneInput("");
+    setPhoneUpdateSuccess(null);
+    setPhoneUpdateError(null);
+    setMobileMoneyPhone("");
     setPartnerReference("");
   };
 
@@ -645,13 +853,43 @@ export default function TrackingPage() {
 
                     <div className="flex flex-col sm:flex-row sm:items-center gap-x-4 gap-y-1 text-sm text-slate-800">
                       <span className="font-bold">{parcel.recipient_name}</span>
-                      <span className="inline-flex items-center gap-1 text-xs text-slate-600 font-mono font-medium">
-                        <Phone className="w-3.5 h-3.5 text-slate-400" />
-                        {parcel.recipient_phone_formatted || parcel.recipient_phone}
-                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 ml-1">
-                          {parcel.operator}
-                        </span>
-                      </span>
+                      {(() => {
+                        const phoneInfo = detectMalagasyPhone(parcel.recipient_phone);
+                        const op = phoneInfo.operator || parcel.operator;
+                        const opColors: Record<string, string> = {
+                          TELMA: "bg-emerald-50 text-emerald-800 border-emerald-300",
+                          ORANGE: "bg-orange-50 text-orange-800 border-orange-300",
+                          AIRTEL: "bg-rose-50 text-rose-800 border-rose-300",
+                        };
+                        const badgeStyle = opColors[op] || "bg-slate-100 text-slate-600 border-slate-200";
+
+                        return (
+                          <span className="inline-flex items-center gap-1.5 text-xs text-slate-600 font-mono font-medium">
+                            <Phone className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{phoneInfo.formatted || parcel.recipient_phone}</span>
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-black border uppercase tracking-wider ${badgeStyle}`}
+                            >
+                              {op || "INCONNU"}
+                            </span>
+                            {phoneInfo.isValid ? (
+                              <span
+                                title="Format Malgache Certifié 10 chiffres (CDC 7.1)"
+                                className="inline-flex items-center text-emerald-600"
+                              >
+                                <ShieldCheck className="w-3.5 h-3.5" />
+                              </span>
+                            ) : (
+                              <span
+                                title={`Format Invalide : ${phoneInfo.errorMessage}`}
+                                className="inline-flex items-center text-rose-500 font-bold text-[10px] bg-rose-50 px-1 rounded border border-rose-200"
+                              >
+                                <AlertCircle className="w-3 h-3 mr-0.5" /> Non conforme
+                              </span>
+                            )}
+                          </span>
+                        );
+                      })()}
                     </div>
 
                     <div className="flex items-start gap-1.5 text-xs text-slate-600">
@@ -709,10 +947,7 @@ export default function TrackingPage() {
                       <>
                         <button
                           data-cy={`btn-deliver-${parcel.id}`}
-                          onClick={() => {
-                            setTargetParcel(parcel);
-                            setActiveModal("DELIVER");
-                          }}
+                          onClick={() => openModal("DELIVER", parcel)}
                           className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition shadow flex items-center gap-1.5"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" />
@@ -721,10 +956,7 @@ export default function TrackingPage() {
 
                         <button
                           data-cy={`btn-reschedule-${parcel.id}`}
-                          onClick={() => {
-                            setTargetParcel(parcel);
-                            setActiveModal("RESCHEDULE");
-                          }}
+                          onClick={() => openModal("RESCHEDULE", parcel)}
                           className="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold text-xs rounded-xl transition flex items-center gap-1.5"
                         >
                           <Clock className="w-3.5 h-3.5 text-amber-600" />
@@ -733,10 +965,7 @@ export default function TrackingPage() {
 
                         <button
                           data-cy={`btn-cancel-${parcel.id}`}
-                          onClick={() => {
-                            setTargetParcel(parcel);
-                            setActiveModal("CANCEL");
-                          }}
+                          onClick={() => openModal("CANCEL", parcel)}
                           className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 font-bold text-xs rounded-xl transition flex items-center gap-1.5"
                         >
                           <XCircle className="w-3.5 h-3.5 text-rose-600" />
@@ -746,10 +975,7 @@ export default function TrackingPage() {
                         {parcel.flux_type === "PROVINCE" && (
                           <button
                             data-cy={`btn-outsource-${parcel.id}`}
-                            onClick={() => {
-                              setTargetParcel(parcel);
-                              setActiveModal("OUTSOURCE");
-                            }}
+                            onClick={() => openModal("OUTSOURCE", parcel)}
                             className="px-3 py-2 bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-300 font-bold text-xs rounded-xl transition flex items-center gap-1.5"
                           >
                             <Building2 className="w-3.5 h-3.5 text-purple-600" />
@@ -852,6 +1078,99 @@ export default function TrackingPage() {
               </div>
             </div>
 
+            {/* Mobile Money live phone regex verification (CDC 7.1) */}
+            {["MVOLA", "AIRTEL", "ORANGE_MONEY"].includes(selectedPaymentMethod) && (
+              <div
+                data-cy="mobile-money-verification-box"
+                className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5"
+              >
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5 text-blue-600" />
+                    Numéro Mobile Money (Vérification Regex)
+                  </label>
+                  <span className="text-[11px] font-medium text-slate-500">
+                    Attendu :{" "}
+                    <strong>
+                      {selectedPaymentMethod === "MVOLA"
+                        ? "Telma (034, 038)"
+                        : selectedPaymentMethod === "ORANGE_MONEY"
+                        ? "Orange (032, 037)"
+                        : "Airtel (033)"}
+                    </strong>
+                  </span>
+                </div>
+
+                <div className="relative">
+                  <input
+                    data-cy="mobile-money-phone-input"
+                    type="text"
+                    value={mobileMoneyPhone}
+                    onChange={(e) => setMobileMoneyPhone(e.target.value)}
+                    placeholder="Ex: 034 12 345 67 ou 032 ..."
+                    className="w-full px-3 py-2 text-xs font-mono font-bold border border-slate-300 rounded-xl focus:outline-none focus:border-blue-500 bg-white"
+                  />
+                  {mobileMoneyPhone && (
+                    <span className="absolute right-2.5 top-2">
+                      {detectMalagasyPhone(mobileMoneyPhone).isValid ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-rose-500" />
+                      )}
+                    </span>
+                  )}
+                </div>
+
+                {mobileMoneyPhone && (
+                  <div className="text-xs">
+                    {(() => {
+                      const detect = detectMalagasyPhone(mobileMoneyPhone);
+                      const expectedOp =
+                        selectedPaymentMethod === "MVOLA"
+                          ? "TELMA"
+                          : selectedPaymentMethod === "ORANGE_MONEY"
+                          ? "ORANGE"
+                          : "AIRTEL";
+
+                      if (!detect.isValid) {
+                        return (
+                          <p data-cy="mm-phone-error" className="text-rose-600 text-[11px] font-semibold flex items-center gap-1">
+                            <XCircle className="w-3.5 h-3.5 shrink-0" />
+                            {detect.errorMessage || "Format invalide"}
+                          </p>
+                        );
+                      }
+
+                      const opMatch = detect.operator === expectedOp;
+                      return (
+                        <div
+                          data-cy="mm-phone-success"
+                          className={`flex items-center justify-between text-[11px] p-2 rounded-lg border font-bold ${
+                            opMatch
+                              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                              : "bg-amber-50 text-amber-800 border-amber-200"
+                          }`}
+                        >
+                          <span className="flex items-center gap-1.5">
+                            {opMatch ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            ) : (
+                              <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                            )}
+                            Format : {detect.formatted} ({detect.operator})
+                            {!opMatch && ` • Attention: portefeuille ${expectedOp} mais numéro ${detect.operator}`}
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-white/80 border border-current">
+                            {detect.operator}
+                          </span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
               <button
                 type="button"
@@ -910,34 +1229,200 @@ export default function TrackingPage() {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block uppercase tracking-wider mb-1">
-                  Motif Circonstancié (Obligatoire)
-                </label>
-                <select
-                  data-cy="reschedule-reason-select"
-                  value={rescheduleReason}
-                  onChange={(e) => setRescheduleReason(e.target.value)}
-                  className="w-full px-3 py-2 text-xs font-medium border border-slate-300 rounded-xl focus:outline-none focus:border-amber-500 bg-white"
-                >
-                  <option value="Client absent au rendez-vous">Client absent au rendez-vous</option>
-                  <option value="Client injoignable après 3 appels">Client injoignable après 3 appels</option>
-                  <option value="Demande expresse du client (report de date)">Demande expresse du client (report de date)</option>
-                  <option value="Adresse inaccessible temporairement">Adresse inaccessible temporairement</option>
-                  <option value="Fonds indisponibles au moment du passage">Fonds indisponibles au moment du passage</option>
-                  <option value="Autre">Autre motif circonstancié...</option>
-                </select>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-slate-700 block uppercase tracking-wider">
+                    Motif Circonstancié (Obligatoire)
+                  </label>
+                  {!isCreatingRescheduleReason && (
+                    <button
+                      type="button"
+                      data-cy="btn-toggle-create-reschedule-reason"
+                      onClick={() => setIsCreatingRescheduleReason(true)}
+                      className="text-xs font-bold text-amber-700 hover:text-amber-900 hover:underline flex items-center gap-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Créer un motif</span>
+                    </button>
+                  )}
+                </div>
 
-                {rescheduleReason === "Autre" && (
-                  <input
-                    data-cy="reschedule-custom-reason"
-                    type="text"
-                    placeholder="Précisez le motif du report..."
-                    value={customRescheduleReason}
-                    onChange={(e) => setCustomRescheduleReason(e.target.value)}
-                    className="w-full mt-2 px-3 py-2 text-xs border border-amber-300 rounded-xl focus:outline-none focus:border-amber-500"
-                  />
+                {isCreatingRescheduleReason ? (
+                  <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl space-y-2">
+                    <p className="text-[11px] font-bold text-amber-900">
+                      Nouveau motif de report personnalisé (enregistré automatiquement) :
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        data-cy="input-new-reschedule-reason"
+                        type="text"
+                        placeholder="Ex: Client en réunion jusqu'à 17h..."
+                        value={newRescheduleReasonInput}
+                        onChange={(e) => setNewRescheduleReasonInput(e.target.value)}
+                        className="flex-1 px-3 py-1.5 text-xs border border-amber-300 rounded-lg focus:outline-none focus:border-amber-600 bg-white"
+                      />
+                      <button
+                        type="button"
+                        data-cy="btn-save-new-reschedule-reason"
+                        onClick={() => handleAddRescheduleReason()}
+                        className="px-3 py-1.5 bg-amber-600 text-white font-bold text-xs rounded-lg hover:bg-amber-700 transition"
+                      >
+                        Enregistrer
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsCreatingRescheduleReason(false)}
+                        className="px-2 py-1.5 bg-slate-200 text-slate-700 font-bold text-xs rounded-lg hover:bg-slate-300"
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <select
+                      data-cy="reschedule-reason-select"
+                      value={rescheduleReason}
+                      onChange={(e) => {
+                        if (e.target.value === "__NEW__") {
+                          setIsCreatingRescheduleReason(true);
+                        } else {
+                          setRescheduleReason(e.target.value);
+                        }
+                      }}
+                      className="w-full px-3 py-2 text-xs font-medium border border-slate-300 rounded-xl focus:outline-none focus:border-amber-500 bg-white"
+                    >
+                      {rescheduleReasonsList.map((reason) => (
+                        <option key={reason} value={reason}>
+                          {reason}
+                        </option>
+                      ))}
+                      <option value="__NEW__">➕ Créer un nouveau motif personnalisé...</option>
+                      <option value="Autre">Autre motif circonstancié...</option>
+                    </select>
+
+                    {rescheduleReason === "Autre" && (
+                      <div className="mt-2 space-y-1.5">
+                        <input
+                          data-cy="reschedule-custom-reason"
+                          type="text"
+                          placeholder="Précisez le motif du report..."
+                          value={customRescheduleReason}
+                          onChange={(e) => setCustomRescheduleReason(e.target.value)}
+                          className="w-full px-3 py-2 text-xs border border-amber-300 rounded-xl focus:outline-none focus:border-amber-500"
+                        />
+                        {customRescheduleReason.trim().length > 3 && (
+                          <button
+                            type="button"
+                            onClick={() => handleAddRescheduleReason(customRescheduleReason)}
+                            className="text-[11px] font-bold text-amber-700 hover:text-amber-900 underline flex items-center gap-1"
+                          >
+                            💾 Enregistrer ce motif dans la liste permanente pour les prochaines fois
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
+
+              {/* Phone Verification Box when customer cannot be reached */}
+              {rescheduleReason === "Client injoignable après 3 appels" && (
+                <div
+                  data-cy="reschedule-phone-verification"
+                  className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 text-blue-600" />
+                      Vérification du Numéro Injoignable (Regex CDC 7.1)
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs bg-white p-2.5 rounded-lg border border-slate-200">
+                    <div>
+                      <span className="text-slate-500 block text-[10px] uppercase font-bold">Numéro actuel</span>
+                      <span className="font-mono font-bold text-slate-800">
+                        {targetParcel.recipient_phone}
+                      </span>
+                    </div>
+                    <div>
+                      {detectMalagasyPhone(targetParcel.recipient_phone).isValid ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          Regex Valide ({targetParcel.operator})
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-rose-100 text-rose-800">
+                          <AlertCircle className="w-3 h-3 text-rose-600" />
+                          Format Invalide
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-600 block">
+                      Tester / corriger le numéro pour la reprogrammation :
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        data-cy="reschedule-test-phone-input"
+                        type="text"
+                        placeholder="Ex: 034 12 345 67"
+                        value={testPhoneInput}
+                        onChange={(e) => {
+                          setTestPhoneInput(e.target.value);
+                          setPhoneUpdateSuccess(null);
+                          setPhoneUpdateError(null);
+                        }}
+                        className="flex-1 px-3 py-1.5 text-xs font-mono font-bold border border-slate-300 rounded-lg focus:outline-none focus:border-blue-500 bg-white"
+                      />
+                      <button
+                        type="button"
+                        data-cy="btn-update-reschedule-phone"
+                        onClick={handleUpdateParcelPhone}
+                        disabled={isUpdatingPhone || !detectMalagasyPhone(testPhoneInput).isValid}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-bold text-xs rounded-lg transition shrink-0"
+                      >
+                        {isUpdatingPhone ? "Mise à jour..." : "Mettre à jour"}
+                      </button>
+                    </div>
+
+                    {testPhoneInput && (
+                      <div className="text-xs pt-1">
+                        {(() => {
+                          const check = detectMalagasyPhone(testPhoneInput);
+                          if (!check.isValid) {
+                            return (
+                              <p className="text-rose-600 text-[11px] font-semibold flex items-center gap-1">
+                                <XCircle className="w-3.5 h-3.5 shrink-0" />
+                                {check.errorMessage || "Format invalide"}
+                              </p>
+                            );
+                          }
+                          return (
+                            <div className="flex items-center justify-between text-[11px] text-emerald-700 font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-200">
+                              <span className="flex items-center gap-1.5">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                Format certifié : {check.formatted}
+                              </span>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-600 text-white">
+                                {check.operator}
+                              </span>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
+
+                    {phoneUpdateSuccess && (
+                      <p className="text-emerald-700 text-xs font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-200">
+                        ✅ {phoneUpdateSuccess}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
@@ -984,34 +1469,210 @@ export default function TrackingPage() {
 
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-bold text-slate-700 block uppercase tracking-wider mb-1">
-                  Motif Circonstancié du Refus (Obligatoire)
-                </label>
-                <select
-                  data-cy="cancel-reason-select"
-                  value={cancelReason}
-                  onChange={(e) => setCancelReason(e.target.value)}
-                  className="w-full px-3 py-2 text-xs font-medium border border-slate-300 rounded-xl focus:outline-none focus:border-rose-500 bg-white"
-                >
-                  <option value="Refus client : article non conforme">Refus client : article non conforme</option>
-                  <option value="Refus client : emballage endommagé">Refus client : emballage endommagé</option>
-                  <option value="Client a annulé la commande">Client a annulé la commande</option>
-                  <option value="Refus du client de régler le montant COD">Refus du client de régler le montant COD</option>
-                  <option value="Numéro faux ou destinataire inconnu">Numéro faux ou destinataire inconnu</option>
-                  <option value="Autre">Autre motif explicite...</option>
-                </select>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-slate-700 block uppercase tracking-wider">
+                    Motif Circonstancié du Refus (Obligatoire)
+                  </label>
+                  {!isCreatingCancelReason && (
+                    <button
+                      type="button"
+                      data-cy="btn-toggle-create-cancel-reason"
+                      onClick={() => setIsCreatingCancelReason(true)}
+                      className="text-xs font-bold text-rose-600 hover:text-rose-800 hover:underline flex items-center gap-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Créer un motif</span>
+                    </button>
+                  )}
+                </div>
 
-                {cancelReason === "Autre" && (
-                  <input
-                    data-cy="cancel-custom-reason"
-                    type="text"
-                    placeholder="Précisez le motif du refus..."
-                    value={customCancelReason}
-                    onChange={(e) => setCustomCancelReason(e.target.value)}
-                    className="w-full mt-2 px-3 py-2 text-xs border border-rose-300 rounded-xl focus:outline-none focus:border-rose-500"
-                  />
+                {isCreatingCancelReason ? (
+                  <div className="p-3 bg-rose-50/70 border border-rose-200 rounded-xl space-y-2">
+                    <p className="text-[11px] font-bold text-rose-900">
+                      Nouveau motif de refus personnalisé (enregistré automatiquement) :
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        data-cy="input-new-cancel-reason"
+                        type="text"
+                        placeholder="Ex: Client indisponible pour les 15 prochains jours..."
+                        value={newCancelReasonInput}
+                        onChange={(e) => setNewCancelReasonInput(e.target.value)}
+                        className="flex-1 px-3 py-1.5 text-xs border border-rose-300 rounded-lg focus:outline-none focus:border-rose-600 bg-white"
+                      />
+                      <button
+                        type="button"
+                        data-cy="btn-save-new-cancel-reason"
+                        onClick={() => handleAddCancelReason()}
+                        className="px-3 py-1.5 bg-rose-600 text-white font-bold text-xs rounded-lg hover:bg-rose-700 transition"
+                      >
+                        Enregistrer
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsCreatingCancelReason(false)}
+                        className="px-2 py-1.5 bg-slate-200 text-slate-700 font-bold text-xs rounded-lg hover:bg-slate-300"
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <select
+                      data-cy="cancel-reason-select"
+                      value={cancelReason}
+                      onChange={(e) => {
+                        if (e.target.value === "__NEW__") {
+                          setIsCreatingCancelReason(true);
+                        } else {
+                          setCancelReason(e.target.value);
+                        }
+                      }}
+                      className="w-full px-3 py-2 text-xs font-medium border border-slate-300 rounded-xl focus:outline-none focus:border-rose-500 bg-white"
+                    >
+                      {cancelReasonsList.map((reason) => (
+                        <option key={reason} value={reason}>
+                          {reason}
+                        </option>
+                      ))}
+                      <option value="__NEW__">➕ Créer un nouveau motif personnalisé...</option>
+                      <option value="Autre">Autre motif explicite...</option>
+                    </select>
+
+                    {cancelReason === "Autre" && (
+                      <div className="mt-2 space-y-1.5">
+                        <input
+                          data-cy="cancel-custom-reason"
+                          type="text"
+                          placeholder="Précisez le motif du refus..."
+                          value={customCancelReason}
+                          onChange={(e) => setCustomCancelReason(e.target.value)}
+                          className="w-full px-3 py-2 text-xs border border-rose-300 rounded-xl focus:outline-none focus:border-rose-500"
+                        />
+                        {customCancelReason.trim().length > 3 && (
+                          <button
+                            type="button"
+                            onClick={() => handleAddCancelReason(customCancelReason)}
+                            className="text-[11px] font-bold text-rose-700 hover:text-rose-900 underline flex items-center gap-1"
+                          >
+                            💾 Enregistrer ce motif dans la liste permanente pour les prochaines fois
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
+
+              {/* Phone Regex Verification & Live Correction Widget (CDC 7.1) */}
+              <div
+                data-cy="phone-verification-box"
+                className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5 text-blue-600" />
+                    Vérification Regex du Numéro Destinataire (CDC 7.1)
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-500">
+                    Format: 03[23478]XXXXXXX
+                  </span>
+                </div>
+
+                {/* Current parcel number status */}
+                <div className="flex items-center justify-between text-xs bg-white p-2.5 rounded-lg border border-slate-200">
+                  <div>
+                    <span className="text-slate-500 block text-[10px] uppercase font-bold">Numéro actuel sur le colis</span>
+                    <span className="font-mono font-bold text-slate-800">
+                      {targetParcel.recipient_phone}
+                    </span>
+                  </div>
+                  <div>
+                    {detectMalagasyPhone(targetParcel.recipient_phone).isValid ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        Regex Valide ({targetParcel.operator})
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-rose-100 text-rose-800">
+                        <AlertCircle className="w-3 h-3 text-rose-600" />
+                        Format Invalide
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Tester / Corrector input */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-600 block">
+                    Tester ou corriger le numéro destinataire :
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      data-cy="test-recipient-phone-input"
+                      type="text"
+                      placeholder="Ex: 034 12 345 67 ou +261 32 ..."
+                      value={testPhoneInput}
+                      onChange={(e) => {
+                        setTestPhoneInput(e.target.value);
+                        setPhoneUpdateSuccess(null);
+                        setPhoneUpdateError(null);
+                      }}
+                      className="flex-1 px-3 py-1.5 text-xs font-mono font-bold border border-slate-300 rounded-lg focus:outline-none focus:border-blue-500 bg-white"
+                    />
+                    <button
+                      type="button"
+                      data-cy="btn-update-parcel-phone"
+                      onClick={handleUpdateParcelPhone}
+                      disabled={isUpdatingPhone || !detectMalagasyPhone(testPhoneInput).isValid}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-bold text-xs rounded-lg transition shrink-0"
+                    >
+                      {isUpdatingPhone ? "Enregistrement..." : "Appliquer au Colis"}
+                    </button>
+                  </div>
+
+                  {/* Live Regex Diagnostic Feedback */}
+                  {testPhoneInput && (
+                    <div className="text-xs pt-1">
+                      {(() => {
+                        const check = detectMalagasyPhone(testPhoneInput);
+                        if (!check.isValid) {
+                          return (
+                            <p data-cy="phone-regex-error" className="text-rose-600 text-[11px] font-semibold flex items-center gap-1">
+                              <XCircle className="w-3.5 h-3.5 shrink-0" />
+                              {check.errorMessage || "Format invalide"}
+                            </p>
+                          );
+                        }
+                        return (
+                          <div data-cy="phone-regex-success" className="flex items-center justify-between text-[11px] text-emerald-700 font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-200">
+                            <span className="flex items-center gap-1.5">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              Format normalisé : {check.formatted}
+                            </span>
+                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-600 text-white">
+                              {check.operator}
+                            </span>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+
+                  {phoneUpdateSuccess && (
+                    <p data-cy="phone-update-success" className="text-emerald-700 text-xs font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-200">
+                      ✅ {phoneUpdateSuccess}
+                    </p>
+                  )}
+                  {phoneUpdateError && (
+                    <p className="text-rose-700 text-xs font-bold bg-rose-50 p-2 rounded-lg border border-rose-200">
+                      ❌ {phoneUpdateError}
+                    </p>
+                  )}
+                </div>
+              </div>
+
               <p className="text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-200">
                 Le colis passera au statut <strong>ANNULE_RETOUR</strong> et devra être restitué au quai
                 pour retour physique au donneur d'ordre.

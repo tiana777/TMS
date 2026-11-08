@@ -21,6 +21,9 @@ PREFIX_OPERATOR_MAP = {
     "033": Operator.AIRTEL,
 }
 
+# Strict 10-digit Malagasy phone regex: starts with 03 followed by 2, 3, 4, 7, 8 and 7 digits
+MALAGASY_PHONE_REGEX = re.compile(r"^03([23478])\d{7}$")
+
 
 @dataclass(frozen=True)
 class PhoneNumber:
@@ -42,11 +45,17 @@ class PhoneNumber:
         # Clean non-digit characters except leading plus if any
         cleaned = re.sub(r"[\s\.\-_/()]", "", value.strip())
 
-        # Handle international format conversions (+261, 00261, 261)
-        if cleaned.startswith("+261"):
+        # Handle international format conversions (+261, 00261, 261, +2610...)
+        if cleaned.startswith("+2610"):
+            cleaned = "0" + cleaned[5:]
+        elif cleaned.startswith("+261"):
             cleaned = "0" + cleaned[4:]
+        elif cleaned.startswith("002610"):
+            cleaned = "0" + cleaned[6:]
         elif cleaned.startswith("00261"):
             cleaned = "0" + cleaned[5:]
+        elif cleaned.startswith("2610") and len(cleaned) in (12, 13):
+            cleaned = "0" + cleaned[4:]
         elif cleaned.startswith("261") and len(cleaned) == 12:
             cleaned = "0" + cleaned[3:]
 
@@ -60,12 +69,14 @@ class PhoneNumber:
                 f"Numéro malgache invalide : doit comporter exactement 10 chiffres (reçu {len(cleaned)} chiffres : '{cleaned}')"
             )
 
-        # Validate prefix
-        prefix = cleaned[:3]
-        if prefix not in PREFIX_OPERATOR_MAP:
+        # Validate regex and prefix
+        if not MALAGASY_PHONE_REGEX.match(cleaned):
+            prefix = cleaned[:3]
             raise InvalidPhoneNumberException(
                 f"Préfixe opérateur inconnu '{prefix}'. Les préfixes autorisés sont Telma (034, 038), Orange (032, 037), Airtel (033)."
             )
+
+        prefix = cleaned[:3]
 
         object.__setattr__(self, "raw_digits", cleaned)
         object.__setattr__(self, "operator", PREFIX_OPERATOR_MAP[prefix])

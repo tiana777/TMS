@@ -223,7 +223,7 @@ class TestRESTandGraphQLAPI:
 
         # 2. Assign both parcels to a courier on a unique date
         import uuid
-        unique_date = f"2026-12-{uuid.uuid4().int % 28 + 1:02d}"
+        unique_date = f"{2035 + (uuid.uuid4().int % 50):04d}-{uuid.uuid4().int % 12 + 1:02d}-{uuid.uuid4().int % 28 + 1:02d}"
         tour_res = client.post(
             "/api/v1/tours",
             json={
