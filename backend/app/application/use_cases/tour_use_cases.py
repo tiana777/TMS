@@ -44,6 +44,7 @@ class TourUseCases:
         self.db = db
         self.tour_repo = PostgresTourRepository(db)
         self.parcel_repo = PostgresParcelRepository(db)
+        self.courier_repo = PostgresCourierRepository(db)
         self.dispute_repo = PostgresDisputeRepository(db)
 
     def _to_tour_dto(self, t: Tour) -> TourResponseDTO:
@@ -67,10 +68,21 @@ class TourUseCases:
         user_role: str = "SUPER_ADMIN",
         reason: Optional[str] = None,
     ) -> TourResponseDTO:
+        # Check courier existence and capacity limit
+        courier = self.courier_repo.get_by_id(courier_id)
+        if not courier:
+            raise NotFoundException(f"Livreur introuvable (ID: {courier_id})")
+
         # Check if tour exists for courier and date
         existing = self.tour_repo.get_by_courier_and_date(courier_id, tour_date)
         if existing:
             tour = existing
+            current_parcels = (
+                self.db.query(ParcelORM)
+                .filter(ParcelORM.tournee_id == tour.id, ParcelORM.actif == 1)
+                .all()
+            )
+            existing_ids = {p.id for p in current_parcels}
         else:
             tour = Tour(
                 tour_date=tour_date,
@@ -78,6 +90,16 @@ class TourUseCases:
                 status=TourStatus.ASSIGNE,
             )
             tour = self.tour_repo.save(tour)
+            existing_ids = set()
+
+        # Enforce configurable maximum parcel capacity per courier (CDC 3 & 5.3)
+        new_unique_ids = [pid for pid in parcel_ids if pid not in existing_ids]
+        total_projected_parcels = len(existing_ids) + len(new_unique_ids)
+        if total_projected_parcels > courier.max_parcels:
+            raise BusinessRuleViolationException(
+                f"Capacité maximale dépassée : le livreur {courier.name} ne peut prendre que "
+                f"{courier.max_parcels} colis maximum par tournée ({total_projected_parcels} colis demandés)."
+            )
 
         # Assign or reassign parcels
         for pid in parcel_ids:
@@ -390,6 +412,7 @@ class CourierUseCases:
             vehicle_type=c.vehicle_type,
             security_deposit=c.security_deposit.amount,
             security_deposit_formatted=c.security_deposit.formatted,
+            max_parcels=c.max_parcels,
             active=c.active,
         )
 
@@ -399,7 +422,16 @@ class CourierUseCases:
             phone=PhoneNumber(dto.phone),
             vehicle_type=dto.vehicle_type,
             security_deposit=Money(dto.security_deposit),
+            max_parcels=dto.max_parcels or 15,
         )
+        saved = self.repo.save(c)
+        return self._to_courier_dto(saved)
+
+    def update_courier_capacity(self, courier_id: int, max_parcels: int) -> CourierResponseDTO:
+        c = self.repo.get_by_id(courier_id)
+        if not c:
+            raise NotFoundException(f"Livreur introuvable (ID: {courier_id})")
+        c.set_max_parcels(max_parcels)
         saved = self.repo.save(c)
         return self._to_courier_dto(saved)
 

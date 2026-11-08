@@ -211,6 +211,7 @@ class PostgresCourierRepository(ICourierRepository):
             phone=PhoneNumber(orm.telephone),
             vehicle_type=orm.type_vehicule,
             security_deposit=Money(orm.caution_garantie),
+            max_parcels=orm.capacite_max_colis or 15,
             active=bool(orm.actif),
             created_at=orm.created_at,
             updated_at=orm.updated_at,
@@ -223,6 +224,7 @@ class PostgresCourierRepository(ICourierRepository):
             telephone=domain.phone.raw_digits,
             type_vehicule=domain.vehicle_type,
             caution_garantie=float(domain.security_deposit.amount),
+            capacite_max_colis=domain.max_parcels,
             actif=1 if domain.active else 0,
         )
 
@@ -234,6 +236,7 @@ class PostgresCourierRepository(ICourierRepository):
                 orm.telephone = courier.phone.raw_digits
                 orm.type_vehicule = courier.vehicle_type
                 orm.caution_garantie = float(courier.security_deposit.amount)
+                orm.capacite_max_colis = courier.max_parcels
                 orm.actif = 1 if courier.active else 0
                 self.session.commit()
                 self.session.refresh(orm)

@@ -301,13 +301,12 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
       body: mockTour,
     }).as("createTour");
 
-    cy.visit("/dispatch");
+    cy.visit("/dispatch/province");
     cy.wait(1000);
-    showStepBanner(2, "DISPATCH HUB", "Stock colis Province & Affectation au Livreur");
+    showStepBanner(2, "DISPATCH RÉGIONAL", "Stock colis Province & Affectation au Livreur");
 
     // Présence du colis province dans le stock en dépôt
     cy.contains("M. Razafy Toamasina").should("be.visible");
-    cy.contains("Provinces & Gares Routières").should("be.visible");
     cy.contains("PROVINCE").should("be.visible");
 
     // ⏸️ PAUSE DE 3 SECONDES : Observer le stock avant sélection

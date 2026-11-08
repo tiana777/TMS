@@ -14,13 +14,15 @@ import {
   Award,
   Settings,
   Users,
+  MapPin,
 } from "lucide-react";
 
 const navigation = [
   { name: "Tableau de Bord", href: "/", icon: LayoutDashboard },
   { name: "01. Réception Inbound", href: "/inbound", icon: PackagePlus },
   { name: "02. Import Fichiers", href: "/import", icon: FileSpreadsheet },
-  { name: "03. Dispatching & Tournées", href: "/dispatch", icon: Truck },
+  { name: "03A. Dispatch Ville (Urbain)", href: "/dispatch", icon: Truck },
+  { name: "03B. Dispatch Province (Gares)", href: "/dispatch/province", icon: MapPin },
   { name: "05. Pointage Terrain", href: "/tracking", icon: CheckCircle2 },
   { name: "07. Caisse & Clôture", href: "/cash", icon: Wallet },
   { name: "09. CRM Expéditeurs", href: "/crm", icon: Users },

@@ -10,6 +10,11 @@ class CreateCourierDTO(BaseModel):
     phone: str
     vehicle_type: str
     security_deposit: int = 0
+    max_parcels: int = 15
+
+
+class UpdateCourierCapacityDTO(BaseModel):
+    max_parcels: int
 
 
 class CourierResponseDTO(BaseModel):
@@ -20,6 +25,7 @@ class CourierResponseDTO(BaseModel):
     vehicle_type: str
     security_deposit: int
     security_deposit_formatted: str
+    max_parcels: int = 15
     active: bool
 
 

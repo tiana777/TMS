@@ -41,6 +41,7 @@ class CourierORM(Base):
     telephone = Column(String(20), nullable=False, index=True)
     type_vehicule = Column(String(50), nullable=False)
     caution_garantie = Column(Float, default=0.0, nullable=False)
+    capacite_max_colis = Column(Integer, default=15, nullable=False)
     actif = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

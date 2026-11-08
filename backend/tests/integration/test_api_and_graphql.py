@@ -424,6 +424,99 @@ class TestRESTandGraphQLAPI:
         assert gql_data["parcelsCount"] == 1
         assert len(gql_data["parcels"]) == 1
 
+    def test_courier_capacity_constraint_and_parameter_update(self):
+        login_res = client.post(
+            "/api/v1/auth/login",
+            json={"username": "admin", "password": "admin123"},
+        )
+        assert login_res.status_code == 200
+        headers = {"Authorization": f"Bearer {login_res.json()['access_token']}"}
+
+        # 1. Create a courier with custom limit of 2 parcels
+        import uuid
+        c_name = f"Test Courier {uuid.uuid4().hex[:6]}"
+        c_res = client.post(
+            "/api/v1/couriers",
+            json={
+                "name": c_name,
+                "phone": "0349988776",
+                "vehicle_type": "Scooter 125cc",
+                "security_deposit": 100000,
+                "max_parcels": 2,
+            },
+            headers=headers,
+        )
+        assert c_res.status_code == 201
+        courier_id = c_res.json()["id"]
+        assert c_res.json()["max_parcels"] == 2
+
+        # 2. Create 3 parcels
+        p_ids = []
+        for i in range(3):
+            p_res = client.post(
+                "/api/v1/parcels",
+                json={
+                    "vendor_id": 1,
+                    "recipient_name": f"Client Capacity {i}",
+                    "recipient_phone": "0341122334",
+                    "delivery_address": "Tsiazotafo",
+                    "designation": f"Colis {i}",
+                    "flux_type": "COD",
+                    "merchandise_amount": 10000,
+                    "delivery_fee": 3000,
+                },
+                headers=headers,
+            )
+            assert p_res.status_code == 201
+            p_ids.append(p_res.json()["id"])
+
+        # 3. Attempt to assign 3 parcels to courier who is limited to 2 -> Must fail with 400
+        date_str = f"{2045 + (uuid.uuid4().int % 20):04d}-05-15"
+        fail_res = client.post(
+            "/api/v1/tours",
+            json={
+                "courier_id": courier_id,
+                "tour_date": date_str,
+                "parcel_ids": p_ids,
+            },
+            headers=headers,
+        )
+        assert fail_res.status_code == 400
+        assert "Capacité maximale dépassée" in fail_res.json()["detail"]
+
+        # 4. Assigning 2 parcels (within limit) -> Must succeed
+        ok_res = client.post(
+            "/api/v1/tours",
+            json={
+                "courier_id": courier_id,
+                "tour_date": date_str,
+                "parcel_ids": p_ids[:2],
+            },
+            headers=headers,
+        )
+        assert ok_res.status_code == 201
+
+        # 5. Parameterize/Update courier capacity from 2 to 5
+        patch_res = client.patch(
+            f"/api/v1/couriers/{courier_id}/capacity",
+            json={"max_parcels": 5},
+            headers=headers,
+        )
+        assert patch_res.status_code == 200
+        assert patch_res.json()["max_parcels"] == 5
+
+        # 6. Now assign the 3rd parcel -> Must succeed
+        add_res = client.post(
+            "/api/v1/tours",
+            json={
+                "courier_id": courier_id,
+                "tour_date": date_str,
+                "parcel_ids": [p_ids[2]],
+            },
+            headers=headers,
+        )
+        assert add_res.status_code == 201
+
     def test_caisse_centrale_bulk_close_and_tour_closure_reconciliation(self):
         # 1. Login as admin
         login_res = client.post(

@@ -471,15 +471,22 @@ L'application web est structurée en **12 modules applicatifs dédiés** :
 *   **Utilisateurs Principaux :** Réceptionniste & Superviseur.
 *   **Fonctionnalités :** Téléversement Glisser-Déposer (*Drag & Drop*) pour fichiers Excel (`.xlsx`, `.xls`) et CSV. Analyse sémantique intelligente des colonnes expéditeur et destinataire, validation automatique des formats téléphoniques malgaches, prévisualisation des anomalies avant insertion en base.
 
-### Écran 03 : Dispatching & Assignation des Tournées
+### Écran 03 : Dispatching & Assignation des Tournées (Séparation Stricte Urbain vs Province & Capacité Paramétrable)
 *   **Utilisateurs Principaux :** Réceptionniste & Superviseur (assignation et réassignation de colis hors EN_COURS) ; Super Admin (supervision totale & forçage de réassignation d'urgence y compris colis déjà EN_COURS).
-*   **Fonctionnalités :** 
-    1.  **Vue tabulaire filtrable :** Colis en stock (`EN_DEPOT`), colis assignés (`ASSIGNE`) et tournées actives par corridor routier. Regroupement spécifique des colis Province par gare de départ.
-    2.  **Règles de Réassignation Selon le Rôle & le Statut :**
-        *   **Réceptionniste & Superviseur :** Peuvent assigner et réassigner librement tout colis vers un autre coursier ou une autre tournée **tant que le colis n'est pas déjà en cours de livraison (`EN_DEPOT`, `ASSIGNE`, `REPORTE`)**.
-        *   **Verrouillage `EN_COURS` :** Dès qu'une tournée est lancée et que le colis passe au statut **`EN_COURS`** (coursier sur le terrain), la réassignation est **strictement bloquée** pour le Réceptionniste et le Superviseur.
-        *   **Prérogative Exclusive Super Admin (Forçage d'Urgence) :** Le **Super Admin** a le pouvoir d'outrepasser ce verrou pour réassigner un colis **déjà en cours (`EN_COURS`)** vers un autre coursier ou navette (cas de panne mécanique, accident, indisponibilité soudaine ou transfert d'urgence de charge), avec motif circonstancié obligatoire consigné dans l'historique d'audit.
-    3.  **Modification Manuelle de l'Axe Logistique :** Possibilité d'éditer ou de corriger directement l'axe d'un colis en stock (`EN_DEPOT`) ou en attente d'expédition (`ASSIGNE`) via une modale de sélection manuelle dédiée (Réseau Urbain vs Expéditions Province), avec reclassement instantané dans le corridor correspondant et bascule synchronisée du type de flux (`PROVINCE` vs `COD`/`SIMPLE`).
+*   **Séparation Stricte en Deux Pages Dédiées :**
+    1.  **Écran 03A : Dispatching Urbain (`/dispatch`) :** Dédié exclusivement à la distribution urbaine (Grand Tanà, 7 corridors radiaux : Centre, RN1, RN2, RN3, RN4, RN7, Sud-Est). Tous les colis d'expédition vers la province (`AXE_PROVINCE`) y sont strictement filtrés et exclus.
+    2.  **Écran 03B : Dispatching Régional / Province (`/dispatch/province`) :** Dédié exclusivement aux expéditions régionales inter-villes et dépôts en gares routières (Ambodivona, Fasan'ny Karana, Andohatapenaka). Seuls les colis `AXE_PROVINCE` y figurent avec filtrage par gare de départ.
+    *   **Bandeau de Navigation Transversal :** Un sélecteur à onglets supérieur proéminent permet au superviseur de basculer instantanément entre le *Dispatch Urbain (En Ville)* et le *Dispatch Régional (Province)*.
+*   **Plafond de Prise en Charge Paramétrable par Livreur (`capacite_max_colis`) :**
+    1.  **Capacité Individuelle Paramétrable :** Chaque livreur est doté d'une capacité maximale de colis par tournée (`capacite_max_colis`, valeur standard : 15 colis, modifiable dynamiquement par le superviseur ou l'administrateur selon la taille du colis ou du véhicule).
+    2.  **Jauge et Contrôle en Temps Réel :** Lors de la sélection d'un coursier dans l'interface de dispatching, une jauge de capacité s'affiche (`X colis sélectionnés / Y max autorisés`).
+    3.  **Blocage Strict en Cas de Dépassement :** Si le volume sélectionné dépasse la capacité maximale configurée du livreur, une bannière d'alerte rouge s'affiche et le bouton d'assignation de la tournée est **strictement désactivé**. Au niveau du moteur métier backend, la tentative d'assignation lève une exception HTTP 400 (`Capacité maximale dépassée`).
+    4.  **Ajustement Immédiat du Plafond :** Le superviseur peut modifier à tout moment la capacité paramétrée d'un coursier depuis l'interface pour autoriser une charge supérieure si la situation logistique l'exige.
+*   **Règles de Réassignation Selon le Rôle & le Statut :**
+    *   **Réceptionniste & Superviseur :** Peuvent assigner et réassigner librement tout colis vers un autre coursier ou une autre tournée **tant que le colis n'est pas déjà en cours de livraison (`EN_DEPOT`, `ASSIGNE`, `REPORTE`)**, dans la limite de la capacité paramétrée du livreur cible.
+    *   **Verrouillage `EN_COURS` :** Dès qu'une tournée est lancée et que le colis passe au statut **`EN_COURS`** (coursier sur le terrain), la réassignation est **strictement bloquée** pour le Réceptionniste et le Superviseur.
+    *   **Prérogative Exclusive Super Admin (Forçage d'Urgence) :** Le **Super Admin** a le pouvoir d'outrepasser ce verrou pour réassigner un colis **déjà en cours (`EN_COURS`)** vers un autre coursier en cas d'urgence opérationnelle, avec motif consigné dans le journal d'audit.
+*   **Modification Manuelle de l'Axe Logistique :** Possibilité d'éditer manuellement l'axe d'un colis via modale dédiée, avec bascule instantanée entre la page de Dispatch Urbain et la page de Dispatch Province selon la nouvelle affectation.
 
 ### Écran 04 : Feuilles de Route & Impression Thermique (Tickets 80 mm)
 *   **Utilisateurs Principaux :** Superviseur & Livreurs.
@@ -753,6 +760,7 @@ erDiagram
         string telephone
         string type_vehicule
         real caution_garantie
+        int capacite_max_colis "Plafond paramétrable de colis par tournée (défaut: 15)"
         int actif
         datetime created_at
         datetime updated_at

@@ -73,6 +73,7 @@ export async function fetchCouriers() {
         vehicle_type: "Moto Cross 150cc",
         security_deposit: 150000,
         security_deposit_formatted: "150 000 Ar",
+        max_parcels: 15,
         active: true,
       },
       {
@@ -83,6 +84,7 @@ export async function fetchCouriers() {
         vehicle_type: "Scooter 125cc",
         security_deposit: 150000,
         security_deposit_formatted: "150 000 Ar",
+        max_parcels: 15,
         active: true,
       },
       {
@@ -93,6 +95,7 @@ export async function fetchCouriers() {
         vehicle_type: "Moto Trail 150cc",
         security_deposit: 150000,
         security_deposit_formatted: "150 000 Ar",
+        max_parcels: 15,
         active: true,
       },
       {
@@ -103,10 +106,25 @@ export async function fetchCouriers() {
         vehicle_type: "Moto 125cc",
         security_deposit: 150000,
         security_deposit_formatted: "150 000 Ar",
+        max_parcels: 15,
         active: true,
       },
     ];
   }
+}
+
+export async function updateCourierCapacity(courierId: number, maxParcels: number) {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/couriers/${courierId}/capacity`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ max_parcels: maxParcels }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de la mise à jour de la capacité du livreur.");
+  }
+  return await res.json();
 }
 
 export async function fetchParcels(filters?: {

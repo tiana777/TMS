@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   Truck,
   Package,
@@ -10,6 +11,7 @@ import {
   Printer,
   MessageSquare,
   AlertCircle,
+  AlertTriangle,
   Search,
   Filter,
   CheckSquare,
@@ -38,6 +40,7 @@ import {
   unassignParcelFromTour,
   startTour,
   overrideParcelAxis,
+  updateCourierCapacity,
 } from "@/lib/api";
 import { AxisInfo, Courier, LogisticAxis, Parcel, Tour } from "@/types";
 
@@ -75,6 +78,8 @@ export default function DispatchPage() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedParcelIds, setSelectedParcelIds] = useState<number[]>([]);
   const [assignedCourierId, setAssignedCourierId] = useState<number | "">("");
+  const [courierCapacityInput, setCourierCapacityInput] = useState<number>(15);
+  const [isUpdatingCapacity, setIsUpdatingCapacity] = useState<boolean>(false);
   const [isAssigning, setIsAssigning] = useState<boolean>(false);
   const [assignSuccessMessage, setAssignSuccessMessage] = useState<string | null>(null);
 
@@ -274,12 +279,40 @@ export default function DispatchPage() {
     loadTourDetail(tourId);
   };
 
-  // Filtered parcels for Écran 03
-  const filteredParcels = stockParcels.filter((p) => {
-    if (selectedAxis !== "ALL" && p.axis !== selectedAxis) return false;
-    if (selectedAxis === "AXE_PROVINCE" && selectedGare !== "ALL") {
-      if (!p.delivery_address.toLowerCase().includes(selectedGare.toLowerCase())) return false;
+  // Strictly Urban parcels on this page (CDC Section 4.1 & Écran 03A)
+  const urbanStockParcels = stockParcels.filter((p) => p.axis !== "AXE_PROVINCE");
+  const totalProvinceStock = stockParcels.filter((p) => p.axis === "AXE_PROVINCE").length;
+
+  const selectedCourier = couriers.find((c) => c.id === Number(assignedCourierId));
+  const courierCapacity = selectedCourier ? (selectedCourier.max_parcels || 15) : 15;
+  const isOverCapacity = selectedParcelIds.length > courierCapacity;
+
+  useEffect(() => {
+    if (selectedCourier) {
+      setCourierCapacityInput(selectedCourier.max_parcels || 15);
     }
+  }, [selectedCourier]);
+
+  const handleSaveCapacity = async () => {
+    if (!selectedCourier || courierCapacityInput <= 0) return;
+    setIsUpdatingCapacity(true);
+    try {
+      await updateCourierCapacity(selectedCourier.id, courierCapacityInput);
+      setCouriers((prev) =>
+        prev.map((c) =>
+          c.id === selectedCourier.id ? { ...c, max_parcels: courierCapacityInput } : c
+        )
+      );
+    } catch (err: any) {
+      alert(err.message || "Erreur lors de la mise à jour de la capacité.");
+    } finally {
+      setIsUpdatingCapacity(false);
+    }
+  };
+
+  // Filtered urban parcels for Écran 03A
+  const filteredParcels = urbanStockParcels.filter((p) => {
+    if (selectedAxis !== "ALL" && p.axis !== selectedAxis) return false;
     if (searchQuery.trim() !== "") {
       const q = searchQuery.toLowerCase();
       const matchBDR = p.tracking_number.toLowerCase().includes(q);
@@ -314,7 +347,7 @@ export default function DispatchPage() {
 
   // Assign parcels to tour
   const handleAssignToTour = async () => {
-    if (selectedParcelIds.length === 0 || !assignedCourierId) return;
+    if (selectedParcelIds.length === 0 || !assignedCourierId || isOverCapacity) return;
     setIsAssigning(true);
     try {
       const res = await createOrAssignTour(Number(assignedCourierId), selectedDate, selectedParcelIds);
@@ -364,27 +397,51 @@ export default function DispatchPage() {
   // Aggregated metrics for Écran 03
   const totalStockCount = stockParcels.length;
   const totalStockCOD = stockParcels.reduce((sum, p) => sum + p.total_to_collect, 0);
-  const totalProvinceStock = stockParcels.filter((p) => p.axis === "AXE_PROVINCE").length;
   const selectedParcelsTotal = stockParcels
     .filter((p) => selectedParcelIds.includes(p.id))
     .reduce((sum, p) => sum + p.total_to_collect, 0);
 
   return (
     <div className="space-y-6">
+      {/* ========================================================================= */}
+      {/* SÉPARATION STRICTE : BANDEAU NAVIGATION VILLE VS PROVINCE                 */}
+      {/* ========================================================================= */}
+      <div className="grid grid-cols-2 gap-3 p-1.5 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl">
+        <Link
+          href="/dispatch"
+          data-cy="nav-dispatch-urban"
+          className="py-3 px-4 rounded-xl text-xs md:text-sm font-black flex items-center justify-center gap-2.5 transition-all bg-blue-600 text-white shadow-lg shadow-blue-900/40 border border-blue-500/50"
+        >
+          <span>🛵 1. LIVRAISON EN VILLE (URBAIN • 7 CORRIDORS)</span>
+        </Link>
+        <Link
+          href="/dispatch/province"
+          data-cy="nav-dispatch-province"
+          className="py-3 px-4 rounded-xl text-xs md:text-sm font-black flex items-center justify-center gap-2.5 transition-all text-slate-400 hover:text-white hover:bg-slate-800/80 border border-transparent"
+        >
+          <span>🚌 2. EXPÉDITIONS PROVINCE (GARES ROUTIÈRES)</span>
+          {totalProvinceStock > 0 && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-500/30 text-purple-300 border border-purple-500/40">
+              {totalProvinceStock} en attente
+            </span>
+          )}
+        </Link>
+      </div>
+
       {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-800">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-black text-white flex items-center gap-2">
               <Truck className="w-7 h-7 text-blue-500" />
-              03. Dispatching & Feuilles de Route
+              03A. Dispatching Urbain — Livraison en Ville
             </h1>
             <span className="px-2 py-0.5 text-xs font-black bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded">
-              Hub Tsiazotafo
+              Grand Tanà
             </span>
           </div>
           <p className="text-sm text-slate-400 mt-1">
-            Affectation matinale par axe radial, regroupement par gares routières et impression 80 mm
+            Affectation matinale des 7 axes radiaux urbains aux coursiers (Plafond de colis paramétrable)
           </p>
         </div>
 
@@ -642,12 +699,48 @@ export default function DispatchPage() {
                 </select>
               </div>
 
+              {/* Courier Capacity Indicator & Configurator */}
+              {selectedCourier && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-xs">
+                  <span className="text-slate-400 font-medium">Capacité :</span>
+                  <span
+                    data-cy="courier-capacity-display"
+                    className={`font-mono font-bold ${
+                      isOverCapacity ? "text-red-400" : "text-emerald-400"
+                    }`}
+                  >
+                    {selectedParcelIds.length} / {courierCapacity} max
+                  </span>
+                  <div className="flex items-center gap-1.5 ml-2 border-l border-slate-800 pl-2">
+                    <span className="text-[10px] text-slate-400">Plafond :</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      data-cy="input-courier-capacity"
+                      value={courierCapacityInput}
+                      onChange={(e) => setCourierCapacityInput(Number(e.target.value))}
+                      className="w-14 px-1.5 py-0.5 text-center font-mono font-bold text-xs bg-slate-900 border border-slate-700 rounded text-white focus:outline-none focus:border-blue-500"
+                    />
+                    <button
+                      type="button"
+                      data-cy="btn-update-capacity"
+                      onClick={handleSaveCapacity}
+                      disabled={isUpdatingCapacity}
+                      className="px-2 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-bold"
+                    >
+                      {isUpdatingCapacity ? "..." : "OK"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <button
                 onClick={handleAssignToTour}
-                disabled={selectedParcelIds.length === 0 || !assignedCourierId || isAssigning}
+                disabled={selectedParcelIds.length === 0 || !assignedCourierId || isAssigning || isOverCapacity}
                 data-cy="assign-tour-btn"
                 className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg ${
-                  selectedParcelIds.length > 0 && assignedCourierId && !isAssigning
+                  selectedParcelIds.length > 0 && assignedCourierId && !isAssigning && !isOverCapacity
                     ? "bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/50 cursor-pointer"
                     : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
                 }`}
@@ -656,11 +749,26 @@ export default function DispatchPage() {
                 <span>
                   {isAssigning
                     ? "Assignation en cours..."
+                    : isOverCapacity
+                    ? `Capacité dépassée (${selectedParcelIds.length}/${courierCapacity})`
                     : `Assigner (${selectedParcelIds.length} colis)`}
                 </span>
               </button>
             </div>
           </div>
+
+          {/* Capacity Overload Warning Alert */}
+          {isOverCapacity && (
+            <div
+              data-cy="capacity-warning-banner"
+              className="p-3 bg-red-950/90 border border-red-500/80 text-red-200 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg"
+            >
+              <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+              <span>
+                Capacité maximale dépassée : le livreur {selectedCourier?.name} ne peut prendre que {courierCapacity} colis maximum ({selectedParcelIds.length} sélectionnés). Réduisez la sélection ou ajustez le plafond paramétrable.
+              </span>
+            </div>
+          )}
 
           {/* Search bar */}
           <div className="relative">

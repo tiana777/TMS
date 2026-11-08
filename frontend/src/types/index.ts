@@ -104,6 +104,7 @@ export interface Courier {
   vehicle_type: string;
   security_deposit: number;
   security_deposit_formatted: string;
+  max_parcels?: number;
   active: boolean;
 }
 

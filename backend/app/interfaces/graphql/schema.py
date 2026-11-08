@@ -68,6 +68,7 @@ class CourierType:
     vehicle_type: str
     security_deposit: int
     security_deposit_formatted: str
+    max_parcels: int = 15
     active: bool
 
 

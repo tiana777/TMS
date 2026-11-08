@@ -16,6 +16,7 @@ class Courier:
     vehicle_type: str
     id: Optional[int] = None
     security_deposit: Money = field(default_factory=Money.zero)
+    max_parcels: int = 15
     active: bool = True
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -25,6 +26,13 @@ class Courier:
             raise BusinessRuleViolationException("Le nom du coursier est obligatoire.")
         if not self.vehicle_type or not self.vehicle_type.strip():
             raise BusinessRuleViolationException("Le type de véhicule est obligatoire.")
+        if self.max_parcels <= 0:
+            raise BusinessRuleViolationException("La capacité maximale de colis doit être strictement positive.")
+
+    def set_max_parcels(self, limit: int) -> None:
+        if limit <= 0:
+            raise BusinessRuleViolationException("La capacité maximale de colis doit être strictement positive.")
+        self.max_parcels = limit
 
     def deactivate(self) -> None:
         self.active = False
