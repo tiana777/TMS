@@ -52,19 +52,21 @@ describe("Module Inbound & Import - Simulation Automatique Cypress", () => {
     cy.get('[data-testid="type-particulier"]').should("be.visible");
     cy.get('[data-testid="type-entreprise"]').should("be.visible");
 
-    // Click Particulier tab and verify sender contact updates
+    // Senders fields are empty by default (user requirement: vider par defaut)
+    cy.get('[data-testid="sender-name-input"]').should("be.visible").and("have.value", "");
+    cy.get('[data-testid="sender-phone-input"]').should("be.visible").and("have.value", "");
+
+    // Click Particulier tab
     cy.get('[data-testid="type-particulier"]').click();
-    cy.wait(400);
-    cy.get('[data-testid="sender-name-input"]').should("be.visible").and("not.have.value", "");
+    cy.wait(300);
 
     // Click Entreprise tab
     cy.get('[data-testid="type-entreprise"]').click();
-    cy.wait(400);
-    cy.get('[data-testid="sender-name-input"]').should("be.visible").and("not.have.value", "");
+    cy.wait(300);
 
-    // Click back to Cybermarchand for parcel entry
+    // Click back to Cybermarchand for parcel entry and type sender info
     cy.get('[data-testid="type-cybermarchand"]').click();
-    cy.wait(400);
+    cy.wait(300);
     cy.get('[data-testid="sender-name-input"]').clear().type("Mod'Tanà Boutique");
     cy.get('[data-testid="sender-phone-input"]').clear().type("0345566778");
 
@@ -76,6 +78,9 @@ describe("Module Inbound & Import - Simulation Automatique Cypress", () => {
 
     // Check real-time Telma badge appears
     cy.get('[data-testid="badge-operator-telma"]').should("be.visible").and("contain", "TELMA");
+
+    // Fill Designation of merchandise (user requirement: designation marchandise / colis)
+    cy.get('[data-testid="input-designation-0"]').type("Chaussures & Vêtements Mode");
 
     // Type address and verify axis auto-detection to AXE_RN1
     cy.get('[data-testid="input-address-0"]').type("Itaosy Cité Seimad");
@@ -111,6 +116,9 @@ describe("Module Inbound & Import - Simulation Automatique Cypress", () => {
     cy.get('[data-testid="input-name-1"]').type("Randria Paul");
     cy.get('[data-testid="input-phone-1"]').type("0321122334");
     cy.wait(500);
+
+    // Fill Designation for row 2
+    cy.get('[data-testid="input-designation-1"]').type("Carton de Quincaillerie");
 
     // Check real-time Orange badge appears
     cy.get('[data-testid="badge-operator-orange"]').should("be.visible").and("contain", "ORANGE");

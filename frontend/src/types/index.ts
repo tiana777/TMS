@@ -41,6 +41,7 @@ export interface Parcel {
   recipient_phone_formatted: string;
   operator: Operator;
   delivery_address: string;
+  designation?: string | null;
   axis: LogisticAxis;
   axis_label: string;
   is_manual_axis?: boolean;

@@ -26,6 +26,7 @@
     2.  **PARTICULIER** : Client individuel effectuant un envoi ponctuel de point à point (cadeau, effets personnels, document, vente d'occasion entre particuliers).
     3.  **ENTREPRISE** : Personne morale, PME, grande société ou administration ayant des flux récurrents ou volumineux B2B/B2C (contrats, pièces, factures, échantillons), avec règlement au comptant ou en compte entreprise facturé périodiquement.
 *   **Contacts Expéditeur (Données Obligatoires Inbound) :** Pour tout colis enregistré, le système collecte obligatoirement : le type d'expéditeur (`CYBERMARCHAND`, `PARTICULIER`, `ENTREPRISE`), le nom ou raison sociale, le numéro de téléphone certifié au format malgache (10 chiffres avec identification Telma, Orange ou Airtel), l'adresse ou quartier de ramassage/siège, et le contact référent / email (optionnel).
+*   **Désignation de la Marchandise / Colis :** Description textuelle précise de la marchandise transportée (ex: *Robe soyeuse, Smartphone, Pièces détachées, Dossier juridique, Cosmétiques*). Elle est obligatoire ou fortement recommandée pour le contrôle visuel à l'Inbound, la clarté lors de la remise au destinataire et le traitement transparent des litiges éventuels.
 *   **COD (Cash On Delivery / Contre-Remboursement) :** Processus dans lequel le livreur ou le guichet de retrait encaisse auprès du destinataire la valeur marchande du colis au moment de la remise, en plus des frais de transport.
 *   **Course Simple / Port Payé :** Livraison dont la valeur marchande est déjà réglée d'avance par l'acheteur au cybermarchand ; le transporteur ne perçoit que les frais de service (ou aucun montant si les frais font l'objet d'un contrat de facturation périodique).
 *   **Axe Logistique :** Corridor de transport délimitant un secteur géographique déterminé à partir du Hub Central de Tsiazotafo pour organiser rationnellement les tournées.
@@ -383,9 +384,12 @@ L'application web est structurée en **12 modules applicatifs dédiés** :
 ### Écran 01 : Réception Inbound & Formulaire Multi-Colis par Lot
 *   **Utilisateur Principal :** Réceptionniste du Colis.
 *   **Fonctionnalités :** 
-    1.  **Gestion Multi-Donneurs d'Ordre :** Prise en charge des 3 typologies d'expéditeurs (**Cybermarchand**, **Particulier**, **Entreprise**).
-    2.  **Contacts Obligatoires Expéditeur :** Enregistrement ou sélection rapide du donneur d'ordre, capture du numéro de téléphone certifié au format malgache (10 chiffres avec badge opérateur Telma, Orange ou Airtel), adresse/quartier de départ et contact référent.
-    3.  **Grille Dynamique Multi-Lignes :** Saisie rapide des colis du lot, détection visuelle opérateur destinataire, algorithme d'auto-détection géographique de l'axe logistique à la volée **avec sélecteur interactif permettant la modification/surcharge manuelle immédiate de l'axe** en cas de nouvelle adresse ou zone non répertoriée.
+    1.  **Gestion Multi-Donneurs d'Ordre & Autocomplétion :** Prise en charge des 3 typologies d'expéditeurs (**Cybermarchand**, **Particulier**, **Entreprise**). Champs d'expéditeur vides par défaut avec autocomplétion dynamique pour suggérer les partenaires répertoriés dès la première lettre saisie.
+    2.  **Contacts Expéditeur Certifiés :** Capture du nom, téléphone certifié (10 chiffres malgaches avec badge opérateur Telma, Orange ou Airtel), adresse/quartier de ramassage et contact référent.
+    3.  **Grille Colis & Destinataire Aérée (Sans Débordement) :** 
+        *   Saisie obligatoire ou recommandée de la **Désignation de la marchandise / colis** (nature de l'article).
+        *   Formulaire destinataire lisible avec retour à la ligne automatique (*word-wrap*) pour les longues adresses, repères informels et numéros sans coupure de texte ni overflow horizontal.
+        *   Détection visuelle instantanée de l'opérateur et sélecteur interactif d'axe avec surcharge manuelle en 1 clic.
     4.  **Calculs Financiers & Immatriculation :** Calcul instantané de la valeur totale du lot (Marchandise COD, Frais de livraison, Frais partenaire Province), attribution automatique des numéros BDR séquentiels et édition du Bon de Réception.
 
 ### Écran 02 : Importation en Masse de Fichiers Donneurs d'Ordre (Cybermarchands & Entreprises)
@@ -774,6 +778,7 @@ erDiagram
         int zone_id FK
         string client_nom
         string client_tel
+        string designation "Désignation / Contenu de la marchandise"
         string lieu_detail
         string axe
         string type_flux "COD, SIMPLE, RETOUR, PROVINCE"

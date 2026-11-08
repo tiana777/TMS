@@ -38,6 +38,7 @@ class Parcel:
     flux_type: FluxType
     merchandise_amount: Money
     delivery_fee: Money
+    designation: Optional[str] = None
     sender_type: SenderType = SenderType.CYBERMARCHAND
     sender_name: Optional[str] = None
     sender_phone: Optional[PhoneNumber] = None

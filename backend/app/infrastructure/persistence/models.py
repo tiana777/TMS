@@ -154,6 +154,7 @@ class ParcelORM(Base):
     zone_id = Column(Integer, ForeignKey("zones.id"), nullable=True, index=True)
     client_nom = Column(String(100), nullable=False)
     client_tel = Column(String(20), nullable=False, index=True)
+    designation = Column(String(255), nullable=True)
     lieu_detail = Column(Text, nullable=False)
     axe = Column(String(30), nullable=False, index=True)
     axe_modifie_manuellement = Column(Integer, default=0, nullable=False)

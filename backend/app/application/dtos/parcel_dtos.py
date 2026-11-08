@@ -13,6 +13,7 @@ class CreateParcelDTO(BaseModel):
     recipient_name: str
     recipient_phone: str
     delivery_address: str
+    designation: Optional[str] = None
     flux_type: str = "COD"  # COD, SIMPLE, RETOUR, PROVINCE
     merchandise_amount: int = 0
     delivery_fee: int = 5000
@@ -59,6 +60,7 @@ class ParcelResponseDTO(BaseModel):
     recipient_phone_formatted: str
     operator: str
     delivery_address: str
+    designation: Optional[str] = None
     axis: str
     axis_label: str
     is_manual_axis: bool = False

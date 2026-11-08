@@ -1,7 +1,22 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, Printer, CheckCircle, AlertCircle, RefreshCw, Store, User, Building2, Phone, MapPin } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Printer,
+  CheckCircle,
+  AlertCircle,
+  RefreshCw,
+  Store,
+  User,
+  Building2,
+  Phone,
+  MapPin,
+  Package,
+  Layers,
+  Sparkles,
+} from "lucide-react";
 import { detectMalagasyPhone } from "../../lib/phone";
 import { detectAxisClient } from "../../lib/axis";
 import { fetchVendors, createParcelBatch } from "../../lib/api";
@@ -13,6 +28,7 @@ interface InboundRow {
   id: string;
   recipientName: string;
   recipientPhone: string;
+  designation: string;
   deliveryAddress: string;
   axis: LogisticAxis;
   isAxisFallback: boolean;
@@ -26,19 +42,20 @@ interface InboundRow {
 export default function InboundPage() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [senderType, setSenderType] = useState<SenderType>("CYBERMARCHAND");
-  const [selectedVendorId, setSelectedVendorId] = useState<number>(1);
+  const [selectedVendorId, setSelectedVendorId] = useState<number | null>(null);
 
-  // Custom sender contact fields (for Particulier or custom override)
-  const [senderName, setSenderName] = useState<string>("Mod'Tanà Boutique");
-  const [senderPhone, setSenderPhone] = useState<string>("0345566778");
-  const [senderAddress, setSenderAddress] = useState<string>("Box 14, Pavillon Analakely");
-  const [contactPerson, setContactPerson] = useState<string>("Madame Voahirana");
+  // Sender contact fields - EMPTY BY DEFAULT as requested
+  const [senderName, setSenderName] = useState<string>("");
+  const [senderPhone, setSenderPhone] = useState<string>("");
+  const [senderAddress, setSenderAddress] = useState<string>("");
+  const [contactPerson, setContactPerson] = useState<string>("");
 
   const [rows, setRows] = useState<InboundRow[]>([
     {
       id: "row-1",
       recipientName: "",
       recipientPhone: "",
+      designation: "",
       deliveryAddress: "",
       axis: "AXE_CENTRE",
       isAxisFallback: true,
@@ -56,9 +73,7 @@ export default function InboundPage() {
   useEffect(() => {
     fetchVendors().then((data) => {
       setVendors(data);
-      if (data.length > 0) {
-        applyVendorData(data[0]);
-      }
+      // Sender fields remain strictly empty on first load (user request)
     });
   }, []);
 
@@ -73,30 +88,20 @@ export default function InboundPage() {
     }
   };
 
+  const handleSenderNameChange = (val: string) => {
+    setSenderName(val);
+    // Dynamic autocomplete: if typed name matches an existing registered vendor
+    const match = vendors.find(
+      (v) => v.nom.toLowerCase().trim() === val.toLowerCase().trim()
+    );
+    if (match) {
+      applyVendorData(match);
+    }
+  };
+
   const handleSenderTypeChange = (type: SenderType) => {
     setSenderType(type);
-    const matching = vendors.filter((v) => v.type_expediteur === type);
-    if (matching.length > 0) {
-      applyVendorData(matching[0]);
-    } else {
-      // Default templates when switching type
-      if (type === "PARTICULIER") {
-        setSenderName("Client Particulier");
-        setSenderPhone("0321122334");
-        setSenderAddress("Lot IVC 12 Ampefiloha");
-        setContactPerson("");
-      } else if (type === "ENTREPRISE") {
-        setSenderName("Société Commerciale SARL");
-        setSenderPhone("0331234567");
-        setSenderAddress("Zone Industrielle Forello Tanjombato");
-        setContactPerson("Direction Logistique");
-      } else {
-        setSenderName("Boutique Cybermarchand");
-        setSenderPhone("0345566778");
-        setSenderAddress("Pavillon Analakely");
-        setContactPerson("Gérant Boutique");
-      }
-    }
+    // Keep user's focus clean: clear or filter suggestions
   };
 
   const addRow = () => {
@@ -106,6 +111,7 @@ export default function InboundPage() {
         id: `row-${Date.now()}`,
         recipientName: "",
         recipientPhone: "",
+        designation: "",
         deliveryAddress: "",
         axis: "AXE_CENTRE",
         isAxisFallback: true,
@@ -164,8 +170,14 @@ export default function InboundPage() {
     (amount || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " Ar";
 
   const totalParcels = rows.length;
-  const totalMerchandise = rows.reduce((sum, r) => sum + (Number(r.merchandiseAmount) || 0), 0);
-  const totalFees = rows.reduce((sum, r) => sum + (Number(r.deliveryFee) || 0), 0);
+  const totalMerchandise = rows.reduce(
+    (sum, r) => sum + (Number(r.merchandiseAmount) || 0),
+    0
+  );
+  const totalFees = rows.reduce(
+    (sum, r) => sum + (Number(r.deliveryFee) || 0),
+    0
+  );
   const totalToCollect = totalMerchandise + totalFees;
 
   const senderPhoneDetect = detectMalagasyPhone(senderPhone);
@@ -180,7 +192,9 @@ export default function InboundPage() {
       return;
     }
     if (senderPhone && !senderPhoneDetect.isValid) {
-      setErrorMessage(`Numéro de téléphone expéditeur invalide (${senderPhone}). Requis : 10 chiffres malgaches (032/033/034/037/038).`);
+      setErrorMessage(
+        `Numéro de téléphone expéditeur invalide (${senderPhone}). Requis : 10 chiffres malgaches (032/033/034/037/038).`
+      );
       return;
     }
 
@@ -193,7 +207,11 @@ export default function InboundPage() {
       }
       const phoneCheck = detectMalagasyPhone(r.recipientPhone);
       if (!phoneCheck.isValid) {
-        setErrorMessage(`Ligne #${i + 1} : Numéro de téléphone destinataire invalide (${r.recipientPhone || "vide"}). Requis : 10 chiffres malgaches valides (032, 033, 034, 037, 038).`);
+        setErrorMessage(
+          `Ligne #${i + 1} : Numéro de téléphone destinataire invalide (${
+            r.recipientPhone || "vide"
+          }). Requis : 10 chiffres malgaches valides (032, 033, 034, 037, 038).`
+        );
         return;
       }
       if (!r.deliveryAddress.trim()) {
@@ -205,13 +223,14 @@ export default function InboundPage() {
     setIsSubmitting(true);
     try {
       const payload = rows.map((r) => ({
-        vendor_id: selectedVendorId,
+        vendor_id: selectedVendorId || 1,
         sender_type: senderType,
         sender_name: senderName,
         sender_phone: senderPhone || undefined,
         sender_address: senderAddress || undefined,
         recipient_name: r.recipientName,
         recipient_phone: r.recipientPhone,
+        designation: r.designation || undefined,
         delivery_address: r.deliveryAddress,
         axis: r.axis,
         is_manual_axis: r.isManualAxis,
@@ -230,8 +249,13 @@ export default function InboundPage() {
     }
   };
 
+  // Filter registered vendors for autocomplete pills
+  const availableVendorsForType = vendors.filter(
+    (v) => !v.type_expediteur || v.type_expediteur === senderType
+  );
+
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
       {/* Header & Title */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -243,7 +267,7 @@ export default function InboundPage() {
               Prise en Charge Multi-Donneurs d'Ordre & Colis
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Enregistrement des expéditions pour Cybermarchands, Particuliers et Entreprises avec contrôle strict des coordonnées.
+              Saisie aérée des colis avec désignation de la marchandise, adresses multilignes sans coupure et autocomplétion expéditeur.
             </p>
           </div>
 
@@ -288,76 +312,139 @@ export default function InboundPage() {
           </div>
         </div>
 
-        {/* Sender Contact Information Bar */}
-        <div className="mt-5 pt-5 border-t border-slate-100 grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50/70 p-4 rounded-xl border border-slate-200">
-          <div>
-            <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1 mb-1">
-              Nom / Raison Sociale Expéditeur *
-            </label>
-            <input
-              type="text"
-              data-testid="sender-name-input"
-              value={senderName}
-              onChange={(e) => setSenderName(e.target.value)}
-              placeholder="Nom de l'expéditeur..."
-              className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            />
+        {/* Sender Contact Information Bar with Autocomplete */}
+        <div className="mt-5 pt-5 border-t border-slate-100 bg-slate-50/80 p-5 rounded-xl border border-slate-200 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-blue-600" /> Coordonnées de l'Expéditeur
+              (Vides par défaut, autocomplétion intelligente)
+            </span>
+            {selectedVendorId && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedVendorId(null);
+                  setSenderName("");
+                  setSenderPhone("");
+                  setSenderAddress("");
+                  setContactPerson("");
+                }}
+                className="text-[11px] font-semibold text-slate-500 hover:text-red-600 transition-colors"
+              >
+                ✕ Vider les champs expéditeur
+              </button>
+            )}
           </div>
 
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                <Phone className="w-3 h-3 text-slate-400" /> Téléphone Expéditeur (10 ch.)
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Sender Name with Datalist Autocomplete */}
+            <div className="relative">
+              <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                Nom / Raison Sociale Expéditeur *
               </label>
-              {senderPhone && <OperatorBadge operator={senderPhoneDetect.operator} isSmall />}
-            </div>
-            <input
-              type="text"
-              data-testid="sender-phone-input"
-              value={senderPhone}
-              onChange={(e) => setSenderPhone(e.target.value)}
-              placeholder="034 00 000 00"
-              className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1 mb-1">
-              <MapPin className="w-3 h-3 text-slate-400" /> Adresse / Quartier Expéditeur
-            </label>
-            <input
-              type="text"
-              data-testid="sender-address-input"
-              value={senderAddress}
-              onChange={(e) => setSenderAddress(e.target.value)}
-              placeholder="Quartier de ramassage ou siège..."
-              className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="text-[11px] font-bold text-slate-700 mb-1 block">
-              Donneur d'Ordre Référencé :
-            </label>
-            <select
-              data-testid="vendor-select"
-              value={selectedVendorId}
-              onChange={(e) => {
-                const id = Number(e.target.value);
-                const found = vendors.find((v) => v.id === id);
-                if (found) applyVendorData(found);
-              }}
-              className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            >
-              {vendors
-                .filter((v) => !v.type_expediteur || v.type_expediteur === senderType)
-                .map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.nom}
+              <input
+                type="text"
+                list="sender-suggestions"
+                data-testid="sender-name-input"
+                value={senderName}
+                onChange={(e) => handleSenderNameChange(e.target.value)}
+                placeholder="Tapez le nom ou choisissez ci-dessous..."
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+              <datalist id="sender-suggestions">
+                {vendors.map((v) => (
+                  <option key={v.id} value={v.nom}>
+                    {v.type_expediteur} • {v.telephone}
                   </option>
                 ))}
-            </select>
+              </datalist>
+            </div>
+
+            {/* Sender Phone */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                  <Phone className="w-3 h-3 text-slate-400" /> Téléphone Expéditeur
+                </label>
+                {senderPhone && <OperatorBadge operator={senderPhoneDetect.operator} isSmall />}
+              </div>
+              <input
+                type="text"
+                data-testid="sender-phone-input"
+                value={senderPhone}
+                onChange={(e) => setSenderPhone(e.target.value)}
+                placeholder="034 00 000 00"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+
+            {/* Sender Address */}
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1 mb-1">
+                <MapPin className="w-3 h-3 text-slate-400" /> Adresse / Quartier Expéditeur
+              </label>
+              <input
+                type="text"
+                data-testid="sender-address-input"
+                value={senderAddress}
+                onChange={(e) => setSenderAddress(e.target.value)}
+                placeholder="Quartier de ramassage ou siège..."
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+
+            {/* Fast Quick-Select Dropdown */}
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 mb-1 block">
+                Sélection Rapide Référencée :
+              </label>
+              <select
+                data-testid="vendor-select"
+                value={selectedVendorId || ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (!val) {
+                    setSelectedVendorId(null);
+                    setSenderName("");
+                    setSenderPhone("");
+                    setSenderAddress("");
+                    setContactPerson("");
+                  } else {
+                    const id = Number(val);
+                    const found = vendors.find((v) => v.id === id);
+                    if (found) applyVendorData(found);
+                  }
+                }}
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              >
+                <option value="">-- Choisir un expéditeur enregistré --</option>
+                {availableVendorsForType.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.nom} ({v.type_expediteur})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
+
+          {/* Autocomplete Quick Pills for Registered Senders */}
+          {availableVendorsForType.length > 0 && (
+            <div className="pt-2 flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                Suggestions rapides :
+              </span>
+              {availableVendorsForType.slice(0, 4).map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => applyVendorData(v)}
+                  className="px-2.5 py-1 bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-700 transition-all shadow-2xs"
+                >
+                  ⚡ {v.nom}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -395,181 +482,224 @@ export default function InboundPage() {
         </div>
       )}
 
-      {/* Main Multi-Row Grid */}
-      <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-          <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-            Grille de Saisie Multi-Lignes
-          </span>
+      {/* Main Form: Spacious, Non-Overflowing Multi-Colis Form */}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Package className="w-5 h-5 text-blue-600" />
+            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+              Détails des Colis à Réceptionner ({rows.length})
+            </h3>
+          </div>
           <button
             type="button"
             onClick={addRow}
             data-testid="add-row-btn"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm"
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
           >
-            <Plus className="w-4 h-4" /> Ajouter une Ligne
+            <Plus className="w-4 h-4" /> Ajouter un Colis
           </button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[950px]">
-            <thead>
-              <tr className="bg-slate-100 text-slate-600 text-xs font-bold border-b border-slate-200">
-                <th className="py-3 px-3 w-12 text-center">#</th>
-                <th className="py-3 px-3 w-44">Destinataire *</th>
-                <th className="py-3 px-3 w-48">Téléphone Dest. (10 ch.) *</th>
-                <th className="py-3 px-3">Lieu / Adresse *</th>
-                <th className="py-3 px-3 w-40">Axe Logistique</th>
-                <th className="py-3 px-3 w-32">Flux</th>
-                <th className="py-3 px-3 w-32">Marchandise (Ar)</th>
-                <th className="py-3 px-3 w-28">Frais (Ar)</th>
-                <th className="py-3 px-3 w-32">Total Dû</th>
-                <th className="py-3 px-2 w-12 text-center"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 text-sm">
-              {rows.map((row, idx) => {
-                const phoneDetect = detectMalagasyPhone(row.recipientPhone);
-                const rowTotal = (Number(row.merchandiseAmount) || 0) + (Number(row.deliveryFee) || 0);
+        {/* Parcels Cards List (No Horizontal Scroll / No Text Cutting) */}
+        <div className="space-y-4">
+          {rows.map((row, idx) => {
+            const phoneDetect = detectMalagasyPhone(row.recipientPhone);
+            const rowTotal =
+              (Number(row.merchandiseAmount) || 0) + (Number(row.deliveryFee) || 0);
 
-                return (
-                  <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
-                    {/* Index */}
-                    <td className="py-3 px-3 text-center text-xs font-bold text-slate-400">
+            return (
+              <div
+                key={row.id}
+                className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-slate-300 transition-all space-y-4"
+              >
+                {/* Row Header */}
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-800 text-xs font-black">
                       {idx + 1}
-                    </td>
+                    </span>
+                    <span className="text-xs font-bold text-slate-700">
+                      Colis #{idx + 1} • Statut prévu : <span className="text-amber-700">EN_DEPOT</span>
+                    </span>
+                  </div>
 
-                    {/* Recipient Name */}
-                    <td className="py-3 px-3">
-                      <input
-                        type="text"
-                        data-testid={`input-name-${idx}`}
-                        value={row.recipientName}
-                        onChange={(e) => updateRow(idx, "recipientName", e.target.value)}
-                        placeholder="Nom du client"
-                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                      />
-                    </td>
-
-                    {/* Recipient Phone & Operator Badge */}
-                    <td className="py-3 px-3">
-                      <div className="flex flex-col gap-1">
-                        <input
-                          type="text"
-                          data-testid={`input-phone-${idx}`}
-                          value={row.recipientPhone}
-                          onChange={(e) => updateRow(idx, "recipientPhone", e.target.value)}
-                          placeholder="034 00 000 00"
-                          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                        />
-                        <OperatorBadge operator={phoneDetect.operator} isSmall />
-                      </div>
-                    </td>
-
-                    {/* Delivery Address */}
-                    <td className="py-3 px-3">
-                      <input
-                        type="text"
-                        data-testid={`input-address-${idx}`}
-                        value={row.deliveryAddress}
-                        onChange={(e) => updateRow(idx, "deliveryAddress", e.target.value)}
-                        placeholder="Quartier, repère, ville..."
-                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                      />
-                    </td>
-
-                    {/* Axis Badge / Auto-detect & Interactive Override */}
-                    <td className="py-3 px-3">
-                      <div className="flex flex-col gap-1">
-                        <select
-                          data-testid={`select-axis-${idx}`}
-                          value={row.axis}
-                          onChange={(e) => updateRow(idx, "axis", e.target.value as LogisticAxis)}
-                          className="w-full px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                        >
-                          <option value="AXE_CENTRE">1. AXE_CENTRE</option>
-                          <option value="AXE_RN1">2. AXE_RN1 (Itaosy)</option>
-                          <option value="AXE_RN2">3. AXE_RN2 (Ambohimangakely)</option>
-                          <option value="AXE_RN3">4. AXE_RN3 (Sabotsy Namehana)</option>
-                          <option value="AXE_RN4">5. AXE_RN4 (Ivato / Digue)</option>
-                          <option value="AXE_RN7">6. AXE_RN7 (Iavoloha)</option>
-                          <option value="AXE_SUD_EST">7. AXE_SUD_EST (Alasora)</option>
-                          <option value="AXE_PROVINCE">8. AXE_PROVINCE (Gares)</option>
-                        </select>
-                        <AxisBadge
-                          axis={row.axis}
-                          isFallback={row.isAxisFallback}
-                          isManual={row.isManualAxis}
-                        />
-                      </div>
-                    </td>
-
-                    {/* Flux Type */}
-                    <td className="py-3 px-3">
-                      <select
-                        value={row.fluxType}
-                        onChange={(e) => updateRow(idx, "fluxType", e.target.value as FluxType)}
-                        className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-extrabold text-slate-800">
+                      Total Dû : <span className="text-blue-700">{formatAriary(rowTotal)}</span>
+                    </span>
+                    {rows.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeRow(idx)}
+                        className="inline-flex items-center gap-1 text-slate-400 hover:text-red-600 text-xs font-semibold transition-colors"
                       >
-                        <option value="COD">COD (Marchandise)</option>
-                        <option value="SIMPLE">Course Simple (Port Payé)</option>
-                        <option value="RETOUR">Retour SAV</option>
-                        <option value="PROVINCE">Fret Province (Gare)</option>
-                      </select>
-                    </td>
+                        <Trash2 className="w-4 h-4" /> Supprimer
+                      </button>
+                    )}
+                  </div>
+                </div>
 
-                    {/* Merchandise Amount */}
-                    <td className="py-3 px-3">
+                {/* Form Fields: Grid Layout with Natural Multi-Line Wrapping */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                  {/* Destinataire Nom (col-span-3) */}
+                  <div className="md:col-span-3 space-y-1">
+                    <label className="text-[11px] font-bold text-slate-700 block">
+                      Destinataire (Nom complet) *
+                    </label>
+                    <input
+                      type="text"
+                      data-testid={`input-name-${idx}`}
+                      value={row.recipientName}
+                      onChange={(e) => updateRow(idx, "recipientName", e.target.value)}
+                      placeholder="Nom du client destinataire..."
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Destinataire Téléphone (col-span-3) */}
+                  <div className="md:col-span-3 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-slate-700 block">
+                        Téléphone Dest. (10 chiffres) *
+                      </label>
+                      {row.recipientPhone && (
+                        <OperatorBadge operator={phoneDetect.operator} isSmall />
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      data-testid={`input-phone-${idx}`}
+                      value={row.recipientPhone}
+                      onChange={(e) => updateRow(idx, "recipientPhone", e.target.value)}
+                      placeholder="034 00 000 00"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Désignation de la Marchandise / Colis (col-span-3) */}
+                  <div className="md:col-span-3 space-y-1">
+                    <label className="text-[11px] font-bold text-slate-700 block">
+                      Désignation / Nature du Colis
+                    </label>
+                    <input
+                      type="text"
+                      data-testid={`input-designation-${idx}`}
+                      value={row.designation}
+                      onChange={(e) => updateRow(idx, "designation", e.target.value)}
+                      placeholder="Ex: Chaussures Nike, Robe, Smartphone..."
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Flux Type (col-span-3) */}
+                  <div className="md:col-span-3 space-y-1">
+                    <label className="text-[11px] font-bold text-slate-700 block">
+                      Type de Flux Logistique
+                    </label>
+                    <select
+                      value={row.fluxType}
+                      onChange={(e) => updateRow(idx, "fluxType", e.target.value as FluxType)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    >
+                      <option value="COD">COD (Marchandise + Livraison)</option>
+                      <option value="SIMPLE">Course Simple (Port Payé)</option>
+                      <option value="RETOUR">Retour SAV / Échange</option>
+                      <option value="PROVINCE">Fret Province (Gare Routière)</option>
+                    </select>
+                  </div>
+
+                  {/* Delivery Address (Multi-line Textarea with Natural Wrapping, col-span-6) */}
+                  <div className="md:col-span-6 space-y-1">
+                    <label className="text-[11px] font-bold text-slate-700 flex items-center justify-between">
+                      <span>Lieu & Repère de Livraison (Multilignes) *</span>
+                      <span className="text-[10px] text-slate-400 font-normal">
+                        Retour à la ligne automatique sans coupure
+                      </span>
+                    </label>
+                    <textarea
+                      rows={2}
+                      data-testid={`input-address-${idx}`}
+                      value={row.deliveryAddress}
+                      onChange={(e) => updateRow(idx, "deliveryAddress", e.target.value)}
+                      placeholder="Quartier, point de repère, porte, numéro de lot..."
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none whitespace-normal break-words overflow-visible leading-relaxed"
+                    />
+                  </div>
+
+                  {/* Axis Selection & Badge (col-span-3) */}
+                  <div className="md:col-span-3 space-y-1">
+                    <label className="text-[11px] font-bold text-slate-700 block">
+                      Axe Logistique (Auto / Modifiable)
+                    </label>
+                    <select
+                      data-testid={`select-axis-${idx}`}
+                      value={row.axis}
+                      onChange={(e) => updateRow(idx, "axis", e.target.value as LogisticAxis)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    >
+                      <option value="AXE_CENTRE">1. AXE_CENTRE (Tsiazotafo)</option>
+                      <option value="AXE_RN1">2. AXE_RN1 (Itaosy / Ouest)</option>
+                      <option value="AXE_RN2">3. AXE_RN2 (Ambohimangakely / Est)</option>
+                      <option value="AXE_RN3">4. AXE_RN3 (Sabotsy Namehana / Nord)</option>
+                      <option value="AXE_RN4">5. AXE_RN4 (Ivato / Digue)</option>
+                      <option value="AXE_RN7">6. AXE_RN7 (Iavoloha / Sud)</option>
+                      <option value="AXE_SUD_EST">7. AXE_SUD_EST (Alasora / By-Pass)</option>
+                      <option value="AXE_PROVINCE">8. AXE_PROVINCE (Gares Routières)</option>
+                    </select>
+                    <div className="pt-0.5">
+                      <AxisBadge
+                        axis={row.axis}
+                        isFallback={row.isAxisFallback}
+                        isManual={row.isManualAxis}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Financial Amounts (col-span-3) */}
+                  <div className="md:col-span-3 grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700 block">
+                        Marchandise (Ar)
+                      </label>
                       <input
                         type="number"
                         data-testid={`input-merch-${idx}`}
                         disabled={row.fluxType === "SIMPLE"}
                         value={row.merchandiseAmount === 0 ? "" : row.merchandiseAmount}
-                        onChange={(e) => updateRow(idx, "merchandiseAmount", Number(e.target.value) || 0)}
+                        onChange={(e) =>
+                          updateRow(idx, "merchandiseAmount", Number(e.target.value) || 0)
+                        }
                         placeholder="0"
-                        className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-right focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold text-right focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
                       />
-                    </td>
-
-                    {/* Delivery Fee */}
-                    <td className="py-3 px-3">
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700 block">
+                        Frais Livraison (Ar)
+                      </label>
                       <input
                         type="number"
                         data-testid={`input-fee-${idx}`}
                         value={row.deliveryFee === 0 ? "" : row.deliveryFee}
-                        onChange={(e) => updateRow(idx, "deliveryFee", Number(e.target.value) || 0)}
+                        onChange={(e) =>
+                          updateRow(idx, "deliveryFee", Number(e.target.value) || 0)
+                        }
                         placeholder="5000"
-                        className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-right focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-right focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       />
-                    </td>
-
-                    {/* Row Total */}
-                    <td className="py-3 px-3 font-bold text-slate-800 text-xs text-right whitespace-nowrap">
-                      {formatAriary(rowTotal)}
-                    </td>
-
-                    {/* Delete Action */}
-                    <td className="py-3 px-2 text-center">
-                      <button
-                        type="button"
-                        onClick={() => removeRow(idx)}
-                        disabled={rows.length <= 1}
-                        className="p-1.5 text-slate-400 hover:text-red-600 disabled:opacity-30 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Footer actions */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-slate-500">
-            Tous les colis validés recevront automatiquement un BDR unique et entreront au statut initial <strong className="text-amber-700">EN_DEPOT</strong>.
+            Chaque colis recevra un numéro de bordereau officiel unique <strong className="text-blue-700">BDR-XXXX</strong> et entrera en stock sous statut <strong className="text-amber-700">EN_DEPOT</strong>.
           </p>
 
           <button
@@ -593,7 +723,10 @@ export default function InboundPage() {
 
       {/* Success Modal / Card for Generated BDRs */}
       {createdParcels && (
-        <div data-testid="success-modal" className="bg-white p-6 rounded-2xl border-2 border-emerald-500 shadow-xl space-y-4">
+        <div
+          data-testid="success-modal"
+          className="bg-white p-6 rounded-2xl border-2 border-emerald-500 shadow-xl space-y-4"
+        >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl">
@@ -619,19 +752,35 @@ export default function InboundPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2">
             {createdParcels.map((p) => (
-              <div key={p.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+              <div
+                key={p.id}
+                className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5"
+              >
                 <div className="flex items-center justify-between">
-                  <span className="font-mono font-black text-sm text-blue-700">BDR-{p.tracking_number}</span>
+                  <span className="font-mono font-black text-sm text-blue-700">
+                    BDR-{p.tracking_number}
+                  </span>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">
                     {p.status}
                   </span>
                 </div>
                 <p className="text-xs font-bold text-slate-800 truncate">{p.recipient_name}</p>
-                <p className="text-[11px] text-slate-500">{p.recipient_phone_formatted} • {p.operator}</p>
-                <p className="text-[11px] text-slate-600 truncate">{p.delivery_address}</p>
+                {p.designation && (
+                  <p className="text-[11px] text-blue-700 font-semibold italic truncate">
+                    📦 {p.designation}
+                  </p>
+                )}
+                <p className="text-[11px] text-slate-500">
+                  {p.recipient_phone_formatted} • {p.operator}
+                </p>
+                <p className="text-[11px] text-slate-600 break-words line-clamp-2">
+                  {p.delivery_address}
+                </p>
                 <div className="pt-1 flex items-center justify-between border-t border-slate-200 text-xs">
                   <span className="text-[11px] font-medium text-slate-500">{p.axis}</span>
-                  <span className="font-black text-slate-800">{p.total_to_collect_formatted}</span>
+                  <span className="font-black text-slate-800">
+                    {p.total_to_collect_formatted}
+                  </span>
                 </div>
               </div>
             ))}
@@ -646,6 +795,7 @@ export default function InboundPage() {
                     id: "row-1",
                     recipientName: "",
                     recipientPhone: "",
+                    designation: "",
                     deliveryAddress: "",
                     axis: "AXE_CENTRE",
                     isAxisFallback: true,
