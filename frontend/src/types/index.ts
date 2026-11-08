@@ -9,6 +9,8 @@ export type ParcelStatus =
   | "ASSIGNE"
   | "EN_COURS"
   | "SOUS_TRAITE"
+  | "LIVRE"
+  | "ENCAISSE"
   | "LIVRE_ENCAISSE"
   | "REPORTE"
   | "ANNULE_RETOUR"

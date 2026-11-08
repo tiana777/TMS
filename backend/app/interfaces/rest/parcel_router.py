@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from backend.app.application.dtos.parcel_dtos import (
     CreateBatchParcelDTO,
     CreateParcelDTO,
+    MarkPrepaidDTO,
     ParcelResponseDTO,
     ReassignParcelDTO,
     UpdateParcelAxisDTO,
@@ -139,5 +140,19 @@ def reassign_parcel(
             user_role=current_user.role,
             user_id=current_user.id,
         )
+    except DomainException as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/{parcel_id}/prepaid", response_model=ParcelResponseDTO)
+def mark_parcel_prepaid(
+    parcel_id: int,
+    dto: MarkPrepaidDTO,
+    db: Session = Depends(get_db),
+    current_user: UserORM = Depends(require_roles(["RECEPTIONNISTE", "SUPERVISEUR", "SUPER_ADMIN"])),
+):
+    try:
+        use_cases = ParcelUseCases(db)
+        return use_cases.mark_as_prepaid(parcel_id, dto, user_id=current_user.id)
     except DomainException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

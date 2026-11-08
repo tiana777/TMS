@@ -73,6 +73,70 @@ class TestParcelEntity:
         parcel.close_in_cash()
         assert parcel.status == ParcelStatus.CLOTURE_CAISSE
 
+    def test_separated_delivered_then_cashed_lifecycle(self):
+        parcel = self._create_sample_parcel()
+        parcel.assign_to_courier(courier_id=5, tour_id=101)
+        parcel.start_delivery()
+        assert parcel.status == ParcelStatus.EN_COURS
+
+        # Step 1: Mark delivered physically (LIVRE)
+        parcel.mark_as_delivered()
+        assert parcel.status == ParcelStatus.LIVRE
+        assert parcel.payment_method is None
+
+        # Step 2: Customer pays via Mobile Money (ENCAISSE)
+        parcel.mark_as_cashed(payment_method=PaymentMethod.MVOLA)
+        assert parcel.status == ParcelStatus.ENCAISSE
+        assert parcel.payment_method == PaymentMethod.MVOLA
+
+        # Step 3: Cash closure in evening
+        parcel.close_in_cash()
+        assert parcel.status == ParcelStatus.CLOTURE_CAISSE
+
+    def test_mark_as_prepaid_cancels_cod_while_en_cours(self):
+        parcel = self._create_sample_parcel()  # 45 000 Ar merchandise + 5 000 Ar fee = 50 000 Ar
+        parcel.assign_to_courier(courier_id=5, tour_id=101)
+        parcel.start_delivery()
+        assert parcel.status == ParcelStatus.EN_COURS
+        assert parcel.total_to_collect.amount == 50000
+
+        # Customer pays headquarters via MVola while courier is en route
+        parcel.mark_as_prepaid(
+            prepaid_type="ALL",
+            payment_method=PaymentMethod.MVOLA,
+            payment_reference="MV-998822",
+        )
+
+        # COD is completely neutralized: 0 Ar to collect
+        assert parcel.merchandise_amount.amount == 0
+        assert parcel.delivery_fee.amount == 0
+        assert parcel.total_to_collect.amount == 0
+        assert parcel.flux_type == FluxType.SIMPLE
+        assert parcel.payment_method == PaymentMethod.MVOLA
+        assert "MV-998822" in (parcel.observation or "")
+
+        # Courier delivers physically with 0 Ar cash collection
+        parcel.mark_as_delivered()
+        assert parcel.status == ParcelStatus.LIVRE
+        assert parcel.total_to_collect.amount == 0
+
+    def test_mark_as_prepaid_merchandise_only(self):
+        parcel = self._create_sample_parcel()  # 50 000 Ar merchandise + 5 000 Ar fee = 55 000 Ar
+        parcel.assign_to_courier(courier_id=5, tour_id=101)
+        parcel.start_delivery()
+
+        # Customer pays only goods (50 000 Ar) to shop directly
+        parcel.mark_as_prepaid(
+            prepaid_type="MERCHANDISE_ONLY",
+            payment_method=PaymentMethod.ORANGE_MONEY,
+            payment_reference="OM-445566",
+        )
+
+        assert parcel.merchandise_amount.amount == 0
+        assert parcel.delivery_fee.amount == 5000
+        assert parcel.total_to_collect.amount == 5000
+        assert "OM-445566" in (parcel.observation or "")
+
     def test_reschedule_and_reintegrate_lifecycle(self):
         parcel = self._create_sample_parcel()
         parcel.assign_to_courier(courier_id=3)

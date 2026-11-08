@@ -185,14 +185,32 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
       },
     }).as("startTour");
 
-    cy.intercept("PATCH", "**/api/v1/parcels/301/status", {
-      statusCode: 200,
-      body: {
-        ...mockParcels[0],
-        status: "LIVRE_ENCAISSE",
-        payment_method: "MVOLA",
-      },
+    cy.intercept("PATCH", "**/api/v1/parcels/301/status", (req) => {
+      req.reply({
+        statusCode: 200,
+        body: {
+          ...mockParcels[0],
+          status: req.body.status,
+          payment_method: req.body.payment_method || "MVOLA",
+        },
+      });
     }).as("deliverParcel");
+
+    cy.intercept("POST", "**/api/v1/parcels/301/prepaid", (req) => {
+      req.reply({
+        statusCode: 200,
+        body: {
+          ...mockParcels[0],
+          merchandise_amount: 0,
+          delivery_fee: 0,
+          total_to_collect: 0,
+          total_to_collect_formatted: "0 Ar",
+          flux_type: "SIMPLE",
+          payment_method: req.body.payment_method || "MVOLA",
+          observation: "Paiement anticipé intégral MVOLA (COD neutralisé)",
+        },
+      });
+    }).as("prepayParcel301");
 
     cy.intercept("PATCH", "**/api/v1/parcels/302/status", {
       statusCode: 200,
@@ -204,13 +222,35 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
       },
     }).as("rescheduleParcel");
 
-    cy.intercept("PATCH", "**/api/v1/parcels/303/status", {
-      statusCode: 200,
-      body: {
-        ...mockParcels[2],
-        status: "ANNULE_RETOUR",
-        incident_reason: "Refus client : article non conforme",
-      },
+    cy.intercept("PATCH", "**/api/v1/parcels/303/status", (req) => {
+      if (req.body.status === "LIVRE") {
+        req.reply({
+          statusCode: 200,
+          body: {
+            ...mockParcels[2],
+            status: "LIVRE",
+            payment_method: null,
+          },
+        });
+      } else if (req.body.status === "ENCAISSE") {
+        req.reply({
+          statusCode: 200,
+          body: {
+            ...mockParcels[2],
+            status: "ENCAISSE",
+            payment_method: req.body.payment_method || "ESPECES",
+          },
+        });
+      } else {
+        req.reply({
+          statusCode: 200,
+          body: {
+            ...mockParcels[2],
+            status: "ANNULE_RETOUR",
+            incident_reason: req.body.incident_reason || "Refus client : article non conforme",
+          },
+        });
+      }
     }).as("cancelParcel");
 
     cy.intercept("PATCH", "**/api/v1/parcels/304/status", {
@@ -511,5 +551,97 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
       .should("be.visible")
       .and("contain", "034 12 345 67")
       .and("contain", "TELMA");
+  });
+
+  it("Test 9: Écran 05 - Remise physique seule (LIVRÉ) puis encaissement ultérieur (ENCAISSÉ)", () => {
+    cy.visit("/tracking");
+    cy.wait(["@getParcels", "@getTours", "@getCouriers"]);
+
+    // Sur le colis 303 (EN_COURS), cliquer sur le bouton "Livré"
+    cy.get('[data-cy="btn-deliver-only-303"]').should("be.visible").click();
+
+    // La modale de confirmation physique s'affiche
+    cy.get('[data-cy="modal-mark-delivered"]').should("be.visible");
+    cy.get('[data-cy="modal-mark-delivered"]').within(() => {
+      cy.contains("Confirmation de Livraison Physique").should("be.visible");
+      cy.get('[data-cy="btn-confirm-mark-delivered"]').click();
+    });
+
+    cy.wait("@cancelParcel").its("request.body").should((body) => {
+      expect(body.status).to.equal("LIVRE");
+    });
+
+    // Le colis passe au statut Livré et affiche le bouton Encaisser
+    cy.get('[data-cy="parcel-row-303"]').within(() => {
+      cy.contains("Livré").should("be.visible");
+      cy.get('[data-cy="btn-deliver-303"]').should("be.visible").and("contain", "Encaisser");
+    });
+
+    // Cliquer sur le bouton Encaisser
+    cy.get('[data-cy="btn-deliver-303"]').click();
+    cy.get('[data-cy="modal-deliver"]').should("be.visible");
+    cy.get('[data-cy="modal-deliver"]').within(() => {
+      cy.contains("Validation d'Encaissement").should("be.visible");
+      cy.get('[data-cy="payment-method-especes"]').click();
+      cy.get('[data-cy="btn-confirm-deliver"]').click();
+    });
+
+    cy.wait("@cancelParcel").its("request.body").should((body) => {
+      expect(body.status).to.equal("ENCAISSE");
+      expect(body.payment_method).to.equal("ESPECES");
+    });
+
+    cy.get('[data-cy="parcel-row-303"]').within(() => {
+      cy.contains("Encaissé").should("be.visible");
+    });
+  });
+
+  it("Test 10: Écran 05 - Neutralisation du COD en cours de livraison (Paiement anticipé au siège) puis remise physique à 0 Ar", () => {
+    cy.visit("/tracking");
+    cy.wait(["@getParcels", "@getTours", "@getCouriers"]);
+
+    // Le colis 301 a initialement 50 000 Ar à recouvrer et affiche le bouton "Déjà Réglé"
+    cy.get('[data-cy="btn-prepaid-301"]').should("be.visible").click();
+
+    // La modale de règlement anticipé s'affiche
+    cy.get('[data-cy="modal-prepaid"]').should("be.visible");
+    cy.get('[data-cy="modal-prepaid"]').within(() => {
+      cy.contains("Règlement Anticipé Reçu").should("be.visible");
+      cy.get('[data-cy="btn-prepaid-all"]').should("be.visible").click();
+      cy.get('[data-cy="prepaid-channel-mvola"]').click();
+      cy.get('[data-cy="prepaid-reference-input"]').type("REF-MVOLA-7788");
+      cy.get('[data-cy="btn-confirm-prepaid"]').click();
+    });
+
+    cy.wait("@prepayParcel301").its("request.body").should((body) => {
+      expect(body.prepaid_type).to.equal("ALL");
+      expect(body.payment_method).to.equal("MVOLA");
+      expect(body.payment_reference).to.equal("REF-MVOLA-7788");
+    });
+
+    // Le montant à recouvrer est maintenant à 0 Ar (Déjà Réglé)
+    cy.get('[data-cy="prepaid-zero-badge-301"]')
+      .should("be.visible")
+      .and("contain", "0 Ar (Déjà Réglé)");
+
+    // Le bouton "Encaisser" a disparu pour ce colis car plus aucun COD à percevoir
+    cy.get('[data-cy="btn-deliver-301"]').should("not.exist");
+
+    // Le livreur clique sur "Livré"
+    cy.get('[data-cy="btn-deliver-only-301"]').should("be.visible").click();
+    cy.get('[data-cy="modal-mark-delivered"]').should("be.visible");
+    cy.get('[data-cy="modal-mark-delivered"]').within(() => {
+      cy.contains("0 Ar (Déjà Réglé)").should("be.visible");
+      cy.get('[data-cy="btn-confirm-mark-delivered"]').click();
+    });
+
+    cy.wait("@deliverParcel").its("request.body").should((body) => {
+      expect(body.status).to.equal("LIVRE");
+    });
+
+    // La ligne indique maintenant "Livré & Réglé (0 Ar)"
+    cy.get('[data-cy="parcel-row-301"]').within(() => {
+      cy.contains("Livré & Réglé (0 Ar)").should("be.visible");
+    });
   });
 });

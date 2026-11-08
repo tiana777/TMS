@@ -10,7 +10,7 @@
 | :--- | :--- |
 | **Nom du Logiciel** | **TMS EXPRESS** (Transport Management System Express) |
 | **Périmètre Applicatif** | Application Web d'Entreprise dédiée à la logistique urbaine du dernier kilomètre (*Last-Mile Delivery*), aux expéditions régionales en Province (*Inter-City Freight*), au management de la performance des livreurs et à la gestion stricte du recouvrement financier et des litiges |
-| **Zone Géographique d'Exploitation** | 1. **Réseau Urbain & Péri-urbain :** Antananarivo Renivohitra & Grand Tanà (Rayon de 25 km, 8 corridors logistiques radiaux)<br>2. **Réseau National (Provinces) :** Tout Madagascar via les gares routières d'Antananarivo et les coopératives nationales (RN1, RN2, RN3, RN4, RN6, RN7) |
+| **Zone Géographique d'Exploitation** | **Séparation Stricte en 2 Branches Réseau Complètement Distinctes :**<br>• **Branche A - Réseau Urbain & Péri-urbain (Grand Tanà) :** Antananarivo Renivohitra et communes périphériques (rayon de 25 km, 7 corridors logistiques radiaux urbains), tournées quotidiennes en deux-roues 110cc à 150cc, livraisons J+0 / J+1, encaissement direct COD.<br>• **Branche B - Expéditions Régionales en Province (Réseau National Inter-villes) :** Tout Madagascar via les 3 gares routières d'Antananarivo (Ambodivona pour l'Est, Fasan'ny Karana pour le Sud, Andohatapenaka pour l'Ouest et le Nord) et les coopératives nationales (RN1, RN2, RN3, RN4, RN6, RN7) ; transit assuré par navette fourgonnette dédiée, formalisation par récépissé officiel de transport, avance de trésorerie sur frais de fret partenaire, retrait final par le destinataire au guichet terminal de la coopérative sous délai de garde maximal de 7 jours. |
 | **Modèle Économique & Cible** | Prestation logistique multi-donneurs d'ordre couvrant :<br>1. **Cybermarchands** (*E-commerce, boutiques réseaux sociaux, distributeurs*) avec encaissement contre-remboursement (COD) et reversement garanti.<br>2. **Particuliers** (*Envois C2C ponctuels de colis, cadeaux, effets personnels, documents urgents, ventes occasionnelles*).<br>3. **Entreprises & B2B** (*Sociétés, PME, administrations, professions libérales : plis confidentiels, factures, contrats, pièces détachées, échantillons industriels*). |
 | **Type d'Architecture** | **Application Web d'Entreprise Autonome (Zéro Dépendance Tableur) :** <br>• Frontend : Interface Web Responsive & Progressive Web App (HTML5, TailwindCSS, Composants Réactifs, Vue Mobile optimisée coursiers)<br>• Backend : API RESTful (Python 3.12+ / FastAPI), Architecture en couches (*Domain / Service / Repository*)<br>• Base de Données : SGBD Relationnel normalisé 3NF (PostgreSQL / SQLite transactionnel ACID) |
 | **Devise Opérationnelle** | Ariary Malgache (**MGA / Ar**) • Gestion stricte des montants entiers positifs sans décimales |
@@ -151,85 +151,126 @@ flowchart TD
 
 ---
 
-## 4. PÉRIMÈTRE MÉTIER & TYPOLOGIE DES 4 FLUX LOGISTIQUES
+## 4. PÉRIMÈTRE MÉTIER & SÉPARATION DES FLUX LOGISTIQUES (URBAIN VS PROVINCE)
+
+L'organisation logistique de TMS Express est strictement scindée en **deux branches opérationnelles étanches** répondant à des contraintes de transport, des moyens roulants, des modes d'encaissement et des responsabilités juridiques fondamentalement distincts :
 
 ```mermaid
 flowchart TD
-    Flux["FLUX LOGISTIQUES TRAITÉS PAR TMS EXPRESS"]
-    Flux --> F1["1. Flux COD Urbain<br/><b>Marchandise + Frais</b><br/><i>Grand Tanà (Livraison J+0 / J+1)</i>"]
-    Flux --> F2["2. Flux Port Payé Urbain<br/><b>Frais seuls</b><br/><i>Grand Tanà (Marchandise déjà réglée)</i>"]
-    Flux --> F3["3. Flux Reverse Logistics<br/><b>Échange / SAV / Retour</b><br/><i>Restitution physique au vendeur</i>"]
-    Flux --> F4["4. Flux Sous-traité Province<br/><b>Gares Routières & Fret</b><br/><i>Acheminement National Inter-villes</i>"]
+    Flux["ARCHITECTURE DES FLUX LOGISTIQUES TMS EXPRESS"]
+    
+    subgraph BrancheA["BRANCHE A : RÉSEAU URBAIN & PÉRI-URBAIN (GRAND TANÀ)"]
+        F1["1. Flux COD Urbain<br/><b>Marchandise + Frais</b><br/><i>Flotte 2-roues • J+0 / J+1</i>"]
+        F2["2. Flux Port Payé Urbain<br/><b>Frais seuls ou Déjà Réglé</b><br/><i>Remise simple contre émargement</i>"]
+        F3["3. Flux Reverse Logistics Urbain<br/><b>Échange / SAV / Refus</b><br/><i>Rapatriement Hub & Restitution Vendeur</i>"]
+    end
+
+    subgraph BrancheB["BRANCHE B : EXPÉDITIONS RÉGIONALES PROVINCE (RÉSEAU NATIONAL)"]
+        F4["4. Flux Sous-traité Province<br/><b>Gares Routières & Coopératives</b><br/><i>Navette quai ➔ Guichet terminal inter-villes</i>"]
+    end
+
+    Flux --> BrancheA
+    Flux --> BrancheB
 ```
 
-### 4.1 Spécification Détaillée des 4 Flux Métiers
+### 4.1 Branche A : Flux Logistiques Urbains & Péri-urbains (Flotte Directe Deux-Roues)
+
+Ces flux concernent l'intégralité des livraisons exécutées directement par les coursiers salariés ou prestataires de TMS Express au guidon de scooters et motos sur le Grand Tanà (rayon de 25 km autour du Hub Central de Tsiazotafo).
 
 #### Flux 1 : Livraison COD Urbaine (Contre-Remboursement - *Cœur de Métier*)
-*   **Définition :** Commande issue d'un cybermarchand où l'acheteur final règle la marchandise à la livraison.
+*   **Définition :** Commande e-commerce où le destinataire final s'acquitte du montant de la marchandise et/ou des frais de livraison au moment précis de la remise physique en main propre.
 *   **Paramètres Financiers :** Montant Marchandise $> 0\text{ Ar}$ • Frais de Livraison $> 0\text{ Ar}$ (ou offerts par le vendeur).
 *   **Formule du Montant Total :**
     $$\text{Total à Encaisser} = \text{Montant Marchandise} + \text{Frais de Livraison}$$
-*   **Règlement Destinataire :** Espèces en main propre ou paiement instantané Mobile Money (MVola, Airtel Money, Orange Money) directement au livreur lors de la remise physique du colis.
-*   **Obligation Comptable :** Double réconciliation le soir même : encaissement dans la caisse centrale de TMS Express, puis versement au cybermarchand du montant net des marchandises déduction faite des frais de service convenus.
+*   **Règlement Destinataire :** Espèces en main propre ou transfert instantané Mobile Money (MVola, Airtel Money, Orange Money) validé sur le champ au coursier.
+*   **Obligation Comptable :** Double réconciliation journalière lors de la clôture de caisse du soir : encaissement sur le compte central de TMS Express puis reversement au cybermarchand sous 48h ouvrées.
 
-#### Flux 2 : Course Simple Urbaine (Port Payé)
-*   **Définition :** Envoi dont l'acheteur final a déjà payé la marchandise au préalable par virement bancaire ou Mobile Money.
+#### Flux 2 : Course Simple Urbaine (Port Payé / Valeur Marchande Prépayée)
+*   **Définition :** Envoi dont la marchandise a été préalablement acquittée par l'acheteur au cybermarchand (par virement bancaire, chèque ou Mobile Money distant).
 *   **Paramètres Financiers :** Montant Marchandise $= 0\text{ Ar}$ • Frais de Livraison $\ge 0\text{ Ar}$.
-*   **Dénouement :** Si les frais de livraison sont à la charge de l'acheteur, le livreur encaisse uniquement les frais. Si les frais sont pris en charge par le cybermarchand (forfait mensuel ou prépayé), le livreur effectue une simple remise contre signature sans manipulation d'argent.
+*   **Dénouement :** Si les frais de livraison sont à la charge de l'acheteur, le livreur encaisse uniquement les frais. Si les frais sont pris en charge par le cybermarchand (forfait mensuel ou prépayé), le livreur effectue une simple remise contre émargement client sans encaissement (`total_to_collect = 0 Ar`).
 
-#### Flux 3 : Reverse Logistics (Retours & Échanges SAV)
-*   **Définition :** Gestion des retours de marchandise pour cause de refus client (défaut, déconvenue, délai dépassé) ou pour échange d'article (erreur de taille, échange modèle).
-*   **Règle de Gestion :**
-    *   Tout refus constaté sur le terrain par le livreur bascule obligatoirement le colis au statut **`ANNULE_RETOUR`** avec saisie obligatoire du motif circonstancié.
-    *   Le coursier rapporte impérativement le colis intact au Hub Central lors du retour quai du soir.
-    *   Le réceptionniste réceptionne le retour, le contrôle et l'enregistre en stock de restitution jusqu'à remise physique au cybermarchand contre décharge d'émargement.
-
-#### Flux 4 : Expéditions Régionales en Province (Sous-traitance Gares Routières)
-*   **Définition :** Acheminement d'un colis dont le destinataire se situe dans une ville de Madagascar en dehors de la zone d'intervention directe de la flotte urbaine de Grand Tanà.
-*   **Modalité Opérationnelle :** Prise en charge initiale au Hub Central, acheminement par véhicule navette jusqu'à la gare routière appropriée d'Antananarivo, sous-traitance à une coopérative de transport national homologuée, et retrait par le client au guichet terminal de la coopérative dans sa ville.
+#### Flux 3 : Reverse Logistics Urbain (Retours Marchandises & SAV)
+*   **Définition :** Prise en charge des colis non remis pour cause de refus client (défaut constaté, déconvenue, délai dépassé) ou dans le cadre d'un échange standard d'article (erreur de taille, pointure, modèle).
+*   **Règles de Gestion :**
+    *   Tout refus constaté sur le terrain bascule obligatoirement le colis au statut **`ANNULE_RETOUR`** avec saisie impérative du motif d'échec.
+    *   Le coursier réintègre le colis intact au Hub Central de Tsiazotafo lors de la décharge quai du soir.
+    *   Le réceptionniste le prend en charge en zone de retour sécurisée et édite le bon de restitution au cybermarchand contre signature d'émargement.
 
 ---
 
-## 5. RÉFÉRENTIEL GÉOGRAPHIQUE & LOGIQUE D'AUTO-DÉTECTION (8 AXES)
+### 4.2 Branche B : Flux Logistique Province (Expéditions Nationales Sous-Traitées)
 
-Toute la logistique opérationnelle est calibrée autour d'un **Hub Central Unique situé à Tsiazotafo / Analakely**. Le territoire est subdivisé en **8 axes logistiques majeurs** :
+Ce flux, totalement isolé du réseau urbain, traite les envois destinés aux localités et provinces malgaches situées au-delà du rayon d'action de la flotte urbaine.
 
-| N° | Code Système | Dénomination Officielle de l'Axe | Quartiers et Villes Couverts (Exemples de référence) | Moyens de Transport |
+#### Flux 4 : Expéditions Régionales en Province (Gares Routières & Coopératives Régionales)
+*   **Définition :** Acheminement inter-villes confié aux coopératives de transport national partenaires au départ des 3 gares routières d'Antananarivo (Ambodivona, Fasan'ny Karana, Andohatapenaka).
+*   **Caractéristiques Structurelles Distinctives :**
+    1.  **Moyen de Transport Dédié :** Acheminement quai assuré par une **fourgonnette navette transit** (et non par des deux-roues individuels) effectuant le ramassage matinal au Hub et le dépôt groupé aux guichets des gares routières.
+    2.  **Double Composante Financière :** Frais de service TMS Express (Hub + acheminement gare) cumulés aux frais de fret réclamés par la coopérative (`frais_partenaire`), avancés en trésorerie au chauffeur navette.
+    3.  **Titre Officiel de Transport Obligatoire :** Tout dépôt donne lieu à la remise d'un récépissé papier physique tamponné comportant la référence officielle (`reference_partenaire`) et le contact du guichet de destination.
+    4.  **Retrait au Guichet Terminal sous 7 Jours :** La délivrance finale ne s'effectue pas à domicile mais au guichet de la coopérative de la ville de destination, sous un délai de garde contractuel maximal de **7 jours calendaires**.
+
+---
+
+## 5. RÉFÉRENTIEL GÉOGRAPHIQUE & SÉLECTION DE L'AXE LOGISTIQUE (URBAIN VS PROVINCE)
+
+Toute l'organisation du tri et du dispatching gravite autour du **Hub Central Unique de Tsiazotafo / Analakely**. Le maillage territorial se compose de **7 corridors urbains radiaux** et d'**1 axe dédié aux expéditions nationales** :
+
+| N° | Code Système | Dénomination Officielle de l'Axe | Réseau & Villes / Quartiers Couverts | Moyen de Transport |
 | :-: | :--- | :--- | :--- | :--- |
-| **1** | **`AXE_CENTRE`** | **AXE CENTRE-VILLE (Tsiazotafo & Hyper-Centre)** | Analakely, Antaninarenina, Isoraka, Tsaralalàna, Behoririka, Mahamasina, Faravohitra, Ambohijatovo, Antsahabe | Scooter 110cc |
-| **2** | **`AXE_RN1`** | **AXE RN1 OUEST (Tsiazotafo ➔ Itaosy / Ampitatafika)** | 67Ha, Ampefiloha, Anosizato, Ambodin'isotry, Itaosy, Cité Seimad, Ampitatafika, Fenoarivo | Scooter 125cc |
-| **3** | **`AXE_RN2`** | **AXE RN2 EST (Tsiazotafo ➔ Ambohimangakely)** | Besarety, Mahavoky, Avaradoha, Ampasapito, Nanisana, Ankadindramamy, Mahazo, Ambohimahitsy, Ambohimangakely | Scooter 125cc |
-| **4** | **`AXE_RN3`** | **AXE RN3 NORD (Tsiazotafo ➔ Sabotsy Namehana)** | Andravoahangy, Ambodivona (secteur urbain), Manjakaray, Anjanahary, Amboditsiry, Analamahitsy, Ilafy, Sabotsy Namehana | Moto Trail 150cc |
-| **5** | **`AXE_RN4`** | **AXE RN4 / DIGUE (Tsiazotafo ➔ Ivato Aéroport)** | Antanimena, Ankorondrano, Andraharo Zone Galaxy, Alarobia, Ambohimanarina, Ambohibao, Talatamaty, Mandrosoa, Ivato | Moto Cross 150cc |
-| **6** | **`AXE_RN7`** | **AXE RN7 SUD (Tsiazotafo ➔ Iavoloha / Andoharanofotsy)** | Ankadimbahoaka, Tanjombato, Andoharanofotsy, Iavoloha, Ambohimanambola | Scooter 150cc |
-| **7** | **`AXE_SUD_EST`** | **AXE SUD-EST (Tsiazotafo ➔ Ankatso / Alasora)** | Ambanidia, Mandroseza, Ankatso (Campus Universitaire), Tsiadana, Ambatoroka, Befelatanana, Alasora, By-Pass Sud | Moto Roadster |
-| **8** | **`AXE_PROVINCE`**| **AXE PROVINCES & GARES ROUTIÈRES (Coopératives Régionales)** | **Gares d'Antananarivo :** Ambodivona, Fasan'ny Karana, Andohatapenaka / Gare Maki.<br>**Villes de destination :** Toamasina, Majunga, Antsirabe, Fianarantsoa, Toliara, Diego, Moramanga, Sambava, etc. | Fourgonnette Navette Transit |
+| **1** | **`AXE_CENTRE`** | **AXE CENTRE-VILLE (Tsiazotafo & Hyper-Centre)** | **Réseau Urbain :** Analakely, Antaninarenina, Isoraka, Tsaralalàna, Behoririka, Mahamasina, Faravohitra, Ambohijatovo, Antsahabe | Scooter 110cc |
+| **2** | **`AXE_RN1`** | **AXE RN1 OUEST (Tsiazotafo ➔ Itaosy / Ampitatafika)** | **Réseau Urbain :** 67Ha, Ampefiloha, Anosizato, Ambodin'isotry, Itaosy, Cité Seimad, Ampitatafika, Fenoarivo | Scooter 125cc |
+| **3** | **`AXE_RN2`** | **AXE RN2 EST (Tsiazotafo ➔ Ambohimangakely)** | **Réseau Urbain :** Besarety, Mahavoky, Avaradoha, Ampasapito, Nanisana, Ankadindramamy, Mahazo, Ambohimahitsy, Ambohimangakely | Scooter 125cc |
+| **4** | **`AXE_RN3`** | **AXE RN3 NORD (Tsiazotafo ➔ Sabotsy Namehana)** | **Réseau Urbain :** Andravoahangy, Ambodivona (secteur urbain), Manjakaray, Anjanahary, Amboditsiry, Analamahitsy, Ilafy, Sabotsy Namehana | Moto Trail 150cc |
+| **5** | **`AXE_RN4`** | **AXE RN4 / DIGUE (Tsiazotafo ➔ Ivato Aéroport)** | **Réseau Urbain :** Antanimena, Ankorondrano, Andraharo Zone Galaxy, Alarobia, Ambohimanarina, Ambohibao, Talatamaty, Mandrosoa, Ivato | Moto Cross 150cc |
+| **6** | **`AXE_RN7`** | **AXE RN7 SUD (Tsiazotafo ➔ Iavoloha / Andoharanofotsy)** | **Réseau Urbain :** Ankadimbahoaka, Tanjombato, Andoharanofotsy, Iavoloha, Ambohimanambola | Scooter 150cc |
+| **7** | **`AXE_SUD_EST`** | **AXE SUD-EST (Tsiazotafo ➔ Ankatso / Alasora)** | **Réseau Urbain :** Ambanidia, Mandroseza, Ankatso (Campus Universitaire), Tsiadana, Ambatoroka, Befelatanana, Alasora, By-Pass Sud | Moto Roadster |
+| **8** | **`AXE_PROVINCE`**| **AXE PROVINCES & GARES ROUTIÈRES (Coopératives)** | **Réseau National (Provinces) :** Gares Ambodivona, Fasan'ny Karana, Andohatapenaka.<br>Villes : Toamasina, Majunga, Antsirabe, Fianarantsoa, Toliara, Diego, Moramanga, Sambava, etc. | Fourgonnette Navette Transit |
 
-### 5.1 Algorithme Formel d'Auto-Détection des Axes
-L'application analyse automatiquement le champ `Lieu / Adresse` saisi lors de l'enregistrement du colis selon un arbre de décision strict :
+### 5.1 Algorithme d'Assistance à la Détection des Axes (Suggestion Non Bloquante)
+Lors de la saisie de l'adresse ou du lieu, l'application propose une pré-sélection d'axe automatique à titre purement indicatif :
 
 ```mermaid
 flowchart TD
     Saisie["Entrée : Chaîne de caractères Lieu / Adresse"]
     Saisie --> E1{"Contient un nom de Ville de Province, de Gare ou de Coopérative ?"}
-    E1 -- OUI --> ResProv["Affecter AXE_PROVINCE<br/><b>AXE PROVINCES & GARES ROUTIÈRES</b>"]
+    E1 -- OUI --> ResProv["Suggestion AXE_PROVINCE<br/><b>EXPÉDITIONS NATIONALES (PROVINCE)</b>"]
     E1 -- NON --> E2{"Correspond à un quartier répertorié du Grand Tanà ?"}
-    E2 -- OUI --> ResUrbain["Affecter l'Axe Radial Urbain correspondant<br/><i>(ex: 'Itaosy' ➔ AXE_RN1)</i>"]
-    E2 -- NON --> ResDefaut["Affectation de Repli :<br/><b>AXE CENTRE-VILLE (Tsiazotafo & Hyper-Centre)</b>"]
+    E2 -- OUI --> ResUrbain["Suggestion de l'Axe Radial Urbain correspondant<br/><i>(ex: 'Itaosy' ➔ AXE_RN1)</i>"]
+    E2 -- NON --> ResDefaut["Suggestion de Repli :<br/><b>AXE CENTRE-VILLE (Tsiazotafo & Hyper-Centre)</b>"]
 ```
 
-1.  **Niveau 1 (Mots-clés Province prioritaires) :**
-    Si la chaîne contient le nom d'une ville régionale malgache (*Toamasina, Tamatave, Mahajanga, Majunga, Antsirabe, Fianarantsoa, Toliara, Diego, Antsiranana, Moramanga, Brickaville, Manakara, Sambava, Antalaha, Nosy Be, Fort-Dauphin, etc.*), une gare routière (*Gare Ambodivona, Fasan'ny Karana, Gare Maki, Andohatapenaka*), ou une coopérative partenaire (*Cotisse, Kofmad, Besady, Sonatra, Trans Texpress*), l'algorithme assigne obligatoirement l'axe **`AXE_PROVINCE`**.
-2.  **Niveau 2 (Corridors Urbains) :**
-    Si aucun mot-clé de province n'est trouvé, l'algorithme parcourt les listes de quartiers associées aux axes urbains 1 à 7. Dès qu'un quartier est identifié, l'axe radial correspondant est assigné.
-3.  **Niveau 3 (Repli sécurisé) :**
-    En cas de lieu indéterminé ou d'adresse non répertoriée, le système assigne par défaut l'axe central **`AXE_CENTRE`**, et lève un avertissement invitant l'opérateur ou le superviseur à confirmer la zone de livraison.
+1.  **Niveau 1 (Mots-clés Province prioritaires) :** Détecte les villes de province (*Toamasina, Mahajanga, Antsirabe, Fianarantsoa, Toliara, Diego, Sambava, etc.*), gares routières (*Ambodivona, Fasan'ny Karana, Maki, Andohatapenaka*) ou coopératives (*Cotisse, Kofmad, Besady, Sonatra*).
+2.  **Niveau 2 (Corridors Urbains) :** Détecte les quartiers du Grand Tanà rattachés aux axes 1 à 7.
+3.  **Niveau 3 (Repli par défaut) :** Affecte temporairement `AXE_CENTRE` si l'adresse est imprécise.
 
-### 5.2 Règle de Surcharge Manuelle de l'Axe & Gestion des Nouveaux Lieux
-*   **Principe de Flexibilité Opérationnelle :** L'auto-détection de l'axe est une assistance intelligente mais **n'est jamais bloquante**. À tout moment lors de la saisie Inbound ou du dispatching, l'opérateur ou le superviseur a le droit et la possibilité de **modifier manuellement l'axe logistique** via un sélecteur interactif.
-*   **Prise en Charge des Nouveaux Quartiers & Repères Inédits :** Si un colis est destiné à un nouveau quartier, une nouvelle zone résidentielle ou un repère informel non encore indexé dans la base (ayant donc reçu le repli automatique par défaut), l'opérateur le reclasse directement dans le bon axe radial (ex: affecter un nouveau lotissement d'Ambohidratrimo vers `AXE_RN4`, ou un nouveau secteur d'Alasora vers `AXE_SUD_EST`).
-*   **Traçabilité de la Surcharge :** Le système enregistre l'axe définitif choisi et affiche un badge distinctif `Modifié Manuellement` sur l'interface pour distinguer les axes détectés automatiquement de ceux ajustés par les agents.
-*   **Enrichissement Continu du Référentiel (Écran 10) :** Tout nouveau quartier identifié sur le terrain peut être rattaché de façon permanente à son axe logistique dans la table `zones` par l'administrateur, enrichissant ainsi le moteur de détection pour les futures expéditions.
+### 5.2 RÈGLE FONDAMENTALE : SÉLECTION MANUELLE ET MODIFIABLE DE L'AXE
+
+> [!IMPORTANT]
+> **La sélection de l'axe logistique est 100% MANUELLE et LIBREMENT MODIFIABLE à tout moment par l'opérateur.** L'algorithme d'auto-détection n'est qu'un assistant d'aide à la saisie. En aucun cas le système ne contraint ni ne verrouille le choix de l'axe.
+
+#### 1. Liberté Totale de Sélection à l'Inbound (Écran 01)
+*   Sur le formulaire de réception par lot ou unitaire, l'opérateur dispose d'un sélecteur déroulant interactif (`data-cy="select-axis-${idx}"`) présentant deux groupes d'options formellement cloisonnés :
+    *   **🛵 Réseau Urbain (Grand Tanà) :** Axes 1 à 7 (`AXE_CENTRE`, `AXE_RN1`, `AXE_RN2`, `AXE_RN3`, `AXE_RN4`, `AXE_RN7`, `AXE_SUD_EST`).
+    *   **🚐 Expéditions Nationales (Province) :** Axe 8 (`AXE_PROVINCE`).
+*   L'opérateur peut sélectionner manuellement l'axe souhaité, indépendamment du texte de l'adresse.
+
+#### 2. Modification Manuelle au Dispatching (Écran 03 & Écran 04)
+*   Un colis déjà enregistré en stock (`EN_DEPOT`) ou même assigné à une tournée (`ASSIGNE`) peut faire l'objet d'un **changement d'axe manuel direct** par le superviseur ou l'administrateur.
+*   En cliquant sur le bouton **« Modifier »** (`edit-axis-btn-${parcel.id}`) attenant au badge d'axe, une modale dédiée (`modal-edit-axis`) permet de sélectionner le nouvel axe approprié et de confirmer le reclassement.
+*   Le colis est immédiatement transféré dans le filtre du nouveau corridor sans aucune perte de données.
+
+#### 3. Synchronisation Automatique et Réciproque du Type de Flux (`flux_type`)
+La modification de l'axe maintient la stricte cohérence du type de flux logistique :
+*   **Bascule vers `AXE_PROVINCE` :** Dès que l'axe `AXE_PROVINCE` est sélectionné, le champ `flux_type` bascule automatiquement au statut **`PROVINCE`**, activant les flux de gestion des gares routières.
+*   **Rétablissement vers un Axe Urbain (1 à 7) :** Si un colis précédemment classé en province est réaffecté à un corridor urbain radial, son `flux_type` repasse instantanément à :
+    *   **`COD`** si la valeur marchande du colis est strictement supérieure à 0 Ar ;
+    *   **`SIMPLE`** (Port Payé) si la marchandise est à 0 Ar.
+
+#### 4. Traçabilité et Badge d'Audit
+*   Dès qu'un axe est sélectionné ou ajusté manuellement, le système consigne l'indicateur `is_manual_axis = True`.
+*   Un badge distinctif **« Choix Manuel »** est affiché sur l'étiquette, la feuille de route et l'ensemble des écrans pour certifier l'arbitrage humain de l'opérateur.
 
 ---
 
@@ -326,6 +367,13 @@ Pour toute expédition en Province, les flux financiers sont distincts et transp
 *   **Formule du Total Inviolable :**
     $$\text{Total à Encaisser} = \text{Montant Marchandise} + \text{Frais de Livraison}$$
 *   **Format d'Affichage :** Séparateur de milliers (espace insécable fin) suffixé de `" Ar"` (ex: `125 000 Ar`).
+*   **Règle de Neutralisation COD (Paiement Anticipé en Cours de Tournée) :**
+    Lorsque le destinataire effectue son règlement à distance pendant la tournée (Mobile Money MVola, Orange Money, Airtel direct au siège ou à la boutique cybermarchand, ou virement bancaire) :
+    1.  **Enregistrement Rapide :** L'action **« Déjà Réglé / Paiement Anticipé »** permet de consigner le canal de paiement et la référence de transaction.
+    2.  **Neutralisation du COD :** Le montant à recouvrer (`total_to_collect`) est automatiquement ramené à **0 Ar** (ou uniquement aux frais de port si seule la marchandise a été prépayée), et le flux est reclassé en port payé.
+    3.  **Affichage Terrain (Écran 05) :** Le montant exigible du livreur passe immédiatement à **`✅ 0 Ar (Déjà Réglé)`** avec désactivation du bouton d'encaissement.
+    4.  **Remise Physique :** Le coursier clique simplement sur **`LIVRÉ`** pour confirmer la remise physique du colis sans percevoir d'argent.
+    5.  **Protection Comptable du Coursier :** Le total théorique attendu lors de la décharge financière du soir exclut ce montant, évitant toute imputation de déficit ou dette au coursier.
 
 ### 7.3 Format et Normalisation des Dates
 *   **Format Interne & Échanges API :** Norme internationale ISO-8601 `YYYY-MM-DD` (ex: `2026-11-07`).
@@ -349,18 +397,26 @@ stateDiagram-v2
     ASSIGNE --> EN_DEPOT: Annulation d'assignation / Retour au stock
     ASSIGNE --> ASSIGNE: Réassignation (Réceptionniste, Superviseur, Super Admin)
     
-    EN_COURS --> LIVRE_ENCAISSE: Remise colis + Encaissé Espèces / Mobile Money
+    EN_COURS --> LIVRE: Remise physique du colis au destinataire (Sans encaissement immédiat)
+    EN_COURS --> ENCAISSE: Remise physique + Encaissement (Espèces / Mobile Money)
+    EN_COURS --> LIVRE_ENCAISSE: Remise physique + Encaissement (Rétrocompatibilité)
     EN_COURS --> REPORTE: Client absent / Report demandé (Date obligatoire)
     EN_COURS --> ANNULE_RETOUR: Refus marchandise / Annulation (Motif obligatoire)
     EN_COURS --> ASSIGNE: Réassignation d'urgence terrain (Super Admin exclusivement)
     
+    LIVRE --> ENCAISSE: Encaissement ultérieur du colis livré (Espèces / Mobile Money)
+    LIVRE --> CLOTURE_CAISSE: Décharge caisse (si aucun montant à recouvrer / port payé d'avance)
+    
+    ENCAISSE --> CLOTURE_CAISSE: Décharge financière du soir & Rapprochement
+    LIVRE_ENCAISSE --> CLOTURE_CAISSE: Décharge financière du soir & Rapprochement
+    
+    SOUS_TRAITE --> LIVRE: Retrait au guichet Province validé
+    SOUS_TRAITE --> ENCAISSE: Retrait + Encaissement Province
     SOUS_TRAITE --> LIVRE_ENCAISSE: Confirmation retrait guichet Province + Encaissement
     SOUS_TRAITE --> ANNULE_RETOUR: Non réclamé après 7j en gare / Colis rapatrié
     
     REPORTE --> EN_DEPOT: Réintégration physique au Hub pour reprogrammation
     ANNULE_RETOUR --> RETOUR_BOUTIQUE: Restitution physique au cybermarchand
-    
-    LIVRE_ENCAISSE --> CLOTURE_CAISSE: Décharge financière du soir & Rapprochement
 ```
 
 ### 8.1 Matrice Formelle des Transitions d'États
@@ -373,10 +429,17 @@ stateDiagram-v2
 | `EN_COURS` | `ASSIGNE` | **Super Admin exclusivement** | Réassignation d'urgence en cours de tournée (panne mécanique, accident, réallocation de charge) | **Nouvel identifiant coursier + Motif circonstancié obligatoire (Interdit au Réceptionniste & Superviseur)** |
 | `ASSIGNE` | `EN_COURS` | Superviseur / Livreur | Validation du départ physique en tournée | Confirmation du lot de colis |
 | `ASSIGNE` | `SOUS_TRAITE` | Chauffeur Navette / Superviseur | Remise physique au guichet de la coopérative | **Nom coopérative, N° Récépissé, Frais de Fret** |
-| `EN_COURS` | `LIVRE_ENCAISSE` | Superviseur / Livreur | Remise physique au destinataire et encaissement | Mode de règlement (Espèces, MVola, Airtel, Orange) |
+| `EN_COURS` | `LIVRE` | Superviseur / Livreur | Remise physique au destinataire sans encaissement immédiat | Confirmation de remise physique au destinataire |
+| `EN_COURS` | `ENCAISSE` | Superviseur / Livreur | Remise physique au destinataire et encaissement direct | Mode de règlement (Espèces, MVola, Airtel, Orange) |
+| `EN_COURS` | `LIVRE_ENCAISSE` | Superviseur / Livreur | Remise physique au destinataire et encaissement simultané | Mode de règlement (Espèces, MVola, Airtel, Orange) |
+| `LIVRE` | `ENCAISSE` | Superviseur / Livreur / Admin | Encaissement a posteriori d'un colis préalablement livré | Mode de règlement (Espèces, MVola, Airtel, Orange) |
+| `LIVRE` | `CLOTURE_CAISSE` | Super Admin | Clôture comptable si aucune somme à recouvrer | Aucune somme en souffrance |
+| `ENCAISSE` | `CLOTURE_CAISSE` | Super Admin | Clôture comptable de la journée et rapprochement | $\text{Écart de Caisse} = 0\text{ Ar}$ |
 | `EN_COURS` | `REPORTE` | Superviseur / Livreur | Client indisponible ou injoignable | **Date de report obligatoire (`YYYY-MM-DD`) + Motif** |
 | `EN_COURS` | `ANNULE_RETOUR` | Superviseur / Livreur | Client refuse le colis ou annule la commande | **Motif explicite du refus** |
-| `SOUS_TRAITE` | `LIVRE_ENCAISSE` | Super Admin | Retrait validé au guichet de destination | Preuve de transfert Mobile Money ou accusé guichet |
+| `SOUS_TRAITE` | `LIVRE` | Super Admin | Retrait validé au guichet de destination (avis guichet) | Accusé guichet de destination |
+| `SOUS_TRAITE` | `ENCAISSE` | Super Admin | Retrait et encaissement validés en Province | Preuve de transfert Mobile Money ou accusé guichet |
+| `SOUS_TRAITE` | `LIVRE_ENCAISSE` | Super Admin | Retrait validé au guichet de destination + encaissement | Preuve de transfert Mobile Money ou accusé guichet |
 | `SOUS_TRAITE` | `ANNULE_RETOUR` | Super Admin | Colis non retiré après 7 jours, rapatrié à Tana | Motif du non-retrait consigné |
 | `REPORTE` | `EN_DEPOT` | Superviseur | Clôture de tournée / Retour physique au Hub | Réintégration physique au stock |
 | `LIVRE_ENCAISSE`| `CLOTURE_CAISSE`| Super Admin | Clôture comptable de la journée | $\text{Écart de Caisse} = 0\text{ Ar}$ |
@@ -410,6 +473,7 @@ L'application web est structurée en **12 modules applicatifs dédiés** :
         *   **Réceptionniste & Superviseur :** Peuvent assigner et réassigner librement tout colis vers un autre coursier ou une autre tournée **tant que le colis n'est pas déjà en cours de livraison (`EN_DEPOT`, `ASSIGNE`, `REPORTE`)**.
         *   **Verrouillage `EN_COURS` :** Dès qu'une tournée est lancée et que le colis passe au statut **`EN_COURS`** (coursier sur le terrain), la réassignation est **strictement bloquée** pour le Réceptionniste et le Superviseur.
         *   **Prérogative Exclusive Super Admin (Forçage d'Urgence) :** Le **Super Admin** a le pouvoir d'outrepasser ce verrou pour réassigner un colis **déjà en cours (`EN_COURS`)** vers un autre coursier ou navette (cas de panne mécanique, accident, indisponibilité soudaine ou transfert d'urgence de charge), avec motif circonstancié obligatoire consigné dans l'historique d'audit.
+    3.  **Modification Manuelle de l'Axe Logistique :** Possibilité d'éditer ou de corriger directement l'axe d'un colis en stock (`EN_DEPOT`) ou en attente d'expédition (`ASSIGNE`) via une modale de sélection manuelle dédiée (Réseau Urbain vs Expéditions Province), avec reclassement instantané dans le corridor correspondant et bascule synchronisée du type de flux (`PROVINCE` vs `COD`/`SIMPLE`).
 
 ### Écran 04 : Feuilles de Route & Impression Thermique (Tickets 80 mm)
 *   **Utilisateurs Principaux :** Superviseur & Livreurs.
@@ -417,19 +481,22 @@ L'application web est structurée en **12 modules applicatifs dédiés** :
 
 ### Écran 05 : Pointage Terrain & Suivi en Direct
 *   **Utilisateur Principal :** Superviseur Logistique.
-*   **Fonctionnalités :** Saisie rapide de l'issue des livraisons (`Livré`, `Reporté`, `Annulé/Refusé`, `Sous-traité`). Contrôles stricts : forçage de date valide pour un report, motif obligatoire pour un refus, saisie du récépissé et frais de fret pour une sous-traitance gare.
+*   **Fonctionnalités :** Saisie rapide de l'issue des livraisons :
+    1.  **Séparation Remise Physique (`LIVRE`) & Encaissement (`ENCAISSE`) :** Possibilité de valider la remise physique au destinataire sans encaissement immédiat (statut `LIVRE`, aucune modalité de paiement requise), puis de procéder à l'encaissement a posteriori (statut `ENCAISSE` avec sélection du mode de règlement Espèces ou Mobile Money et vérification regex du numéro), ou de réaliser la livraison et l'encaissement simultanés.
+    2.  **Gestion des Incidents :** Forçage de date valide pour un report (`REPORTE`), motif circonstancié obligatoire pour un refus/annulation (`ANNULE_RETOUR`), saisie du récépissé et frais de fret pour une sous-traitance gare (`SOUS_TRAITE`).
 
 ### Écran 06 : Cockpit & Tableau de Bord de Progression (KPIs Temps Réel)
 *   **Utilisateurs Principaux :** Superviseur & Super Admin.
 *   **Fonctionnalités :** Barre de progression segmentée affichant le pourcentage d'avancement global de la journée. Code couleur universel pastel :
-    *   `LIVRE_ENCAISSE` : Vert émeraude `#dcfce7` (texte `#065f46`)
-    *   `EN_COURS` : Bleu ciel `#dbeafe` (texte `#0369a1`)
-    *   `ASSIGNE` : Indigo `#e0e7ff` (texte `#1e40af`)
-    *   `EN_DEPOT` : Ambre `#fef3c7` (texte `#78350f`)
-    *   `REPORTE` : Orange clair `#ffedd5` (texte `#92400e`)
-    *   `ANNULE_RETOUR` : Rose/Rouge clair `#ffe4e6` (texte `#991b1b`)
-    *   `SOUS_TRAITE` : Violet pastel `#f3e8ff` (texte `#6b21a8`)
-    4 Cartes de métriques d'activité (Expéditions totales, Taux de succès, Colis en cours, Montant COD recouvré).
+    *   `ENCAISSE` / `LIVRE_ENCAISSE` : Vert émeraude `#dcfce7` (texte `#065f46`, bordure `#86efac`)
+    *   `LIVRE` : Bleu turquoise d'eau clair `#ccfbf1` (texte `#0f766e`, bordure `#99f6e4`)
+    *   `EN_COURS` : Bleu ciel `#dbeafe` (texte `#0369a1`, bordure `#7dd3fc`)
+    *   `ASSIGNE` : Indigo `#e0e7ff` (texte `#1e40af`, bordure `#a5b4fc`)
+    *   `EN_DEPOT` : Ambre `#fef3c7` (texte `#78350f`, bordure `#fde68a`)
+    *   `REPORTE` : Orange clair `#ffedd5` (texte `#92400e`, bordure `#fed7aa`)
+    *   `ANNULE_RETOUR` : Rose/Rouge clair `#ffe4e6` (texte `#991b1b`, bordure `#fecdd3`)
+    *   `SOUS_TRAITE` : Violet pastel `#f3e8ff` (texte `#6b21a8`, bordure `#e9d5ff`)
+    4 Cartes de métriques d'activité (Expéditions totales, Taux de succès incluant colis livrés, Colis en cours, Montant COD recouvré).
 
 ### Écran 07 : Caisse Centrale & Validation des Encaissements COD
 *   **Utilisateur Principal :** Super Admin (Responsable Caisse).

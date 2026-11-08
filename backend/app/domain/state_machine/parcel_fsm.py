@@ -15,6 +15,8 @@ class ParcelStatus(str, Enum):
     ASSIGNE = "ASSIGNE"
     EN_COURS = "EN_COURS"
     SOUS_TRAITE = "SOUS_TRAITE"
+    LIVRE = "LIVRE"
+    ENCAISSE = "ENCAISSE"
     LIVRE_ENCAISSE = "LIVRE_ENCAISSE"
     REPORTE = "REPORTE"
     ANNULE_RETOUR = "ANNULE_RETOUR"
@@ -28,6 +30,8 @@ class ParcelStatus(str, Enum):
             ParcelStatus.ASSIGNE: "Assigné en Tournée",
             ParcelStatus.EN_COURS: "En Cours de Livraison",
             ParcelStatus.SOUS_TRAITE: "Sous-traité Gare (Province)",
+            ParcelStatus.LIVRE: "Livré",
+            ParcelStatus.ENCAISSE: "Encaissé",
             ParcelStatus.LIVRE_ENCAISSE: "Livré & Encaissé",
             ParcelStatus.REPORTE: "Reporté",
             ParcelStatus.ANNULE_RETOUR: "Annulé / Retour",
@@ -40,6 +44,8 @@ class ParcelStatus(str, Enum):
     def color_theme(self) -> Dict[str, str]:
         """Universal pastel color codes according to CDC section 9 (Écran 06)."""
         themes = {
+            ParcelStatus.ENCAISSE: {"bg": "#dcfce7", "text": "#065f46", "border": "#86efac"},
+            ParcelStatus.LIVRE: {"bg": "#ccfbf1", "text": "#0f766e", "border": "#99f6e4"},
             ParcelStatus.LIVRE_ENCAISSE: {"bg": "#dcfce7", "text": "#065f46", "border": "#86efac"},
             ParcelStatus.EN_COURS: {"bg": "#dbeafe", "text": "#0369a1", "border": "#7dd3fc"},
             ParcelStatus.ASSIGNE: {"bg": "#e0e7ff", "text": "#1e40af", "border": "#a5b4fc"},
@@ -58,6 +64,7 @@ class PaymentMethod(str, Enum):
     MVOLA = "MVOLA"
     AIRTEL = "AIRTEL"
     ORANGE_MONEY = "ORANGE_MONEY"
+    VIREMENT = "VIREMENT"
 
 
 # Strict Legal Transition Matrix (CDC section 8.1)
@@ -71,14 +78,25 @@ ALLOWED_TRANSITIONS: Dict[Optional[ParcelStatus], Set[ParcelStatus]] = {
         ParcelStatus.ASSIGNE,
     },
     ParcelStatus.EN_COURS: {
+        ParcelStatus.LIVRE,
+        ParcelStatus.ENCAISSE,
         ParcelStatus.LIVRE_ENCAISSE,
         ParcelStatus.REPORTE,
         ParcelStatus.ANNULE_RETOUR,
         ParcelStatus.ASSIGNE,
     },
     ParcelStatus.SOUS_TRAITE: {
+        ParcelStatus.LIVRE,
+        ParcelStatus.ENCAISSE,
         ParcelStatus.LIVRE_ENCAISSE,
         ParcelStatus.ANNULE_RETOUR,
+    },
+    ParcelStatus.LIVRE: {
+        ParcelStatus.ENCAISSE,
+        ParcelStatus.CLOTURE_CAISSE,
+    },
+    ParcelStatus.ENCAISSE: {
+        ParcelStatus.CLOTURE_CAISSE,
     },
     ParcelStatus.REPORTE: {ParcelStatus.EN_DEPOT},
     ParcelStatus.ANNULE_RETOUR: {ParcelStatus.RETOUR_BOUTIQUE},
@@ -145,11 +163,15 @@ class ParcelStateMachine:
                     "La sous-traitance en gare requiert obligatoirement le montant des frais de fret (>= 0 Ar)."
                 )
 
-        elif to_status == ParcelStatus.LIVRE_ENCAISSE:
-            if from_status == ParcelStatus.EN_COURS:
+        elif to_status == ParcelStatus.LIVRE:
+            # Physical delivery confirmation - no payment method required
+            pass
+
+        elif to_status in (ParcelStatus.ENCAISSE, ParcelStatus.LIVRE_ENCAISSE):
+            if from_status in (ParcelStatus.EN_COURS, ParcelStatus.LIVRE):
                 if not ctx.payment_method:
                     raise MissingRequiredDataException(
-                        "La validation de livraison et encaissement requiert obligatoirement le mode de paiement (Espèces ou Mobile Money)."
+                        "La validation de l'encaissement requiert obligatoirement le mode de paiement (Espèces ou Mobile Money)."
                     )
 
         elif to_status == ParcelStatus.REPORTE:

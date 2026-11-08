@@ -345,4 +345,56 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
     cy.get('[data-cy="open-whatsapp-link"]').should("be.visible").and("have.attr", "href");
     cy.wait(1800); // Observer le badge Copié et le bouton vert WhatsApp
   });
+
+  it("devrait permettre la sélection et la modification manuelle de l'axe logistique d'un colis (CDC 5.2)", () => {
+    cy.intercept("PATCH", "**/api/v1/parcels/201/axis", {
+      statusCode: 200,
+      body: {
+        id: 201,
+        tracking_number: "0001",
+        axis: "AXE_PROVINCE",
+        axis_label: "AXE PROVINCES & GARES ROUTIÈRES",
+        is_manual_axis: true,
+        flux_type: "PROVINCE",
+        recipient_name: "Rasoa Nirina",
+        recipient_phone: "0341234567",
+        recipient_phone_formatted: "034 12 345 67",
+        delivery_address: "Itaosy Cité près Pharmacie",
+        total_to_collect: 50000,
+        status: "EN_DEPOT",
+      },
+    }).as("overrideAxisToProvince");
+
+    cy.visit("/dispatch");
+    cy.wait(800);
+
+    // Initial check: parcel 201 has RN1 Ouest
+    cy.get('[data-cy="parcel-row-201"]').should("be.visible").within(() => {
+      cy.contains("RN1 Ouest").should("be.visible");
+      // Click the edit axis button
+      cy.get('[data-cy="edit-axis-btn-201"]').click();
+    });
+
+    // Check modal opens
+    cy.get('[data-cy="modal-edit-axis"]').should("be.visible");
+    cy.contains("Sélection Manuelle de l'Axe Logistique").should("be.visible");
+    cy.contains("BDR-0001").should("be.visible");
+
+    // Select AXE_PROVINCE
+    cy.get('[data-cy="select-override-axis"]').select("AXE_PROVINCE");
+    cy.get('[data-cy="btn-confirm-override-axis"]').click();
+    cy.wait("@overrideAxisToProvince");
+
+    // Check toast notification appears
+    cy.get('[data-cy="axis-feedback-banner"]')
+      .should("be.visible")
+      .and("contain", "modifié avec succès vers AXE_PROVINCE");
+
+    // Verify parcel row updated with Provinces and Choix Manuel badge
+    cy.get('[data-cy="parcel-row-201"]').within(() => {
+      cy.contains("Provinces").should("be.visible");
+      cy.contains("Choix Manuel").should("be.visible");
+      cy.contains("PROVINCE").should("be.visible");
+    });
+  });
 });

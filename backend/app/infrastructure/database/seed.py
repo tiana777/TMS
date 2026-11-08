@@ -1,6 +1,7 @@
 """Database initialization and master data seeding according to CDC sections 3, 5, 6 & 12."""
 
 import hashlib
+from sqlalchemy import text
 from backend.app.infrastructure.database.connection import Base, engine, SessionLocal
 from backend.app.infrastructure.persistence.models import (
     AxisORM,
@@ -21,6 +22,21 @@ def seed_master_data():
     """Initializes schema and populates master reference data."""
     print("Creating all tables in PostgreSQL...")
     Base.metadata.create_all(bind=engine)
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE colis DROP CONSTRAINT IF EXISTS colis_statut_check;"))
+            conn.execute(text("""
+                ALTER TABLE colis ADD CONSTRAINT colis_statut_check 
+                CHECK (statut IN ('EN_DEPOT', 'ASSIGNE', 'EN_COURS', 'SOUS_TRAITE', 'LIVRE', 'ENCAISSE', 'LIVRE_ENCAISSE', 'REPORTE', 'ANNULE_RETOUR', 'RETOUR_BOUTIQUE', 'CLOTURE_CAISSE'));
+            """))
+            conn.execute(text("ALTER TABLE colis DROP CONSTRAINT IF EXISTS colis_mode_paiement_check;"))
+            conn.execute(text("""
+                ALTER TABLE colis ADD CONSTRAINT colis_mode_paiement_check 
+                CHECK (mode_paiement IS NULL OR mode_paiement IN ('ESPECES', 'MVOLA', 'AIRTEL', 'ORANGE_MONEY', 'VIREMENT'));
+            """))
+            conn.commit()
+    except Exception as e:
+        print(f"Notice during constraint update: {e}")
     print("Tables created.")
 
     session = SessionLocal()

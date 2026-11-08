@@ -110,6 +110,8 @@ export default function CockpitDashboardPage() {
     const total = parcels.length;
 
     const countByStatus: Record<string, number> = {
+      ENCAISSE: 0,
+      LIVRE: 0,
       LIVRE_ENCAISSE: 0,
       EN_COURS: 0,
       ASSIGNE: 0,
@@ -117,6 +119,7 @@ export default function CockpitDashboardPage() {
       REPORTE: 0,
       ANNULE_RETOUR: 0,
       SOUS_TRAITE: 0,
+      CLOTURE_CAISSE: 0,
     };
 
     let totalCODCollected = 0;
@@ -131,7 +134,7 @@ export default function CockpitDashboardPage() {
       }
       totalTheoreticalToCollect += p.total_to_collect || 0;
 
-      if (p.status === "LIVRE_ENCAISSE") {
+      if (p.status === "ENCAISSE" || p.status === "LIVRE_ENCAISSE" || p.status === "CLOTURE_CAISSE") {
         totalCODCollected += p.total_to_collect || 0;
       }
 
@@ -140,14 +143,20 @@ export default function CockpitDashboardPage() {
       else if (p.flux_type === "PROVINCE") totalFluxProvince++;
     });
 
+    const totalDelivered =
+      (countByStatus.ENCAISSE || 0) +
+      (countByStatus.LIVRE || 0) +
+      (countByStatus.LIVRE_ENCAISSE || 0) +
+      (countByStatus.CLOTURE_CAISSE || 0);
     const activeDelivering = countByStatus.EN_COURS + countByStatus.ASSIGNE;
-    const resolvedCount = countByStatus.LIVRE_ENCAISSE + countByStatus.ANNULE_RETOUR + countByStatus.SOUS_TRAITE;
-    const successRate = total > 0 ? Math.round((countByStatus.LIVRE_ENCAISSE / total) * 100) : 0;
-    const globalProgress = total > 0 ? Math.round(((countByStatus.LIVRE_ENCAISSE + countByStatus.SOUS_TRAITE) / total) * 100) : 0;
+    const resolvedCount = totalDelivered + countByStatus.ANNULE_RETOUR + countByStatus.SOUS_TRAITE;
+    const successRate = total > 0 ? Math.round((totalDelivered / total) * 100) : 0;
+    const globalProgress = total > 0 ? Math.round(((totalDelivered + countByStatus.SOUS_TRAITE) / total) * 100) : 0;
 
     return {
       total,
       countByStatus,
+      totalDelivered,
       totalCODCollected,
       totalTheoreticalToCollect,
       totalFluxCOD,
@@ -162,12 +171,20 @@ export default function CockpitDashboardPage() {
   // Segmented Progress Bar Data with EXACT pastel color codes from CDC section 9 (Écran 06)
   const segments = [
     {
-      status: "LIVRE_ENCAISSE",
-      label: "Livré & Encaissé",
+      status: "ENCAISSE",
+      label: "Encaissé",
       bg: "#dcfce7",
       text: "#065f46",
       border: "#86efac",
-      count: metrics.countByStatus.LIVRE_ENCAISSE,
+      count: (metrics.countByStatus.ENCAISSE || 0) + (metrics.countByStatus.LIVRE_ENCAISSE || 0),
+    },
+    {
+      status: "LIVRE",
+      label: "Livré (En attente encaissement)",
+      bg: "#ccfbf1",
+      text: "#0f766e",
+      border: "#99f6e4",
+      count: metrics.countByStatus.LIVRE || 0,
     },
     {
       status: "EN_COURS",
@@ -389,7 +406,7 @@ export default function CockpitDashboardPage() {
           </p>
           <p className="text-3xl font-black text-emerald-600 mt-1">{metrics.successRate} %</p>
           <p className="text-xs text-slate-500 mt-3 font-medium">
-            {metrics.countByStatus.LIVRE_ENCAISSE} colis livrés sur {metrics.total}
+            {metrics.totalDelivered} colis livrés sur {metrics.total}
           </p>
         </div>
 
@@ -486,7 +503,9 @@ export default function CockpitDashboardPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {tours.map((t) => {
               const tourParcels = parcels.filter((p) => p.tour_id === t.id);
-              const deliveredCount = tourParcels.filter((p) => p.status === "LIVRE_ENCAISSE").length;
+              const deliveredCount = tourParcels.filter((p) =>
+                ["LIVRE", "ENCAISSE", "LIVRE_ENCAISSE", "CLOTURE_CAISSE"].includes(p.status)
+              ).length;
               const totalTourParcels = tourParcels.length;
               const tourProgress =
                 totalTourParcels > 0 ? Math.round((deliveredCount / totalTourParcels) * 100) : 0;

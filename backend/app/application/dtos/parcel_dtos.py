@@ -45,6 +45,13 @@ class ReassignParcelDTO(BaseModel):
     reason: Optional[str] = None
 
 
+class MarkPrepaidDTO(BaseModel):
+    prepaid_type: str = "ALL"  # "ALL" (tout réglé, total=0 Ar) ou "MERCHANDISE_ONLY"
+    payment_method: str = "MVOLA"  # ESPECES, MVOLA, AIRTEL, ORANGE_MONEY, VIREMENT
+    payment_reference: Optional[str] = None
+    observation: Optional[str] = None
+
+
 class UpdateParcelStatusDTO(BaseModel):
     status: str
     courier_id: Optional[int] = None

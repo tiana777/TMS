@@ -31,12 +31,12 @@ class Tour:
 
     def calculate_theoretical_total(self) -> Money:
         """Calculates theoretical total due by summing all delivered parcels in tour:
-        Total = sum(merchandise_amount + delivery_fee) for all parcels with status LIVRE_ENCAISSE
+        Total = sum(merchandise_amount + delivery_fee) for all parcels with status LIVRE, ENCAISSE, LIVRE_ENCAISSE
         (CDC section 13.1)
         """
         total = Money.zero()
         for p in self.parcels:
-            if p.status == ParcelStatus.LIVRE_ENCAISSE:
+            if p.status in [ParcelStatus.LIVRE, ParcelStatus.ENCAISSE, ParcelStatus.LIVRE_ENCAISSE]:
                 total += p.total_to_collect
         self.theoretical_total = total
         return total

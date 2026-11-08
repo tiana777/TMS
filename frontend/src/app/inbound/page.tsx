@@ -629,30 +629,53 @@ export default function InboundPage() {
 
                   {/* Axis Selection & Badge (col-span-3) */}
                   <div className="md:col-span-3 space-y-1">
-                    <label className="text-[11px] font-bold text-slate-700 block">
-                      Axe Logistique (Auto / Modifiable)
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-slate-700 block">
+                        Axe Logistique (Manuel & Modifiable)
+                      </label>
+                      {row.isManualAxis && (
+                        <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                          Choix Manuel
+                        </span>
+                      )}
+                    </div>
                     <select
                       data-testid={`select-axis-${idx}`}
+                      data-cy={`select-axis-${idx}`}
                       value={row.axis}
                       onChange={(e) => updateRow(idx, "axis", e.target.value as LogisticAxis)}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      className={`w-full px-3 py-2 bg-white border rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none transition ${
+                        row.axis === "AXE_PROVINCE"
+                          ? "border-purple-300 bg-purple-50/30 ring-1 ring-purple-400"
+                          : row.isManualAxis
+                          ? "border-blue-400 bg-blue-50/20"
+                          : "border-slate-300"
+                      }`}
                     >
-                      <option value="AXE_CENTRE">1. AXE_CENTRE (Tsiazotafo)</option>
-                      <option value="AXE_RN1">2. AXE_RN1 (Itaosy / Ouest)</option>
-                      <option value="AXE_RN2">3. AXE_RN2 (Ambohimangakely / Est)</option>
-                      <option value="AXE_RN3">4. AXE_RN3 (Sabotsy Namehana / Nord)</option>
-                      <option value="AXE_RN4">5. AXE_RN4 (Ivato / Digue)</option>
-                      <option value="AXE_RN7">6. AXE_RN7 (Iavoloha / Sud)</option>
-                      <option value="AXE_SUD_EST">7. AXE_SUD_EST (Alasora / By-Pass)</option>
-                      <option value="AXE_PROVINCE">8. AXE_PROVINCE (Gares Routières)</option>
+                      <optgroup label="📍 Réseau Urbain (Grand Tanà)">
+                        <option value="AXE_CENTRE">1. AXE_CENTRE (Tsiazotafo & Hyper-Centre)</option>
+                        <option value="AXE_RN1">2. AXE_RN1 (Itaosy / Ampitatafika / Ouest)</option>
+                        <option value="AXE_RN2">3. AXE_RN2 (Ambohimangakely / Est)</option>
+                        <option value="AXE_RN3">4. AXE_RN3 (Sabotsy Namehana / Nord)</option>
+                        <option value="AXE_RN4">5. AXE_RN4 (Ivato / Digue)</option>
+                        <option value="AXE_RN7">6. AXE_RN7 (Iavoloha / Sud)</option>
+                        <option value="AXE_SUD_EST">7. AXE_SUD_EST (Alasora / By-Pass)</option>
+                      </optgroup>
+                      <optgroup label="🚚 Expéditions Nationales (Province)">
+                        <option value="AXE_PROVINCE">8. AXE_PROVINCE (Gares Routières & Régions)</option>
+                      </optgroup>
                     </select>
-                    <div className="pt-0.5">
+                    <div className="pt-0.5 flex items-center justify-between gap-1 flex-wrap">
                       <AxisBadge
                         axis={row.axis}
                         isFallback={row.isAxisFallback}
                         isManual={row.isManualAxis}
                       />
+                      {row.axis === "AXE_PROVINCE" && (
+                        <span className="text-[10px] font-bold text-purple-700 bg-purple-100/70 px-2 py-0.5 rounded border border-purple-200 flex items-center gap-1">
+                          🚚 Navette Gares
+                        </span>
+                      )}
                     </div>
                   </div>
 

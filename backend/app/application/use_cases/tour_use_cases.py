@@ -235,7 +235,11 @@ class TourUseCases:
         # Load delivered parcels
         delivered_orms = self.db.query(ParcelORM).filter(
             ParcelORM.tournee_id == tour_id,
-            ParcelORM.statut == ParcelStatus.LIVRE_ENCAISSE.value,
+            ParcelORM.statut.in_([
+                ParcelStatus.LIVRE.value,
+                ParcelStatus.ENCAISSE.value,
+                ParcelStatus.LIVRE_ENCAISSE.value,
+            ]),
         ).all()
         tour.parcels = [self.parcel_repo._to_domain(po) for po in delivered_orms]
         theor = tour.calculate_theoretical_total()
@@ -368,7 +372,10 @@ class CourierUseCases:
         ).all()
 
         total_assigned = len(parcels)
-        total_delivered = sum(1 for p in parcels if p.statut in ["LIVRE_ENCAISSE", "CLOTURE_CAISSE"])
+        total_delivered = sum(
+            1 for p in parcels
+            if p.statut in ["LIVRE", "ENCAISSE", "LIVRE_ENCAISSE", "CLOTURE_CAISSE"]
+        )
         # Assume punctuality rate is aligned with delivered minus reports
         total_on_time = max(0, total_delivered - sum(1 for p in parcels if p.date_report))
 

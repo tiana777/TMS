@@ -42,6 +42,34 @@ class TestParcelStateMachine:
         ctx = TransitionContext(payment_method=PaymentMethod.MVOLA)
         ParcelStateMachine.validate_transition(ParcelStatus.EN_COURS, ParcelStatus.LIVRE_ENCAISSE, ctx)
 
+    def test_separated_livre_and_encaisse_transitions(self):
+        # 1. EN_COURS -> LIVRE: physical delivery does not require payment method
+        assert ParcelStateMachine.can_transition(ParcelStatus.EN_COURS, ParcelStatus.LIVRE)
+        ParcelStateMachine.validate_transition(ParcelStatus.EN_COURS, ParcelStatus.LIVRE)
+
+        # 2. LIVRE -> ENCAISSE: cash collection requires payment method
+        assert ParcelStateMachine.can_transition(ParcelStatus.LIVRE, ParcelStatus.ENCAISSE)
+        with pytest.raises(MissingRequiredDataException) as exc:
+            ParcelStateMachine.validate_transition(ParcelStatus.LIVRE, ParcelStatus.ENCAISSE)
+        assert "mode de paiement" in str(exc.value)
+
+        # With payment method
+        ctx = TransitionContext(payment_method=PaymentMethod.ESPECES)
+        ParcelStateMachine.validate_transition(ParcelStatus.LIVRE, ParcelStatus.ENCAISSE, ctx)
+
+        # 3. EN_COURS -> ENCAISSE directly (delivery and payment in one step)
+        assert ParcelStateMachine.can_transition(ParcelStatus.EN_COURS, ParcelStatus.ENCAISSE)
+        ctx_mvola = TransitionContext(payment_method=PaymentMethod.MVOLA)
+        ParcelStateMachine.validate_transition(ParcelStatus.EN_COURS, ParcelStatus.ENCAISSE, ctx_mvola)
+
+        # 4. ENCAISSE -> CLOTURE_CAISSE
+        assert ParcelStateMachine.can_transition(ParcelStatus.ENCAISSE, ParcelStatus.CLOTURE_CAISSE)
+        ParcelStateMachine.validate_transition(ParcelStatus.ENCAISSE, ParcelStatus.CLOTURE_CAISSE)
+
+        # 5. LIVRE -> CLOTURE_CAISSE (e.g. port payé / no cash to collect)
+        assert ParcelStateMachine.can_transition(ParcelStatus.LIVRE, ParcelStatus.CLOTURE_CAISSE)
+        ParcelStateMachine.validate_transition(ParcelStatus.LIVRE, ParcelStatus.CLOTURE_CAISSE)
+
     def test_reschedule_requires_iso_date_and_reason(self):
         # Missing date
         with pytest.raises(MissingRequiredDataException) as exc:

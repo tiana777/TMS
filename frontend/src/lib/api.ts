@@ -426,6 +426,46 @@ export async function updateParcelContact(
   return await res.json();
 }
 
+export interface MarkPrepaidPayload {
+  prepaid_type: "ALL" | "MERCHANDISE_ONLY";
+  payment_method: string;
+  payment_reference?: string;
+}
+
+export async function markParcelPrepaid(parcelId: number, payload: MarkPrepaidPayload) {
+  const headers = getAuthHeaders();
+
+  const res = await fetch(`${API_BASE_URL}/parcels/${parcelId}/prepaid`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de l'enregistrement du paiement anticipé.");
+  }
+
+  return await res.json();
+}
+
+export async function overrideParcelAxis(parcelId: number, axis: string) {
+  const headers = getAuthHeaders();
+
+  const res = await fetch(`${API_BASE_URL}/parcels/${parcelId}/axis`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ axis }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de la modification de l'axe logistique.");
+  }
+
+  return await res.json();
+}
+
 export async function closeTour(tourId: number, cashAndMobileRemitted: number) {
   const headers = getAuthHeaders();
 

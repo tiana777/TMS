@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from backend.app.application.dtos.parcel_dtos import (
     CreateBatchParcelDTO,
     CreateParcelDTO,
+    MarkPrepaidDTO,
     ParcelResponseDTO,
     UpdateParcelStatusDTO,
 )
@@ -149,6 +150,18 @@ class ParcelUseCases:
 
         elif target_status == ParcelStatus.EN_COURS:
             parcel.start_delivery()
+
+        elif target_status == ParcelStatus.LIVRE:
+            if parcel.status == ParcelStatus.ASSIGNE:
+                parcel.start_delivery()
+            parcel.mark_as_delivered()
+
+        elif target_status == ParcelStatus.ENCAISSE:
+            if parcel.status == ParcelStatus.ASSIGNE:
+                parcel.start_delivery()
+            if not dto.payment_method:
+                raise BusinessRuleViolationException("Mode de paiement obligatoire pour validation de l'encaissement.")
+            parcel.mark_as_cashed(PaymentMethod(dto.payment_method))
 
         elif target_status == ParcelStatus.LIVRE_ENCAISSE:
             if parcel.status == ParcelStatus.ASSIGNE:
@@ -371,6 +384,64 @@ class ParcelUseCases:
             t = tour_repo.get_by_id(target_tour_id)
             if t:
                 parcels_in_tour = self.db.query(ParcelORM).filter(ParcelORM.tournee_id == target_tour_id, ParcelORM.actif == 1).all()
+                t.parcels = [self.repo._to_domain(po) for po in parcels_in_tour]
+                t.calculate_theoretical_total()
+                tour_repo.save(t)
+
+        self.db.commit()
+        return self._to_response_dto(saved)
+
+    def mark_as_prepaid(
+        self,
+        parcel_id: int,
+        dto: MarkPrepaidDTO,
+        user_id: Optional[int] = None,
+    ) -> ParcelResponseDTO:
+        """Handle scenario where customer pays in advance to the headquarters or shop while parcel is in tour."""
+        parcel = self.repo.get_by_id(parcel_id)
+        if not parcel:
+            raise BusinessRuleViolationException(f"Colis #{parcel_id} introuvable.")
+
+        if parcel.status in (ParcelStatus.CLOTURE_CAISSE, ParcelStatus.RETOUR_BOUTIQUE):
+            raise BusinessRuleViolationException(
+                f"Impossible d'enregistrer un paiement anticipé pour un colis au statut '{parcel.status.value}'."
+            )
+
+        try:
+            pm = PaymentMethod(dto.payment_method)
+        except ValueError:
+            pm = PaymentMethod.MVOLA
+
+        parcel.mark_as_prepaid(
+            prepaid_type=dto.prepaid_type,
+            payment_method=pm,
+            payment_reference=dto.payment_reference,
+        )
+
+        saved = self.repo.save(parcel)
+
+        # Audit trail in status history
+        motif_audit = f"Paiement anticipé ({dto.payment_method}): COD neutralisé ({dto.prepaid_type})"
+        if dto.payment_reference:
+            motif_audit += f" - Réf: {dto.payment_reference}"
+
+        history = ParcelStatusHistoryORM(
+            colis_id=saved.id,
+            utilisateur_id=user_id,
+            statut_precedent=parcel.status.value,
+            statut_nouveau=saved.status.value,
+            motif=motif_audit,
+            horodatage=datetime.utcnow(),
+        )
+        self.db.add(history)
+
+        # If parcel was assigned to a tour, update tour theoretical total
+        if parcel.tour_id:
+            from backend.app.infrastructure.persistence.repositories import PostgresTourRepository
+            tour_repo = PostgresTourRepository(self.db)
+            t = tour_repo.get_by_id(parcel.tour_id)
+            if t:
+                parcels_in_tour = self.db.query(ParcelORM).filter(ParcelORM.tournee_id == parcel.tour_id, ParcelORM.actif == 1).all()
                 t.parcels = [self.repo._to_domain(po) for po in parcels_in_tour]
                 t.calculate_theoretical_total()
                 tour_repo.save(t)

@@ -172,7 +172,7 @@ class ParcelORM(Base):
         String(30),
         CheckConstraint(
             "statut IN ('EN_DEPOT', 'ASSIGNE', 'EN_COURS', 'SOUS_TRAITE', "
-            "'LIVRE_ENCAISSE', 'REPORTE', 'ANNULE_RETOUR', 'RETOUR_BOUTIQUE', 'CLOTURE_CAISSE')"
+            "'LIVRE', 'ENCAISSE', 'LIVRE_ENCAISSE', 'REPORTE', 'ANNULE_RETOUR', 'RETOUR_BOUTIQUE', 'CLOTURE_CAISSE')"
         ),
         default="EN_DEPOT",
         nullable=False,
@@ -182,7 +182,7 @@ class ParcelORM(Base):
     motif_incident = Column(Text, nullable=True)
     mode_paiement = Column(
         String(30),
-        CheckConstraint("mode_paiement IS NULL OR mode_paiement IN ('ESPECES', 'MVOLA', 'AIRTEL', 'ORANGE_MONEY')"),
+        CheckConstraint("mode_paiement IS NULL OR mode_paiement IN ('ESPECES', 'MVOLA', 'AIRTEL', 'ORANGE_MONEY', 'VIREMENT')"),
         nullable=True,
     )
     reference_partenaire = Column(String(50), nullable=True)

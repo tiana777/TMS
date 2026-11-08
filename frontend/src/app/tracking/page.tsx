@@ -24,6 +24,7 @@ import {
   Plus,
   Trash2,
   Sparkles,
+  CreditCard,
 } from "lucide-react";
 import {
   fetchTours,
@@ -33,6 +34,7 @@ import {
   updateParcelStatus,
   updateParcelContact,
   reassignParcel,
+  markParcelPrepaid,
   startTour,
   UpdateParcelStatusPayload,
 } from "../../lib/api";
@@ -101,6 +103,7 @@ interface Parcel {
   incident_reason?: string;
   partner_name?: string;
   partner_reference?: string;
+  observation?: string;
 }
 
 interface Tour {
@@ -132,9 +135,14 @@ export default function TrackingPage() {
   const [feedbackMessage, setFeedbackMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Modals state
-  const [activeModal, setActiveModal] = useState<"DELIVER" | "RESCHEDULE" | "CANCEL" | "OUTSOURCE" | "REASSIGN" | null>(null);
+  const [activeModal, setActiveModal] = useState<"DELIVER" | "MARK_DELIVERED" | "PREPAID" | "RESCHEDULE" | "CANCEL" | "OUTSOURCE" | "REASSIGN" | null>(null);
   const [targetParcel, setTargetParcel] = useState<Parcel | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  // Prepaid states (Paiement direct en ligne / Siège)
+  const [prepaidType, setPrepaidType] = useState<"ALL" | "MERCHANDISE_ONLY">("ALL");
+  const [prepaidPaymentMethod, setPrepaidPaymentMethod] = useState<string>("MVOLA");
+  const [prepaidReference, setPrepaidReference] = useState<string>("");
 
   // Role & Reassignment states
   const [currentUserRole, setCurrentUserRole] = useState<string>("SUPERVISEUR");
@@ -256,6 +264,10 @@ export default function TrackingPage() {
       if (statusFilter !== "ALL") {
         if (statusFilter === "IN_PROGRESS") {
           if (!["ASSIGNE", "EN_COURS"].includes(p.status)) return false;
+        } else if (statusFilter === "LIVRE") {
+          if (!["LIVRE", "LIVRE_ENCAISSE"].includes(p.status)) return false;
+        } else if (statusFilter === "ENCAISSE") {
+          if (!["ENCAISSE", "LIVRE_ENCAISSE"].includes(p.status)) return false;
         } else if (p.status !== statusFilter) {
           return false;
         }
@@ -280,14 +292,19 @@ export default function TrackingPage() {
   const stats = useMemo(() => {
     const list = selectedTourId === "ALL" ? parcels : parcels.filter((p) => p.tour_id === selectedTourId);
     const total = list.length;
-    const delivered = list.filter((p) => p.status === "LIVRE_ENCAISSE").length;
+    const delivered = list.filter((p) =>
+      ["LIVRE", "ENCAISSE", "LIVRE_ENCAISSE", "CLOTURE_CAISSE"].includes(p.status)
+    ).length;
+    const cashed = list.filter((p) =>
+      ["ENCAISSE", "LIVRE_ENCAISSE", "CLOTURE_CAISSE"].includes(p.status)
+    ).length;
     const inProgress = list.filter((p) => ["ASSIGNE", "EN_COURS"].includes(p.status)).length;
     const rescheduled = list.filter((p) => p.status === "REPORTE").length;
     const canceled = list.filter((p) => p.status === "ANNULE_RETOUR").length;
     const outsourced = list.filter((p) => p.status === "SOUS_TRAITE").length;
 
     const collectedCash = list
-      .filter((p) => p.status === "LIVRE_ENCAISSE")
+      .filter((p) => ["ENCAISSE", "LIVRE_ENCAISSE", "CLOTURE_CAISSE"].includes(p.status))
       .reduce((sum, p) => sum + (p.total_to_collect || 0), 0);
 
     const theoreticalCash = list.reduce((sum, p) => sum + (p.total_to_collect || 0), 0);
@@ -297,6 +314,7 @@ export default function TrackingPage() {
     return {
       total,
       delivered,
+      cashed,
       inProgress,
       rescheduled,
       canceled,
@@ -341,11 +359,14 @@ export default function TrackingPage() {
   };
 
   const openModal = (
-    modalType: "DELIVER" | "RESCHEDULE" | "CANCEL" | "OUTSOURCE" | "REASSIGN",
+    modalType: "DELIVER" | "MARK_DELIVERED" | "PREPAID" | "RESCHEDULE" | "CANCEL" | "OUTSOURCE" | "REASSIGN",
     parcel: Parcel
   ) => {
     setTargetParcel(parcel);
     setActiveModal(modalType);
+    setPrepaidType("ALL");
+    setPrepaidPaymentMethod("MVOLA");
+    setPrepaidReference("");
     setTestPhoneInput(parcel.recipient_phone || "");
     setMobileMoneyPhone(parcel.recipient_phone || "");
     setPhoneUpdateSuccess(null);
@@ -489,11 +510,32 @@ export default function TrackingPage() {
         return;
       }
 
+      if (activeModal === "PREPAID") {
+        const updated = await markParcelPrepaid(targetParcel.id, {
+          prepaid_type: prepaidType,
+          payment_method: prepaidPaymentMethod,
+          payment_reference: prepaidReference.trim() || undefined,
+        });
+
+        setFeedbackMessage({
+          type: "success",
+          text: `Pointage validé : Paiement anticipé enregistré pour le colis ${targetParcel.tracking_number} (${prepaidPaymentMethod}) ! COD neutralisé à ${updated.total_to_collect?.toLocaleString()} Ar.`,
+        });
+
+        setParcels((prev) =>
+          prev.map((p) => (p.id === targetParcel.id ? updated : p))
+        );
+        closeModal();
+        return;
+      }
+
       const payload: UpdateParcelStatusPayload = { status: "EN_COURS" };
 
       if (activeModal === "DELIVER") {
-        payload.status = "LIVRE_ENCAISSE";
+        payload.status = targetParcel.status === "LIVRE" ? "ENCAISSE" : "LIVRE_ENCAISSE";
         payload.payment_method = selectedPaymentMethod;
+      } else if (activeModal === "MARK_DELIVERED") {
+        payload.status = "LIVRE";
       } else if (activeModal === "RESCHEDULE") {
         payload.status = "REPORTE";
         payload.reschedule_date = rescheduleDate;
@@ -523,7 +565,12 @@ export default function TrackingPage() {
 
       setFeedbackMessage({
         type: "success",
-        text: `Pointage validé pour le colis ${targetParcel.tracking_number} (${targetParcel.recipient_name}) !`,
+        text:
+          activeModal === "MARK_DELIVERED"
+            ? `Pointage validé : Colis BDR-${targetParcel.tracking_number} marqué comme LIVRÉ avec succès !`
+            : activeModal === "DELIVER"
+            ? `Pointage validé : Encaissement enregistré pour le colis ${targetParcel.tracking_number} (${selectedPaymentMethod}) !`
+            : `Pointage validé pour le colis ${targetParcel.tracking_number} (${targetParcel.recipient_name}) !`,
       });
 
       // Update state locally for immediate snappy feedback
@@ -576,10 +623,14 @@ export default function TrackingPage() {
       EN_DEPOT: { bg: "bg-[#fef3c7]", text: "text-[#78350f]", label: "En Dépôt" },
       ASSIGNE: { bg: "bg-[#e0e7ff]", text: "text-[#1e40af]", label: "Assigné" },
       EN_COURS: { bg: "bg-[#dbeafe]", text: "text-[#0369a1]", label: "En Cours" },
+      LIVRE: { bg: "bg-[#ccfbf1]", text: "text-[#0f766e]", label: "Livré" },
+      ENCAISSE: { bg: "bg-[#dcfce7]", text: "text-[#065f46]", label: "Encaissé" },
       LIVRE_ENCAISSE: { bg: "bg-[#dcfce7]", text: "text-[#065f46]", label: "Livré & Encaissé" },
       REPORTE: { bg: "bg-[#ffedd5]", text: "text-[#92400e]", label: "Reporté" },
       ANNULE_RETOUR: { bg: "bg-[#ffe4e6]", text: "text-[#991b1b]", label: "Annulé / Retour" },
       SOUS_TRAITE: { bg: "bg-[#f3e8ff]", text: "text-[#6b21a8]", label: "Sous-traité Gare" },
+      RETOUR_BOUTIQUE: { bg: "bg-[#f1f5f9]", text: "text-[#334155]", label: "Retour Boutique" },
+      CLOTURE_CAISSE: { bg: "bg-[#ecfdf5]", text: "text-[#047857]", label: "Clôturé Caisse" },
     };
 
     const s = map[status] || { bg: "bg-slate-100", text: "text-slate-700", label: status };
@@ -756,10 +807,11 @@ export default function TrackingPage() {
           <div className="bg-slate-800/60 p-4 rounded-xl border border-slate-800">
             <p className="text-xs font-semibold text-slate-400">Répartition Statuts</p>
             <div className="flex items-center gap-2 mt-2 text-xs font-bold">
-              <span className="text-emerald-400">✓ {stats.delivered}</span>
-              <span className="text-amber-400">⏳ {stats.rescheduled}</span>
-              <span className="text-rose-400">✕ {stats.canceled}</span>
-              <span className="text-purple-400">📦 {stats.outsourced}</span>
+              <span className="text-teal-400" title="Colis Livrés">📦 {stats.delivered}</span>
+              <span className="text-emerald-400" title="Colis Encaissés">💰 {stats.cashed}</span>
+              <span className="text-amber-400" title="Reportés">⏳ {stats.rescheduled}</span>
+              <span className="text-rose-400" title="Refus / Annulés">✕ {stats.canceled}</span>
+              <span className="text-purple-400" title="Sous-traités">🚚 {stats.outsourced}</span>
             </div>
           </div>
         </div>
@@ -772,7 +824,8 @@ export default function TrackingPage() {
           {[
             { id: "ALL", label: "Tous les Colis" },
             { id: "IN_PROGRESS", label: "En Distribution" },
-            { id: "LIVRE_ENCAISSE", label: "Livrés" },
+            { id: "LIVRE", label: "Livrés" },
+            { id: "ENCAISSE", label: "Encaissés" },
             { id: "REPORTE", label: "Reportés" },
             { id: "ANNULE_RETOUR", label: "Refus / Annulés" },
             { id: "SOUS_TRAITE", label: "Sous-traités Gare" },
@@ -932,13 +985,38 @@ export default function TrackingPage() {
                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                       Montant à Recouvrer
                     </p>
-                    <p className="text-lg font-black text-slate-900 mt-0.5">
-                      {parcel.total_to_collect?.toLocaleString()} Ar
-                    </p>
-                    <p className="text-[11px] text-slate-500">
-                      Marchandise : {parcel.merchandise_amount?.toLocaleString()} Ar • Port :{" "}
-                      {parcel.delivery_fee?.toLocaleString()} Ar
-                    </p>
+                    {parcel.total_to_collect === 0 ? (
+                      <div className="mt-1">
+                        <span
+                          data-cy={`prepaid-zero-badge-${parcel.id}`}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-black"
+                          title="Paiement déjà effectué (0 Ar à percevoir par le livreur)"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          0 Ar (Déjà Réglé)
+                        </span>
+                        {parcel.observation && (
+                          <p className="text-[10px] text-emerald-700 font-semibold mt-0.5 max-w-[200px] truncate" title={parcel.observation}>
+                            {parcel.observation}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-lg font-black text-slate-900 mt-0.5">
+                          {parcel.total_to_collect?.toLocaleString()} Ar
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          Marchandise : {parcel.merchandise_amount?.toLocaleString()} Ar • Port :{" "}
+                          {parcel.delivery_fee?.toLocaleString()} Ar
+                        </p>
+                        {parcel.observation && parcel.observation.includes("Marchandise payée") && (
+                          <p className="text-[10px] text-emerald-700 font-bold mt-0.5 max-w-[200px] truncate" title={parcel.observation}>
+                            ✓ Marchandise déjà réglée
+                          </p>
+                        )}
+                      </>
+                    )}
                   </div>
 
                   {/* Right Column: Rapid Pointage Buttons */}
@@ -946,13 +1024,38 @@ export default function TrackingPage() {
                     {isActionable ? (
                       <>
                         <button
-                          data-cy={`btn-deliver-${parcel.id}`}
-                          onClick={() => openModal("DELIVER", parcel)}
-                          className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition shadow flex items-center gap-1.5"
+                          data-cy={`btn-deliver-only-${parcel.id}`}
+                          onClick={() => openModal("MARK_DELIVERED", parcel)}
+                          className="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl transition shadow flex items-center gap-1.5"
+                          title="Valider la remise physique au destinataire (Statut LIVRÉ)"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" />
-                          Livré & Encaissé
+                          Livré
                         </button>
+
+                        {parcel.total_to_collect > 0 && (
+                          <>
+                            <button
+                              data-cy={`btn-deliver-${parcel.id}`}
+                              onClick={() => openModal("DELIVER", parcel)}
+                              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition shadow flex items-center gap-1.5"
+                              title="Valider l'encaissement et marquer ENCAISSÉ"
+                            >
+                              <DollarSign className="w-3.5 h-3.5" />
+                              Encaisser
+                            </button>
+
+                            <button
+                              data-cy={`btn-prepaid-${parcel.id}`}
+                              onClick={() => openModal("PREPAID", parcel)}
+                              className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 font-bold text-xs rounded-xl transition flex items-center gap-1.5"
+                              title="Le client a déjà payé à distance (Siège / Boutique) : neutraliser le COD à 0 Ar"
+                            >
+                              <CreditCard className="w-3.5 h-3.5 text-indigo-600" />
+                              Déjà Réglé
+                            </button>
+                          </>
+                        )}
 
                         <button
                           data-cy={`btn-reschedule-${parcel.id}`}
@@ -1005,6 +1108,23 @@ export default function TrackingPage() {
                           {parcel.status === "EN_COURS" && currentUserRole === "SUPER_ADMIN" ? "👑 Urgence" : "Réassigner"}
                         </button>
                       </>
+                    ) : parcel.status === "LIVRE" ? (
+                      parcel.total_to_collect > 0 ? (
+                        <button
+                          data-cy={`btn-deliver-${parcel.id}`}
+                          onClick={() => openModal("DELIVER", parcel)}
+                          className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition shadow flex items-center gap-1.5 animate-pulse"
+                          title="Valider l'encaissement pour ce colis déjà livré"
+                        >
+                          <DollarSign className="w-3.5 h-3.5" />
+                          Encaisser ({parcel.total_to_collect?.toLocaleString()} Ar)
+                        </button>
+                      ) : (
+                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          Livré & Réglé (0 Ar)
+                        </span>
+                      )
                     ) : (
                       <span className="text-xs font-bold text-slate-400 italic px-2 py-1">
                         Pointage clôturé
@@ -1018,6 +1138,243 @@ export default function TrackingPage() {
         )}
       </div>
 
+      {/* ================= MODAL 0: CONFIRMATION LIVRAISON PHYSIQUE ================= */}
+      {activeModal === "MARK_DELIVERED" && targetParcel && (
+        <div
+          data-cy="modal-mark-delivered"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        >
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-teal-100 text-teal-700 rounded-xl">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-black text-lg text-slate-800">Confirmation de Livraison Physique</h3>
+                <p className="text-xs text-slate-500">
+                  Colis BDR-{targetParcel.tracking_number} • {targetParcel.recipient_name}
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-teal-50/60 p-4 rounded-xl border border-teal-100 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-500 font-medium">Destinataire :</span>
+                <span className="font-bold text-slate-800">{targetParcel.recipient_name}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-500 font-medium">Contact :</span>
+                <span className="font-bold text-slate-800">{targetParcel.recipient_phone}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-500 font-medium">Adresse :</span>
+                <span className="font-bold text-slate-800 text-right">{targetParcel.delivery_address}</span>
+              </div>
+              <div className="pt-2 border-t border-teal-200/60 flex items-center justify-between">
+                <span className="text-xs font-semibold text-teal-900">Montant à encaisser :</span>
+                {targetParcel.total_to_collect === 0 ? (
+                  <span className="text-sm font-black text-emerald-700 flex items-center gap-1">
+                    <CheckCircle2 className="w-4 h-4" />
+                    0 Ar (Déjà Réglé)
+                  </span>
+                ) : (
+                  <span className="text-sm font-black text-teal-700">
+                    {targetParcel.total_to_collect?.toLocaleString()} Ar
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1">
+              <p className="font-bold text-slate-700 flex items-center gap-1.5">
+                {targetParcel.total_to_collect === 0 ? "ℹ️ Colis payé d'avance (0 Ar à percevoir) :" : "ℹ️ Remise sans encaissement immédiat :"}
+              </p>
+              <p>
+                {targetParcel.total_to_collect === 0
+                  ? "Ce colis a déjà été réglé par le client (en ligne ou au siège). Aucune somme n'est à réclamer au destinataire."
+                  : "Cette action enregistre que le colis a été physiquement remis au client. Le statut passera à LIVRÉ. L'encaissement financier pourra être validé séparément."}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={closeModal}
+                className="px-4 py-2 font-bold text-xs text-slate-600 hover:bg-slate-100 rounded-xl transition"
+              >
+                Annuler
+              </button>
+              <button
+                data-cy="btn-confirm-mark-delivered"
+                type="button"
+                onClick={submitPointage}
+                disabled={isSubmitting}
+                className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-black text-xs rounded-xl shadow-lg transition flex items-center gap-1.5"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Confirmer la Remise (LIVRÉ)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL PREPAID: RÈGLEMENT ANTICIPÉ (COD NEUTRALISÉ) ================= */}
+      {activeModal === "PREPAID" && targetParcel && (
+        <div
+          data-cy="modal-prepaid"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in"
+        >
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-indigo-100 text-indigo-700 rounded-xl">
+                <CreditCard className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-black text-lg text-slate-800">Règlement Anticipé Reçu</h3>
+                <p className="text-xs text-slate-500">
+                  Colis BDR-{targetParcel.tracking_number} • {targetParcel.recipient_name}
+                </p>
+              </div>
+            </div>
+
+            {/* Current Financial Summary */}
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-500">Montant COD Initial :</span>
+                <span className="font-black text-slate-900">
+                  {targetParcel.total_to_collect?.toLocaleString()} Ar
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Marchandise COD : {targetParcel.merchandise_amount?.toLocaleString()} Ar • Port : {targetParcel.delivery_fee?.toLocaleString()} Ar
+              </p>
+            </div>
+
+            {/* Prepayment Option Selector */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 block uppercase tracking-wider">
+                Portée du Règlement Anticipé
+              </label>
+              <div className="grid grid-cols-1 gap-2">
+                <button
+                  type="button"
+                  data-cy="btn-prepaid-all"
+                  onClick={() => setPrepaidType("ALL")}
+                  className={`p-3 text-xs font-bold rounded-xl border transition text-left flex items-start gap-2.5 ${
+                    prepaidType === "ALL"
+                      ? "bg-indigo-50 border-indigo-500 text-indigo-900 ring-2 ring-indigo-500/20"
+                      : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <CheckCircle2 className={`w-4 h-4 shrink-0 mt-0.5 ${prepaidType === "ALL" ? "text-indigo-600" : "text-slate-400"}`} />
+                  <div>
+                    <p className="font-black">Paiement Intégral (0 Ar restant à percevoir)</p>
+                    <p className="text-[11px] font-normal text-slate-500">
+                      Marchandise et livraison réglées d'avance au siège ou par virement. Le livreur remet le colis sans demander d'argent.
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  data-cy="btn-prepaid-merch-only"
+                  onClick={() => setPrepaidType("MERCHANDISE_ONLY")}
+                  className={`p-3 text-xs font-bold rounded-xl border transition text-left flex items-start gap-2.5 ${
+                    prepaidType === "MERCHANDISE_ONLY"
+                      ? "bg-indigo-50 border-indigo-500 text-indigo-900 ring-2 ring-indigo-500/20"
+                      : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <CheckCircle2 className={`w-4 h-4 shrink-0 mt-0.5 ${prepaidType === "MERCHANDISE_ONLY" ? "text-indigo-600" : "text-slate-400"}`} />
+                  <div>
+                    <p className="font-black">Marchandise Seule Réglée ({targetParcel.delivery_fee?.toLocaleString()} Ar restants)</p>
+                    <p className="text-[11px] font-normal text-slate-500">
+                      Le client a payé le cybermarchand directement. Le livreur ne perçoit que les frais de livraison.
+                    </p>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Payment Channel */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 block uppercase tracking-wider">
+                Canal de Paiement Utilisé
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: "MVOLA", label: "📱 Telma MVola" },
+                  { id: "ORANGE_MONEY", label: "📱 Orange Money" },
+                  { id: "AIRTEL", label: "📱 Airtel Money" },
+                  { id: "VIREMENT", label: "🏦 Virement" },
+                  { id: "ESPECES", label: "💵 Espèces Siège" },
+                ].map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    data-cy={`prepaid-channel-${m.id.toLowerCase()}`}
+                    onClick={() => setPrepaidPaymentMethod(m.id)}
+                    className={`p-2.5 text-[11px] font-bold rounded-xl border transition text-center ${
+                      prepaidPaymentMethod === m.id
+                        ? "bg-indigo-50 border-indigo-500 text-indigo-900 ring-2 ring-indigo-500/20"
+                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Transaction Reference */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 block uppercase tracking-wider">
+                Référence Transaction / Reçu (Optionnel)
+              </label>
+              <input
+                type="text"
+                data-cy="prepaid-reference-input"
+                value={prepaidReference}
+                onChange={(e) => setPrepaidReference(e.target.value)}
+                placeholder="Ex: REF-MVOLA-49204 ou N° BORDEREAU"
+                className="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-xl focus:outline-none focus:border-indigo-500 bg-white"
+              />
+            </div>
+
+            {/* Notice */}
+            <div className="p-3 bg-indigo-50/70 rounded-xl border border-indigo-200 text-xs text-indigo-950 space-y-1">
+              <p className="font-bold flex items-center gap-1.5">
+                💡 Décharge financière du livreur protégée :
+              </p>
+              <p className="text-[11px] leading-relaxed">
+                Le montant neutralisé est immédiatement retiré du total théorique attendu du coursier lors de la clôture de caisse du soir. Aucune dette ne lui sera imputée.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={closeModal}
+                className="px-4 py-2 font-bold text-xs text-slate-600 hover:bg-slate-100 rounded-xl transition"
+              >
+                Annuler
+              </button>
+              <button
+                data-cy="btn-confirm-prepaid"
+                type="button"
+                onClick={submitPointage}
+                disabled={isSubmitting}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl shadow-lg transition flex items-center gap-1.5"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Valider le Règlement Anticipé
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ================= MODAL 1: LIVRAISON & ENCAISSEMENT ================= */}
       {activeModal === "DELIVER" && targetParcel && (
         <div
@@ -1030,7 +1387,9 @@ export default function TrackingPage() {
                 <CheckCircle2 className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="font-black text-lg text-slate-800">Validation de Livraison</h3>
+                <h3 className="font-black text-lg text-slate-800">
+                  {targetParcel.status === "LIVRE" ? "Validation d'Encaissement" : "Validation de Livraison & Encaissement"}
+                </h3>
                 <p className="text-xs text-slate-500">
                   Colis BDR-{targetParcel.tracking_number} • {targetParcel.recipient_name}
                 </p>

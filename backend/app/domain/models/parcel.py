@@ -89,6 +89,10 @@ class Parcel:
             )
         self.axis = new_axis
         self.is_manual_axis = True
+        if new_axis == LogisticAxis.AXE_PROVINCE:
+            self.flux_type = FluxType.PROVINCE
+        elif self.flux_type == FluxType.PROVINCE and new_axis != LogisticAxis.AXE_PROVINCE:
+            self.flux_type = FluxType.COD if self.merchandise_amount.amount > 0 else FluxType.SIMPLE
 
     def update_contact_info(
         self,
@@ -124,12 +128,50 @@ class Parcel:
         ParcelStateMachine.validate_transition(self.status, ParcelStatus.EN_COURS)
         self.status = ParcelStatus.EN_COURS
 
-    def mark_as_delivered(self, payment_method: PaymentMethod) -> None:
-        """Confirm delivery and payment receipt."""
+    def mark_as_delivered(self, payment_method: Optional[PaymentMethod] = None) -> None:
+        """Confirm physical delivery. If payment_method is passed, also confirm cash collection (for backward compatibility)."""
+        if payment_method:
+            ctx = TransitionContext(payment_method=payment_method)
+            ParcelStateMachine.validate_transition(self.status, ParcelStatus.LIVRE_ENCAISSE, ctx)
+            self.payment_method = payment_method
+            self.status = ParcelStatus.LIVRE_ENCAISSE
+        else:
+            ParcelStateMachine.validate_transition(self.status, ParcelStatus.LIVRE)
+            self.status = ParcelStatus.LIVRE
+
+    def mark_as_cashed(self, payment_method: PaymentMethod) -> None:
+        """Confirm cash or mobile money collection and transition to ENCAISSE."""
         ctx = TransitionContext(payment_method=payment_method)
-        ParcelStateMachine.validate_transition(self.status, ParcelStatus.LIVRE_ENCAISSE, ctx)
+        ParcelStateMachine.validate_transition(self.status, ParcelStatus.ENCAISSE, ctx)
         self.payment_method = payment_method
-        self.status = ParcelStatus.LIVRE_ENCAISSE
+        self.status = ParcelStatus.ENCAISSE
+
+    def mark_as_prepaid(
+        self,
+        prepaid_type: str = "ALL",
+        payment_method: Optional[PaymentMethod] = None,
+        payment_reference: Optional[str] = None,
+    ) -> None:
+        """Handle case where customer paid in advance directly to headquarters/merchant.
+        Cancels COD by setting merchandise and/or delivery fee to 0 Ar.
+        """
+        ref_str = f" - Réf: {payment_reference}" if payment_reference else ""
+        method_name = payment_method.value if payment_method else "EN_LIGNE"
+
+        if prepaid_type == "ALL":
+            old_total = self.total_to_collect.amount
+            self.merchandise_amount = Money.zero()
+            self.delivery_fee = Money.zero()
+            self.flux_type = FluxType.SIMPLE
+            self.payment_method = payment_method
+            note = f"Paiement anticipé intégral {method_name}{ref_str} (COD initial {old_total} Ar neutralisé)"
+            self.observation = f"{self.observation} | {note}" if self.observation else note
+        elif prepaid_type == "MERCHANDISE_ONLY":
+            old_merch = self.merchandise_amount.amount
+            self.merchandise_amount = Money.zero()
+            self.payment_method = payment_method
+            note = f"Marchandise payée d'avance {method_name}{ref_str} ({old_merch} Ar). Frais de port restants: {self.delivery_fee.amount} Ar"
+            self.observation = f"{self.observation} | {note}" if self.observation else note
 
     def reschedule(self, new_date: str, reason: str) -> None:
         """Customer postponed delivery to a specific date."""

@@ -108,6 +108,133 @@ class TestRESTandGraphQLAPI:
         assert deliver_res.json()["status"] == "LIVRE_ENCAISSE"
         assert deliver_res.json()["payment_method"] == "MVOLA"
 
+    def test_parcel_separated_livre_and_encaisse_via_rest(self):
+        # 1. Login as reception
+        login_res = client.post(
+            "/api/v1/auth/login",
+            json={"username": "reception", "password": "recep123"},
+        )
+        token = login_res.json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # Create parcel
+        payload = {
+            "vendor_id": 1,
+            "recipient_name": "Monsieur Andry",
+            "recipient_phone": "0329988776",
+            "delivery_address": "Analakely Centre",
+            "merchandise_amount": 35000,
+            "delivery_fee": 5000,
+        }
+        create_res = client.post("/api/v1/parcels", json=payload, headers=headers)
+        assert create_res.status_code == 201
+        p_id = create_res.json()["id"]
+
+        # 2. Login as supervisor
+        sup_login = client.post(
+            "/api/v1/auth/login",
+            json={"username": "superviseur", "password": "super123"},
+        )
+        sup_token = sup_login.json()["access_token"]
+        sup_headers = {"Authorization": f"Bearer {sup_token}"}
+
+        # Assign to courier 1
+        client.patch(
+            f"/api/v1/parcels/{p_id}/status",
+            json={"status": "ASSIGNE", "courier_id": 1},
+            headers=sup_headers,
+        )
+
+        # Step 3: Transition to LIVRE (no payment required)
+        livre_res = client.patch(
+            f"/api/v1/parcels/{p_id}/status",
+            json={"status": "LIVRE"},
+            headers=sup_headers,
+        )
+        assert livre_res.status_code == 200
+        assert livre_res.json()["status"] == "LIVRE"
+        assert livre_res.json()["payment_method"] is None
+
+        # Step 4: Transition from LIVRE to ENCAISSE (with payment method)
+        encaisse_res = client.patch(
+            f"/api/v1/parcels/{p_id}/status",
+            json={"status": "ENCAISSE", "payment_method": "ORANGE_MONEY"},
+            headers=sup_headers,
+        )
+        assert encaisse_res.status_code == 200
+        assert encaisse_res.json()["status"] == "ENCAISSE"
+        assert encaisse_res.json()["payment_method"] == "ORANGE_MONEY"
+
+    def test_parcel_prepaid_cancels_cod_via_rest(self):
+        # 1. Login as reception & create COD parcel
+        login_res = client.post(
+            "/api/v1/auth/login",
+            json={"username": "reception", "password": "recep123"},
+        )
+        token = login_res.json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        payload = {
+            "vendor_id": 1,
+            "recipient_name": "Madame Voahirana",
+            "recipient_phone": "0342233445",
+            "delivery_address": "Isoraka Lot 12",
+            "merchandise_amount": 75000,
+            "delivery_fee": 5000,
+        }
+        create_res = client.post("/api/v1/parcels", json=payload, headers=headers)
+        assert create_res.status_code == 201
+        p_id = create_res.json()["id"]
+        assert create_res.json()["total_to_collect"] == 80000
+
+        # 2. Login as supervisor
+        sup_login = client.post(
+            "/api/v1/auth/login",
+            json={"username": "superviseur", "password": "super123"},
+        )
+        sup_token = sup_login.json()["access_token"]
+        sup_headers = {"Authorization": f"Bearer {sup_token}"}
+
+        # Put parcel in course
+        client.patch(
+            f"/api/v1/parcels/{p_id}/status",
+            json={"status": "ASSIGNE", "courier_id": 2},
+            headers=sup_headers,
+        )
+        client.patch(
+            f"/api/v1/parcels/{p_id}/status",
+            json={"status": "EN_COURS"},
+            headers=sup_headers,
+        )
+
+        # 3. Customer pays shop directly by MVola: neutralize COD
+        prepaid_res = client.post(
+            f"/api/v1/parcels/{p_id}/prepaid",
+            json={
+                "prepaid_type": "ALL",
+                "payment_method": "MVOLA",
+                "payment_reference": "REF-MV-8877",
+            },
+            headers=sup_headers,
+        )
+        assert prepaid_res.status_code == 200
+        p_data = prepaid_res.json()
+        assert p_data["total_to_collect"] == 0
+        assert p_data["merchandise_amount"] == 0
+        assert p_data["delivery_fee"] == 0
+        assert p_data["flux_type"] == "SIMPLE"
+        assert p_data["payment_method"] == "MVOLA"
+
+        # 4. Courier delivers parcel physically with 0 Ar collection
+        deliver_res = client.patch(
+            f"/api/v1/parcels/{p_id}/status",
+            json={"status": "LIVRE"},
+            headers=sup_headers,
+        )
+        assert deliver_res.status_code == 200
+        assert deliver_res.json()["status"] == "LIVRE"
+        assert deliver_res.json()["total_to_collect"] == 0
+
     def test_graphql_queries(self):
         # 1. Query axes
         query = """

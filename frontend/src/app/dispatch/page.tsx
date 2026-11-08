@@ -37,6 +37,7 @@ import {
   reassignParcel,
   unassignParcelFromTour,
   startTour,
+  overrideParcelAxis,
 } from "@/lib/api";
 import { AxisInfo, Courier, LogisticAxis, Parcel, Tour } from "@/types";
 
@@ -94,6 +95,76 @@ export default function DispatchPage() {
   const [reassignReason, setReassignReason] = useState<string>("Panne de moto du livreur initial");
   const [isReassigning, setIsReassigning] = useState<boolean>(false);
   const [reassignFeedback, setReassignFeedback] = useState<string | null>(null);
+
+  // Axis modification state (CDC Section 5.2)
+  const [editingAxisParcel, setEditingAxisParcel] = useState<Parcel | null>(null);
+  const [targetAxis, setTargetAxis] = useState<LogisticAxis>("AXE_CENTRE");
+  const [isSavingAxis, setIsSavingAxis] = useState<boolean>(false);
+  const [axisFeedback, setAxisFeedback] = useState<string | null>(null);
+
+  const handleOpenEditAxisModal = (parcel: Parcel) => {
+    setEditingAxisParcel(parcel);
+    setTargetAxis(parcel.axis);
+  };
+
+  const handleConfirmOverrideAxis = async () => {
+    if (!editingAxisParcel) return;
+    setIsSavingAxis(true);
+    try {
+      await overrideParcelAxis(editingAxisParcel.id, targetAxis);
+      setAxisFeedback(
+        `Axe du colis BDR-${editingAxisParcel.tracking_number} modifié avec succès vers ${targetAxis} !`
+      );
+      // Update local stock parcels
+      setStockParcels((prev) =>
+        prev.map((p) =>
+          p.id === editingAxisParcel.id
+            ? {
+                ...p,
+                axis: targetAxis,
+                is_manual_axis: true,
+                flux_type:
+                  targetAxis === "AXE_PROVINCE"
+                    ? "PROVINCE"
+                    : p.merchandise_amount > 0
+                    ? "COD"
+                    : "SIMPLE",
+              }
+            : p
+        )
+      );
+      // Update selected tour if applicable
+      if (selectedTour) {
+        setSelectedTour((prev) => {
+          if (!prev || !prev.parcels) return prev;
+          return {
+            ...prev,
+            parcels: prev.parcels.map((p) =>
+              p.id === editingAxisParcel.id
+                ? {
+                    ...p,
+                    axis: targetAxis,
+                    is_manual_axis: true,
+                    flux_type:
+                      targetAxis === "AXE_PROVINCE"
+                        ? "PROVINCE"
+                        : p.merchandise_amount > 0
+                        ? "COD"
+                        : "SIMPLE",
+                  }
+                : p
+            ),
+          };
+        });
+      }
+      setEditingAxisParcel(null);
+      setTimeout(() => setAxisFeedback(null), 4000);
+    } catch (e: any) {
+      alert(e.message || "Erreur lors de la modification de l'axe logistique.");
+    } finally {
+      setIsSavingAxis(false);
+    }
+  };
 
   useEffect(() => {
     const updateRole = () => {
@@ -396,6 +467,25 @@ export default function DispatchPage() {
         </div>
       )}
 
+      {/* AXIS MODIFICATION TOAST */}
+      {axisFeedback && (
+        <div
+          data-cy="axis-feedback-banner"
+          className="p-3 bg-emerald-950/80 border border-emerald-600/50 text-emerald-200 rounded-xl flex items-center justify-between shadow-lg text-xs font-bold"
+        >
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{axisFeedback}</span>
+          </div>
+          <button
+            onClick={() => setAxisFeedback(null)}
+            className="text-slate-400 hover:text-white text-xs underline"
+          >
+            Fermer
+          </button>
+        </div>
+      )}
+
       {/* ========================================================================= */}
       {/* TAB 1: ÉCRAN 03 - DISPATCHING MATINAL                                     */}
       {/* ========================================================================= */}
@@ -664,8 +754,21 @@ export default function DispatchPage() {
                             <div className="truncate text-slate-200" title={p.delivery_address}>
                               {p.delivery_address}
                             </div>
-                            <div className="mt-1">
+                            <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                               <AxisBadge axis={p.axis} isManual={p.is_manual_axis} />
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenEditAxisModal(p);
+                                }}
+                                data-cy={`edit-axis-btn-${p.id}`}
+                                title="Modifier manuellement l'axe logistique"
+                                className="px-1.5 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-blue-300 border border-slate-700 rounded text-[10px] font-semibold flex items-center gap-1 transition shadow-sm"
+                              >
+                                <MapPin className="w-3 h-3 text-blue-400" />
+                                <span>Modifier</span>
+                              </button>
                             </div>
                           </td>
                           <td className="py-3 px-3 max-w-[180px]">
@@ -907,8 +1010,21 @@ export default function DispatchPage() {
                             <div className="truncate text-slate-200" title={p.delivery_address}>
                               {p.delivery_address}
                             </div>
-                            <div className="mt-1">
+                            <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                               <AxisBadge axis={p.axis} isManual={p.is_manual_axis} />
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenEditAxisModal(p);
+                                }}
+                                data-cy={`edit-axis-btn-${p.id}`}
+                                title="Modifier manuellement l'axe logistique"
+                                className="px-1.5 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-blue-300 border border-slate-700 rounded text-[10px] font-semibold flex items-center gap-1 transition shadow-sm"
+                              >
+                                <MapPin className="w-3 h-3 text-blue-400" />
+                                <span>Modifier</span>
+                              </button>
                             </div>
                           </td>
                           <td className="py-3 px-3 max-w-[160px]">
@@ -927,8 +1043,10 @@ export default function DispatchPage() {
                           <td className="py-3 px-3 text-center">
                             <span
                               className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                p.status === "LIVRE_ENCAISSE"
+                                p.status === "ENCAISSE" || p.status === "LIVRE_ENCAISSE"
                                   ? "bg-emerald-900/40 text-emerald-300 border border-emerald-800"
+                                  : p.status === "LIVRE"
+                                  ? "bg-teal-900/40 text-teal-300 border border-teal-800"
                                   : p.status === "EN_COURS"
                                   ? "bg-blue-900/40 text-blue-300 border border-blue-800"
                                   : "bg-indigo-900/40 text-indigo-300 border border-indigo-800"
@@ -944,7 +1062,7 @@ export default function DispatchPage() {
                           </td>
                           <td className="py-3 px-3 text-center">
                             <div className="flex items-center justify-center gap-1.5">
-                              {p.status !== "LIVRE_ENCAISSE" && (
+                              {!["LIVRE", "ENCAISSE", "LIVRE_ENCAISSE", "CLOTURE_CAISSE"].includes(p.status) && (
                                 <button
                                   onClick={() => handleOpenReassignModal(p)}
                                   data-cy={`reassign-btn-${p.id}`}
@@ -1103,6 +1221,107 @@ export default function DispatchPage() {
                 className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl transition shadow flex items-center gap-1.5"
               >
                 {isReassigning ? "En cours..." : "Confirmer la Réassignation"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT AXIS MODAL (CDC Section 5.2) */}
+      {editingAxisParcel && (
+        <div
+          data-cy="modal-edit-axis"
+          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in"
+        >
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="p-2 bg-blue-500/20 text-blue-400 rounded-lg">
+                  <MapPin className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="font-black text-white text-base">
+                    Sélection Manuelle de l&apos;Axe Logistique
+                  </h3>
+                  <p className="text-xs text-slate-400 font-mono">
+                    BDR-{editingAxisParcel.tracking_number} • {editingAxisParcel.recipient_name}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingAxisParcel(null)}
+                className="text-slate-400 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Info card */}
+            <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 space-y-1 text-xs">
+              <p className="text-slate-400">
+                <strong>Destinataire :</strong> {editingAxisParcel.recipient_name} ({editingAxisParcel.recipient_phone_formatted || editingAxisParcel.recipient_phone})
+              </p>
+              <p className="text-slate-400 truncate">
+                <strong>Adresse / Lieu :</strong> {editingAxisParcel.delivery_address}
+              </p>
+              <div className="flex items-center gap-2 pt-1">
+                <span className="text-slate-400 font-bold">Axe actuel :</span>
+                <AxisBadge axis={editingAxisParcel.axis} isManual={editingAxisParcel.is_manual_axis} />
+              </div>
+            </div>
+
+            {/* Form select with isolated Optgroups (Urbain vs Province) */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-300 block uppercase tracking-wider">
+                  Choisir le Nouvel Axe
+                </label>
+                <span className="text-[10px] text-amber-400 font-medium">
+                  ⚡ Choix manuel prioritaire
+                </span>
+              </div>
+              <select
+                data-cy="select-override-axis"
+                value={targetAxis}
+                onChange={(e) => setTargetAxis(e.target.value as LogisticAxis)}
+                className="w-full bg-slate-800 border border-slate-700 text-white font-bold text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:border-blue-500"
+              >
+                <optgroup label="🛵 Réseau Urbain (Grand Tanà)">
+                  <option value="AXE_CENTRE">1. AXE_CENTRE (Tsiazotafo & Hyper-Centre)</option>
+                  <option value="AXE_RN1">2. AXE_RN1 (Itaosy / Ampitatafika / Ouest)</option>
+                  <option value="AXE_RN2">3. AXE_RN2 (Ambohimangakely / Est)</option>
+                  <option value="AXE_RN3">4. AXE_RN3 (Sabotsy Namehana / Nord)</option>
+                  <option value="AXE_RN4">5. AXE_RN4 (Ivato Aéroport / Digue)</option>
+                  <option value="AXE_RN7">6. AXE_RN7 (Tanjombato / Iavoloha / Sud)</option>
+                  <option value="AXE_SUD_EST">7. AXE_SUD_EST (Ankatso / Alasora)</option>
+                </optgroup>
+                <optgroup label="🚐 Expéditions Nationales (Province)">
+                  <option value="AXE_PROVINCE">8. AXE_PROVINCE (Gares Routières & Coopératives)</option>
+                </optgroup>
+              </select>
+            </div>
+
+            {/* Explanatory note */}
+            <div className="p-2.5 bg-blue-950/30 border border-blue-900/50 rounded-xl text-[11px] text-blue-300">
+              💡 <strong>Règle Métier (CDC 5.2) :</strong> La sélection de l&apos;axe est 100% manuelle et modifiable. Si l&apos;axe Province est choisi, le flux bascule automatiquement en <strong>PROVINCE</strong>. S&apos;il est rebasculé en corridor urbain, le flux redevient <strong>COD</strong> ou <strong>SIMPLE</strong>.
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setEditingAxisParcel(null)}
+                className="px-4 py-2 font-bold text-xs text-slate-400 hover:text-white transition"
+              >
+                Annuler
+              </button>
+              <button
+                data-cy="btn-confirm-override-axis"
+                type="button"
+                disabled={isSavingAxis}
+                onClick={handleConfirmOverrideAxis}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl transition shadow flex items-center gap-1.5"
+              >
+                {isSavingAxis ? "Modification..." : "Valider l'Axe"}
               </button>
             </div>
           </div>
