@@ -50,11 +50,12 @@ def list_parcels(
     status: Optional[str] = None,
     axis: Optional[str] = None,
     date: Optional[str] = None,
+    tour_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: UserORM = Depends(get_current_user),
 ):
     use_cases = ParcelUseCases(db)
-    return use_cases.list_parcels(status=status, axis=axis, date_str=date)
+    return use_cases.list_parcels(status=status, axis=axis, date_str=date, tour_id=tour_id)
 
 
 @router.get("/{parcel_id}", response_model=ParcelResponseDTO)

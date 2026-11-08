@@ -2,6 +2,7 @@
 
 from typing import List, Optional
 from pydantic import BaseModel
+from backend.app.application.dtos.parcel_dtos import ParcelResponseDTO
 
 
 class CreateCourierDTO(BaseModel):
@@ -41,6 +42,15 @@ class TourResponseDTO(BaseModel):
     actual_remitted: int
     discrepancy: int
     closed_at: Optional[str] = None
+
+
+class TourDetailResponseDTO(TourResponseDTO):
+    courier_name: Optional[str] = None
+    courier_phone: Optional[str] = None
+    courier_phone_formatted: Optional[str] = None
+    courier_vehicle: Optional[str] = None
+    parcels_count: int = 0
+    parcels: List[ParcelResponseDTO] = []
 
 
 class CreateDisputeDTO(BaseModel):

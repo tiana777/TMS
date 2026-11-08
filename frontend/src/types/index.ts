@@ -82,3 +82,32 @@ export interface AxisInfo {
   libelle: string;
   zones: string[];
 }
+
+export interface Courier {
+  id: number;
+  name: string;
+  phone: string;
+  phone_formatted: string;
+  vehicle_type: string;
+  security_deposit: number;
+  security_deposit_formatted: string;
+  active: boolean;
+}
+
+export interface Tour {
+  id: number;
+  tour_date: string;
+  courier_id: number;
+  status: "ASSIGNE" | "EN_COURS" | "CLOTURE";
+  theoretical_total: number;
+  actual_remitted: number;
+  discrepancy: number;
+  closed_at?: string | null;
+  courier_name?: string | null;
+  courier_phone?: string | null;
+  courier_phone_formatted?: string | null;
+  courier_vehicle?: string | null;
+  parcels_count?: number;
+  parcels?: Parcel[];
+}
+

@@ -79,6 +79,12 @@ class TourType:
     actual_remitted: int
     discrepancy: int
     closed_at: Optional[str] = None
+    courier_name: Optional[str] = None
+    courier_phone: Optional[str] = None
+    courier_phone_formatted: Optional[str] = None
+    courier_vehicle: Optional[str] = None
+    parcels_count: int = 0
+    parcels: List[ParcelType] = strawberry.field(default_factory=list)
 
 
 @strawberry.type
@@ -201,11 +207,12 @@ class Query:
         status: Optional[str] = None,
         axis: Optional[str] = None,
         date: Optional[str] = None,
+        tour_id: Optional[int] = None,
     ) -> List[ParcelType]:
         db = SessionLocal()
         try:
             uc = ParcelUseCases(db)
-            results = uc.list_parcels(status=status, axis=axis, date_str=date)
+            results = uc.list_parcels(status=status, axis=axis, date_str=date, tour_id=tour_id)
             return [ParcelType(**r.model_dump()) for r in results]
         finally:
             db.close()
@@ -231,6 +238,33 @@ class Query:
             db.close()
 
     @strawberry.field
+    def tour(self, id: int) -> Optional[TourType]:
+        db = SessionLocal()
+        try:
+            uc = TourUseCases(db)
+            detail = uc.get_tour_detail(id)
+            return TourType(
+                id=detail.id,
+                tour_date=detail.tour_date,
+                courier_id=detail.courier_id,
+                status=detail.status,
+                theoretical_total=detail.theoretical_total,
+                actual_remitted=detail.actual_remitted,
+                discrepancy=detail.discrepancy,
+                closed_at=detail.closed_at,
+                courier_name=detail.courier_name,
+                courier_phone=detail.courier_phone,
+                courier_phone_formatted=detail.courier_phone_formatted,
+                courier_vehicle=detail.courier_vehicle,
+                parcels_count=detail.parcels_count,
+                parcels=[ParcelType(**p.model_dump()) for p in detail.parcels],
+            )
+        except Exception:
+            return None
+        finally:
+            db.close()
+
+    @strawberry.field
     def tours(self, date: Optional[str] = None) -> List[TourType]:
         db = SessionLocal()
         try:
@@ -238,19 +272,29 @@ class Query:
             if date:
                 q = q.filter(TourORM.date_tournee == date)
             orms = q.all()
-            return [
-                TourType(
-                    id=o.id,
-                    tour_date=o.date_tournee,
-                    courier_id=o.livreur_id,
-                    status=o.statut,
-                    theoretical_total=int(o.total_theorique_caisse),
-                    actual_remitted=int(o.total_reel_verse),
-                    discrepancy=int(o.ecart_constate),
-                    closed_at=o.cloture_a.isoformat() if o.cloture_a else None,
+            uc = TourUseCases(db)
+            results = []
+            for o in orms:
+                detail = uc.get_tour_detail(o.id)
+                results.append(
+                    TourType(
+                        id=detail.id,
+                        tour_date=detail.tour_date,
+                        courier_id=detail.courier_id,
+                        status=detail.status,
+                        theoretical_total=detail.theoretical_total,
+                        actual_remitted=detail.actual_remitted,
+                        discrepancy=detail.discrepancy,
+                        closed_at=detail.closed_at,
+                        courier_name=detail.courier_name,
+                        courier_phone=detail.courier_phone,
+                        courier_phone_formatted=detail.courier_phone_formatted,
+                        courier_vehicle=detail.courier_vehicle,
+                        parcels_count=detail.parcels_count,
+                        parcels=[ParcelType(**p.model_dump()) for p in detail.parcels],
+                    )
                 )
-                for o in orms
-            ]
+            return results
         finally:
             db.close()
 
@@ -397,7 +441,23 @@ class Mutation:
         try:
             uc = TourUseCases(db)
             res = uc.create_or_assign_tour(input.courier_id, input.tour_date, input.parcel_ids)
-            return TourType(**res.model_dump())
+            detail = uc.get_tour_detail(res.id)
+            return TourType(
+                id=detail.id,
+                tour_date=detail.tour_date,
+                courier_id=detail.courier_id,
+                status=detail.status,
+                theoretical_total=detail.theoretical_total,
+                actual_remitted=detail.actual_remitted,
+                discrepancy=detail.discrepancy,
+                closed_at=detail.closed_at,
+                courier_name=detail.courier_name,
+                courier_phone=detail.courier_phone,
+                courier_phone_formatted=detail.courier_phone_formatted,
+                courier_vehicle=detail.courier_vehicle,
+                parcels_count=detail.parcels_count,
+                parcels=[ParcelType(**p.model_dump()) for p in detail.parcels],
+            )
         finally:
             db.close()
 

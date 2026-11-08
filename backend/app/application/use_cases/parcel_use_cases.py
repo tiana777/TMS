@@ -225,20 +225,18 @@ class ParcelUseCases:
         status: Optional[str] = None,
         axis: Optional[str] = None,
         date_str: Optional[str] = None,
+        tour_id: Optional[int] = None,
     ) -> List[ParcelResponseDTO]:
+        q = self.db.query(ParcelORM).filter(ParcelORM.actif == 1)
         if status:
-            parcels = self.repo.list_by_status(ParcelStatus(status))
-        elif axis:
-            parcels = self.repo.list_by_axis(LogisticAxis(axis))
-        elif date_str:
-            parcels = self.repo.list_by_date(date_str)
-        else:
-            today = datetime.now().strftime("%Y-%m-%d")
-            parcels = self.repo.list_by_date(today)
-            if not parcels:
-                # If no parcels today, return all active parcels
-                from backend.app.infrastructure.persistence.models import ParcelORM
-                orms = self.db.query(ParcelORM).filter(ParcelORM.actif == 1).order_by(ParcelORM.id.desc()).all()
-                parcels = [self.repo._to_domain(o) for o in orms]
+            q = q.filter(ParcelORM.statut == status)
+        if axis:
+            q = q.filter(ParcelORM.axe == axis)
+        if date_str:
+            q = q.filter(ParcelORM.date_reception == date_str)
+        if tour_id is not None:
+            q = q.filter(ParcelORM.tournee_id == tour_id)
 
+        orms = q.order_by(ParcelORM.id.desc()).all()
+        parcels = [self.repo._to_domain(o) for o in orms]
         return [self._to_response_dto(p) for p in parcels]

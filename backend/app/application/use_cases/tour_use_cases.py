@@ -11,6 +11,7 @@ from backend.app.application.dtos.other_dtos import (
     DisputeResponseDTO,
     RepayDebtDTO,
     ScorecardResponseDTO,
+    TourDetailResponseDTO,
     TourResponseDTO,
 )
 from backend.app.domain.exceptions import BusinessRuleViolationException
@@ -23,8 +24,10 @@ from backend.app.domain.value_objects.money import Money
 from backend.app.domain.value_objects.phone_number import PhoneNumber
 from backend.app.infrastructure.persistence.models import (
     CourierDebtORM,
+    CourierORM,
     DebtRepaymentORM,
     ParcelORM,
+    ParcelStatusHistoryORM,
     PerformanceEvaluationORM,
     TourORM,
 )
@@ -73,15 +76,127 @@ class TourUseCases:
         for pid in parcel_ids:
             p = self.parcel_repo.get_by_id(pid)
             if p and p.status in [ParcelStatus.EN_DEPOT, ParcelStatus.ASSIGNE]:
+                old_status = p.status
                 p.assign_to_courier(courier_id, tour.id)
                 self.parcel_repo.save(p)
+                # Audit trail
+                history = ParcelStatusHistoryORM(
+                    colis_id=p.id,
+                    statut_precedent=old_status.value,
+                    statut_nouveau=ParcelStatus.ASSIGNE.value,
+                    motif=f"Assigné à la tournée #{tour.id}",
+                    horodatage=datetime.utcnow(),
+                )
+                self.db.add(history)
+
+        self.db.commit()
 
         # Refresh tour parcels and theoretical total
-        tour_parcels = self.db.query(ParcelORM).filter(ParcelORM.tournee_id == tour.id).all()
+        tour_parcels = self.db.query(ParcelORM).filter(ParcelORM.tournee_id == tour.id, ParcelORM.actif == 1).all()
         tour.parcels = [self.parcel_repo._to_domain(po) for po in tour_parcels]
         tour.calculate_theoretical_total()
         saved = self.tour_repo.save(tour)
         return self._to_tour_dto(saved)
+
+    def get_tour_detail(self, tour_id: int) -> TourDetailResponseDTO:
+        from backend.app.application.use_cases.parcel_use_cases import ParcelUseCases
+
+        tour_orm = self.db.query(TourORM).filter(TourORM.id == tour_id).first()
+        if not tour_orm:
+            raise BusinessRuleViolationException(f"Tournée introuvable (ID: {tour_id})")
+
+        courier_orm = self.db.query(CourierORM).filter(CourierORM.id == tour_orm.livreur_id).first()
+        parcel_orms = (
+            self.db.query(ParcelORM)
+            .filter(ParcelORM.tournee_id == tour_id, ParcelORM.actif == 1)
+            .order_by(ParcelORM.id.asc())
+            .all()
+        )
+
+        parcel_uc = ParcelUseCases(self.db)
+        parcel_dtos = [parcel_uc._to_response_dto(self.parcel_repo._to_domain(po)) for po in parcel_orms]
+
+        courier_phone_vo = PhoneNumber(courier_orm.telephone) if courier_orm and courier_orm.telephone else None
+
+        discrepancy = int(tour_orm.total_reel_verse - tour_orm.total_theorique_caisse)
+        return TourDetailResponseDTO(
+            id=tour_orm.id,
+            tour_date=tour_orm.date_tournee,
+            courier_id=tour_orm.livreur_id,
+            status=tour_orm.statut,
+            theoretical_total=int(tour_orm.total_theorique_caisse),
+            actual_remitted=int(tour_orm.total_reel_verse),
+            discrepancy=discrepancy,
+            closed_at=tour_orm.cloture_a.isoformat() if tour_orm.cloture_a else None,
+            courier_name=courier_orm.nom if courier_orm else None,
+            courier_phone=courier_orm.telephone if courier_orm else None,
+            courier_phone_formatted=courier_phone_vo.formatted if courier_phone_vo else None,
+            courier_vehicle=courier_orm.type_vehicule if courier_orm else None,
+            parcels_count=len(parcel_dtos),
+            parcels=parcel_dtos,
+        )
+
+    def unassign_parcel(self, tour_id: int, parcel_id: int) -> TourDetailResponseDTO:
+        tour = self.tour_repo.get_by_id(tour_id)
+        if not tour:
+            raise BusinessRuleViolationException(f"Tournée introuvable (ID: {tour_id})")
+
+        p = self.parcel_repo.get_by_id(parcel_id)
+        if not p:
+            raise BusinessRuleViolationException(f"Colis introuvable (ID: {parcel_id})")
+
+        if p.tour_id != tour_id:
+            raise BusinessRuleViolationException("Ce colis n'appartient pas à cette tournée.")
+
+        old_status = p.status
+        p.unassign()
+        self.parcel_repo.save(p)
+
+        history = ParcelStatusHistoryORM(
+            colis_id=p.id,
+            statut_precedent=old_status.value,
+            statut_nouveau=ParcelStatus.EN_DEPOT.value,
+            motif=f"Désassigné de la tournée #{tour_id} et réintégré au stock",
+            horodatage=datetime.utcnow(),
+        )
+        self.db.add(history)
+        self.db.commit()
+
+        # Refresh tour parcels
+        tour_parcels = self.db.query(ParcelORM).filter(ParcelORM.tournee_id == tour.id, ParcelORM.actif == 1).all()
+        tour.parcels = [self.parcel_repo._to_domain(po) for po in tour_parcels]
+        tour.calculate_theoretical_total()
+        self.tour_repo.save(tour)
+
+        return self.get_tour_detail(tour_id)
+
+    def start_tour(self, tour_id: int) -> TourDetailResponseDTO:
+        tour = self.tour_repo.get_by_id(tour_id)
+        if not tour:
+            raise BusinessRuleViolationException(f"Tournée introuvable (ID: {tour_id})")
+
+        tour.status = TourStatus.EN_COURS
+        self.tour_repo.save(tour)
+
+        # Update all assigned parcels to EN_COURS
+        parcel_orms = self.db.query(ParcelORM).filter(
+            ParcelORM.tournee_id == tour_id,
+            ParcelORM.statut == ParcelStatus.ASSIGNE.value,
+            ParcelORM.actif == 1,
+        ).all()
+        for po in parcel_orms:
+            po.statut = ParcelStatus.EN_COURS.value
+            history = ParcelStatusHistoryORM(
+                colis_id=po.id,
+                statut_precedent=ParcelStatus.ASSIGNE.value,
+                statut_nouveau=ParcelStatus.EN_COURS.value,
+                motif="Départ en tournée de distribution",
+                horodatage=datetime.utcnow(),
+            )
+            self.db.add(history)
+        self.db.commit()
+
+        return self.get_tour_detail(tour_id)
 
     def close_tour(self, tour_id: int, dto: CloseTourDTO) -> TourResponseDTO:
         tour = self.tour_repo.get_by_id(tour_id)
