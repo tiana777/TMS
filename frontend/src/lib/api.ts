@@ -350,3 +350,51 @@ export async function startTour(tourId: number) {
   return await res.json();
 }
 
+export interface UpdateParcelStatusPayload {
+  status: string;
+  payment_method?: string; // ESPECES, MVOLA, AIRTEL, ORANGE_MONEY
+  reschedule_date?: string; // YYYY-MM-DD
+  incident_reason?: string;
+  partner_name?: string;
+  partner_reference?: string;
+  partner_fee?: number;
+}
+
+export async function updateParcelStatus(parcelId: number, payload: UpdateParcelStatusPayload) {
+  const token = typeof window !== "undefined" ? localStorage.getItem("tms_token") : null;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE_URL}/parcels/${parcelId}/status`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de la mise à jour du statut du colis.");
+  }
+
+  return await res.json();
+}
+
+export async function closeTour(tourId: number, cashAndMobileRemitted: number) {
+  const token = typeof window !== "undefined" ? localStorage.getItem("tms_token") : null;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE_URL}/tours/${tourId}/close`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ cash_and_mobile_remitted: cashAndMobileRemitted }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de la clôture de la tournée.");
+  }
+
+  return await res.json();
+}
+

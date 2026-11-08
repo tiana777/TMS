@@ -151,6 +151,8 @@ class ParcelUseCases:
             parcel.start_delivery()
 
         elif target_status == ParcelStatus.LIVRE_ENCAISSE:
+            if parcel.status == ParcelStatus.ASSIGNE:
+                parcel.start_delivery()
             if parcel.status == ParcelStatus.SOUS_TRAITE:
                 parcel.confirm_province_pickup()
             else:
@@ -159,11 +161,15 @@ class ParcelUseCases:
                 parcel.mark_as_delivered(PaymentMethod(dto.payment_method))
 
         elif target_status == ParcelStatus.REPORTE:
+            if parcel.status == ParcelStatus.ASSIGNE:
+                parcel.start_delivery()
             if not dto.reschedule_date or not dto.incident_reason:
                 raise BusinessRuleViolationException("Date de report (YYYY-MM-DD) et motif obligatoires.")
             parcel.reschedule(dto.reschedule_date, dto.incident_reason)
 
         elif target_status == ParcelStatus.ANNULE_RETOUR:
+            if parcel.status == ParcelStatus.ASSIGNE:
+                parcel.start_delivery()
             if not dto.incident_reason:
                 raise BusinessRuleViolationException("Motif d'annulation ou refus obligatoire.")
             parcel.cancel_and_return(dto.incident_reason)
