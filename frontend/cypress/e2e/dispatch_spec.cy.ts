@@ -232,6 +232,7 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
 
   it("devrait afficher Écran 03, filtrer par axe et gare, sélectionner et assigner des colis", () => {
     cy.visit("/dispatch");
+    cy.wait(1000); // Pause pour observer l'arrivée sur l'écran
 
     // 1. Check title & Hub indicator
     cy.contains("03. Dispatching & Feuilles de Route").should("be.visible");
@@ -240,22 +241,25 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
     // 2. Check Tab 1 is active
     cy.get('[data-cy="tab-dispatch"]').should("be.visible").and("contain", "Dispatching Matinal");
     cy.get('[data-cy="stock-parcels-table"]').should("be.visible");
+    cy.wait(1000);
 
     // 3. Check parcels in stock
     cy.contains("0001").should("be.visible");
     cy.contains("Rasoa Nirina").should("be.visible");
     cy.contains("50 000 Ar").should("be.visible");
 
-    // 4. Test Axis filter pills
+    // 4. Test Axis filter pills - RN1
     cy.get('[data-cy="axis-filter-AXE_RN1"]').click();
+    cy.wait(1200); // Observer le filtrage RN1
     cy.get('[data-cy="stock-parcels-table"]').within(() => {
       cy.contains("0001").should("be.visible");
       cy.contains("0002").should("not.exist");
       cy.contains("0003").should("not.exist");
     });
 
-    // Test Province filter
+    // Test Province filter & Gares
     cy.get('[data-cy="axis-filter-AXE_PROVINCE"]').click();
+    cy.wait(1200); // Observer les gares routières
     cy.contains("Gares d'Antananarivo").should("be.visible");
     cy.get('[data-cy="stock-parcels-table"]').within(() => {
       cy.contains("0003").should("be.visible");
@@ -264,14 +268,17 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
 
     // Back to ALL
     cy.get('[data-cy="axis-filter-ALL"]').click();
+    cy.wait(1000);
 
     // 5. Test selection and counter
     cy.get('[data-cy="parcel-row-201"]').click();
+    cy.wait(800); // Observer la coche et la mise en surbrillance
     cy.get('[data-cy="selected-count"]').should("contain", "1 sélectionné(s)");
     cy.contains("50 000 Ar").should("be.visible");
 
     // Select courier
     cy.get('[data-cy="select-courier"]').select(0);
+    cy.wait(1000); // Observer le choix du livreur
 
     // Click Assign button
     cy.get('[data-cy="assign-tour-btn"]').click();
@@ -279,14 +286,16 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
 
     // Check success notification banner appears
     cy.get('[data-cy="assign-success-banner"]').should("be.visible").and("contain", "assigné(s) avec succès");
+    cy.wait(1500); // Laisser le bandeau visible
   });
 
   it("devrait afficher Écran 04, prévisualiser le ticket thermique 80 mm et générer la synthèse WhatsApp", () => {
     cy.visit("/dispatch");
+    cy.wait(800);
 
     // Switch to Tab 2: Roadmaps
     cy.get('[data-cy="tab-roadmaps"]').click();
-    cy.wait(400);
+    cy.wait(1200); // Observer le passage aux feuilles de route
 
     // Verify tour card is displayed
     cy.get('[data-cy="tour-card-1"]').should("be.visible").and("contain", "RAKOTO Jean");
@@ -301,9 +310,11 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
       cy.contains("TELMA").should("be.visible");
       cy.contains("Signature Dest.").should("be.visible");
     });
+    cy.wait(1200);
 
     // 1. Test Thermal Ticket 80 mm Modal
     cy.get('[data-cy="open-thermal-btn"]').click();
+    cy.wait(1200); // Observer l'ouverture du ticket thermique 80mm
     cy.get("#thermal-ticket-receipt").should("be.visible");
     cy.get("#thermal-ticket-receipt").within(() => {
       cy.contains("TMS EXPRESS", { matchCase: false }).should("be.visible");
@@ -314,19 +325,24 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
       cy.contains("0001").should("be.visible");
       cy.contains("Signature Livreur", { matchCase: false }).scrollIntoView().should("be.visible");
     });
+    cy.wait(1500); // Laisser le ticket visible
     cy.get('[data-cy="print-thermal-btn"]').should("be.visible");
 
     // Close Thermal Ticket
     cy.get('[data-cy="close-thermal-btn"]').click();
     cy.get("#thermal-ticket-receipt").should("not.exist");
+    cy.wait(800);
 
     // 2. Test WhatsApp Modal
     cy.get('[data-cy="open-whatsapp-btn"]').click();
+    cy.wait(1000); // Observer l'ouverture de la modal WhatsApp
     cy.contains("Synthèse WhatsApp Tournée").should("be.visible");
     cy.contains("TMS EXPRESS - FEUILLE DE ROUTE").should("be.visible");
     cy.contains("RAKOTO Jean").should("be.visible");
+    cy.wait(1000);
     cy.get('[data-cy="copy-whatsapp-btn"]').should("be.visible").click();
     cy.contains("Texte Copié !").should("be.visible");
     cy.get('[data-cy="open-whatsapp-link"]').should("be.visible").and("have.attr", "href");
+    cy.wait(1800); // Observer le badge Copié et le bouton vert WhatsApp
   });
 });
