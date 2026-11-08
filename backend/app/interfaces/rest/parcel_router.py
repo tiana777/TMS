@@ -4,6 +4,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from backend.app.application.dtos.parcel_dtos import (
+    BulkCloseCashDTO,
     CreateBatchParcelDTO,
     CreateParcelDTO,
     MarkPrepaidDTO,
@@ -154,5 +155,30 @@ def mark_parcel_prepaid(
     try:
         use_cases = ParcelUseCases(db)
         return use_cases.mark_as_prepaid(parcel_id, dto, user_id=current_user.id)
+    except DomainException as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/bulk-close-cash", response_model=List[ParcelResponseDTO])
+def bulk_close_cash(
+    dto: BulkCloseCashDTO,
+    db: Session = Depends(get_db),
+    current_user: UserORM = Depends(require_roles(["SUPER_ADMIN"])),
+):
+    """Validation groupée de l'encaissement effectif des fonds et clôture caisse."""
+    try:
+        use_cases = ParcelUseCases(db)
+        results = []
+        for pid in dto.parcel_ids:
+            try:
+                res = use_cases.update_status(
+                    pid,
+                    UpdateParcelStatusDTO(status="CLOTURE_CAISSE"),
+                    user_id=current_user.id,
+                )
+                results.append(res)
+            except Exception as ex:
+                print(f"Warning bulk close cash parcel {pid}: {ex}")
+        return results
     except DomainException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

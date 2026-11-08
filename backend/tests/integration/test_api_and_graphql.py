@@ -424,3 +424,123 @@ class TestRESTandGraphQLAPI:
         assert gql_data["parcelsCount"] == 1
         assert len(gql_data["parcels"]) == 1
 
+    def test_caisse_centrale_bulk_close_and_tour_closure_reconciliation(self):
+        # 1. Login as admin
+        login_res = client.post(
+            "/api/v1/auth/login",
+            json={"username": "admin", "password": "admin123"},
+        )
+        assert login_res.status_code == 200
+        token = login_res.json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # 2. Create two parcels with COD
+        import uuid
+        uid1 = uuid.uuid4().hex[:4]
+        p1_res = client.post(
+            "/api/v1/parcels",
+            json={
+                "tracking_number": f"CSH-{uid1}",
+                "reception_date": "2026-11-08",
+                "vendor_id": 1,
+                "recipient_name": "Madame Caisse 1",
+                "recipient_phone": "0341122334",
+                "delivery_address": "Analakely",
+                "axis": "AXE_CENTRE",
+                "flux_type": "COD",
+                "merchandise_amount": 20000,
+                "delivery_fee": 3000,
+            },
+            headers=headers,
+        )
+        assert p1_res.status_code == 201
+        p1_id = p1_res.json()["id"]
+
+        uid2 = uuid.uuid4().hex[:4]
+        p2_res = client.post(
+            "/api/v1/parcels",
+            json={
+                "tracking_number": f"CSH-{uid2}",
+                "reception_date": "2026-11-08",
+                "vendor_id": 1,
+                "recipient_name": "Monsieur Caisse 2",
+                "recipient_phone": "0329988776",
+                "delivery_address": "Ambohijatovo",
+                "axis": "AXE_CENTRE",
+                "flux_type": "COD",
+                "merchandise_amount": 40000,
+                "delivery_fee": 5000,
+            },
+            headers=headers,
+        )
+        assert p2_res.status_code == 201
+        p2_id = p2_res.json()["id"]
+
+        # 3. Create tour and assign parcels
+        unique_date = f"2026-11-{(uuid.uuid4().int % 25) + 1:02d}"
+        tour_res = client.post(
+            "/api/v1/tours",
+            json={
+                "courier_id": 1,
+                "tour_date": unique_date,
+                "parcel_ids": [p1_id, p2_id],
+            },
+            headers=headers,
+        )
+        assert tour_res.status_code == 201
+        tour_id = tour_res.json()["id"]
+
+        # Start tour
+        start_res = client.post(f"/api/v1/tours/{tour_id}/start", headers=headers)
+        assert start_res.status_code == 200
+
+        # 4. Mark parcel 1 as ENCAISSE (ESPECES)
+        s1 = client.patch(
+            f"/api/v1/parcels/{p1_id}/status",
+            json={"status": "ENCAISSE", "payment_method": "ESPECES"},
+            headers=headers,
+        )
+        assert s1.status_code == 200
+        assert s1.json()["status"] == "ENCAISSE"
+
+        # 5. Mark parcel 2 as LIVRE then ENCAISSE (MVOLA)
+        s2 = client.patch(
+            f"/api/v1/parcels/{p2_id}/status",
+            json={"status": "LIVRE"},
+            headers=headers,
+        )
+        assert s2.status_code == 200
+        assert s2.json()["status"] == "LIVRE"
+
+        s2_cash = client.patch(
+            f"/api/v1/parcels/{p2_id}/status",
+            json={"status": "ENCAISSE", "payment_method": "MVOLA"},
+            headers=headers,
+        )
+        assert s2_cash.status_code == 200
+        assert s2_cash.json()["status"] == "ENCAISSE"
+
+        # 6. Bulk close cash on both parcels (Écran 07)
+        bulk_res = client.post(
+            "/api/v1/parcels/bulk-close-cash",
+            json={"parcel_ids": [p1_id, p2_id]},
+            headers=headers,
+        )
+        assert bulk_res.status_code == 200
+        closed_list = bulk_res.json()
+        assert len(closed_list) == 2
+        assert all(p["status"] == "CLOTURE_CAISSE" for p in closed_list)
+
+        # 7. Close tour with discrepancy = 0 (Total theorique = 23000 + 45000 = 68000) (Écran 08)
+        close_res = client.post(
+            f"/api/v1/tours/{tour_id}/close",
+            json={"cash_and_mobile_remitted": 68000},
+            headers=headers,
+        )
+        assert close_res.status_code == 200
+        closed_tour = close_res.json()
+        assert closed_tour["status"] == "CLOTURE"
+        assert closed_tour["theoretical_total"] == 68000
+        assert closed_tour["actual_remitted"] == 68000
+        assert closed_tour["discrepancy"] == 0
+

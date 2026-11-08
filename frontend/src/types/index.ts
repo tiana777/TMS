@@ -113,3 +113,35 @@ export interface Tour {
   parcels?: Parcel[];
 }
 
+export interface Dispute {
+  id: number;
+  reference_litige: string;
+  livreur_id: number;
+  colis_id?: number | null;
+  tournee_id?: number | null;
+  incident_type: string;
+  initial_amount: number;
+  refunded_amount: number;
+  remaining_balance: number;
+  status: "OUVERTE" | "EN_COURS" | "SOLDEE" | "ANNULEE_FORCE_MAJEURE";
+  reason: string;
+  incident_date: string;
+  closure_date?: string | null;
+  livreur_name?: string;
+}
+
+export interface Scorecard {
+  livreur_id: number;
+  period: string;
+  total_assigned: number;
+  total_delivered: number;
+  success_rate: number;
+  punctuality_rate: number;
+  quality_rate: number;
+  cash_rigor_rate: number;
+  global_score: number;
+  tier: "OR" | "ARGENT" | "BRONZE" | "ALERTE";
+  bonus_amount: number;
+  bonus_formatted: string;
+}
+

@@ -36,7 +36,12 @@ class Tour:
         """
         total = Money.zero()
         for p in self.parcels:
-            if p.status in [ParcelStatus.LIVRE, ParcelStatus.ENCAISSE, ParcelStatus.LIVRE_ENCAISSE]:
+            if p.status in [
+                ParcelStatus.LIVRE,
+                ParcelStatus.ENCAISSE,
+                ParcelStatus.LIVRE_ENCAISSE,
+                ParcelStatus.CLOTURE_CAISSE,
+            ]:
                 total += p.total_to_collect
         self.theoretical_total = total
         return total

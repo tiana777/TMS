@@ -52,6 +52,10 @@ class MarkPrepaidDTO(BaseModel):
     observation: Optional[str] = None
 
 
+class BulkCloseCashDTO(BaseModel):
+    parcel_ids: List[int]
+
+
 class UpdateParcelStatusDTO(BaseModel):
     status: str
     courier_id: Optional[int] = None

@@ -1,6 +1,6 @@
 """Tour, Courier, and Dispute Application Use Cases."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from backend.app.application.dtos.other_dtos import (
@@ -239,6 +239,7 @@ class TourUseCases:
                 ParcelStatus.LIVRE.value,
                 ParcelStatus.ENCAISSE.value,
                 ParcelStatus.LIVRE_ENCAISSE.value,
+                ParcelStatus.CLOTURE_CAISSE.value,
             ]),
         ).all()
         tour.parcels = [self.parcel_repo._to_domain(po) for po in delivered_orms]
@@ -263,11 +264,41 @@ class TourUseCases:
 
         # Mark parcels as CLOTURE_CAISSE
         for po in delivered_orms:
+            old_statut = po.statut
             po.statut = ParcelStatus.CLOTURE_CAISSE.value
+            self.db.add(
+                ParcelStatusHistoryORM(
+                    colis_id=po.id,
+                    statut_precedent=old_statut,
+                    statut_nouveau=ParcelStatus.CLOTURE_CAISSE.value,
+                    motif=f"Décharge caisse et clôture comptable de la tournée #{tour.id}",
+                    horodatage=datetime.now(timezone.utc),
+                )
+            )
+
+        # Reintegrate REPORTE parcels to Hub stock (EN_DEPOT) (CDC section 8.1)
+        reported_orms = self.db.query(ParcelORM).filter(
+            ParcelORM.tournee_id == tour_id,
+            ParcelORM.statut == ParcelStatus.REPORTE.value,
+            ParcelORM.actif == 1,
+        ).all()
+        for po in reported_orms:
+            old_statut = po.statut
+            po.statut = ParcelStatus.EN_DEPOT.value
+            self.db.add(
+                ParcelStatusHistoryORM(
+                    colis_id=po.id,
+                    statut_precedent=old_statut,
+                    statut_nouveau=ParcelStatus.EN_DEPOT.value,
+                    motif=f"Retour au Hub Central et réintégration en stock (Clôture tournée #{tour.id})",
+                    horodatage=datetime.now(timezone.utc),
+                )
+            )
+
         self.db.commit()
 
         tour.status = TourStatus.CLOTURE
-        tour.closed_at = datetime.utcnow()
+        tour.closed_at = datetime.now(timezone.utc)
         saved = self.tour_repo.save(tour)
         return self._to_tour_dto(saved)
 

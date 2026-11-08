@@ -483,3 +483,108 @@ export async function closeTour(tourId: number, cashAndMobileRemitted: number) {
   return await res.json();
 }
 
+export async function bulkCloseCash(parcelIds: number[]) {
+  const headers = getAuthHeaders();
+
+  const res = await fetch(`${API_BASE_URL}/parcels/bulk-close-cash`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ parcel_ids: parcelIds }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de la validation groupée en caisse.");
+  }
+
+  return await res.json();
+}
+
+export async function fetchDisputes(courierId?: number) {
+  try {
+    const headers = getAuthHeaders();
+    const url = `${API_BASE_URL}/disputes${courierId ? `?courier_id=${courierId}` : ""}`;
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error("Erreur chargement des litiges");
+    return await res.json();
+  } catch (e) {
+    console.warn("API offline, fallback disputes", e);
+    return [
+      {
+        id: 1,
+        reference_litige: "LIT-2026-0001",
+        livreur_id: 1,
+        tournee_id: 1,
+        incident_type: "DEFICIT_COD",
+        initial_amount: 15000,
+        refunded_amount: 0,
+        remaining_balance: 15000,
+        status: "OUVERTE",
+        reason: "Déficit de caisse constaté lors de la clôture de tournée",
+        incident_date: "2026-11-08",
+      },
+    ];
+  }
+}
+
+export async function createDispute(payload: {
+  livreur_id: number;
+  incident_type: string;
+  initial_amount: number;
+  reason: string;
+  incident_date: string;
+  colis_id?: number;
+  tournee_id?: number;
+}) {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/disputes`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de la création du dossier de litige.");
+  }
+  return await res.json();
+}
+
+export async function repayDebt(debtId: number, amount: number, closureDate?: string) {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/disputes/${debtId}/repay`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ amount, closure_date: closureDate }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de l'enregistrement de l'apurement.");
+  }
+  return await res.json();
+}
+
+export async function fetchScorecard(courierId: number, period: string) {
+  try {
+    const headers = getAuthHeaders();
+    const res = await fetch(`${API_BASE_URL}/couriers/${courierId}/scorecard?period=${period}`, { headers });
+    if (!res.ok) throw new Error("Erreur chargement du scorecard");
+    return await res.json();
+  } catch (e) {
+    console.warn("API offline, fallback scorecard", e);
+    return {
+      livreur_id: courierId,
+      period,
+      total_assigned: 20,
+      total_delivered: 19,
+      success_rate: 95.0,
+      punctuality_rate: 96.0,
+      quality_rate: 100.0,
+      cash_rigor_rate: 100.0,
+      global_score: 96.5,
+      tier: "OR",
+      bonus_amount: 50000,
+      bonus_formatted: "50 000 Ar",
+    };
+  }
+}
+
