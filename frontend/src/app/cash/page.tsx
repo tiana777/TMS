@@ -1003,7 +1003,7 @@ export default function CashAndClosurePage() {
                             <FileText className="w-4 h-4 text-purple-600" />
                             3. Dépenses & Fret Justifiés par Récépissés (MGA)
                           </label>
-                          <span className="text-xs text-slate-500 font-mono">Souches navette</span>
+                          <span className="text-xs text-slate-500 font-mono">Souches coopératives</span>
                         </div>
                         <input
                           type="number"

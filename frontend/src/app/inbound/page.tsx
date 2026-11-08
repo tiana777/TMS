@@ -673,7 +673,7 @@ export default function InboundPage() {
                       />
                       {row.axis === "AXE_PROVINCE" && (
                         <span className="text-[10px] font-bold text-purple-700 bg-purple-100/70 px-2 py-0.5 rounded border border-purple-200 flex items-center gap-1">
-                          🚚 Navette Gares
+                          📦 Dépôt Gare Coopérative
                         </span>
                       )}
                     </div>

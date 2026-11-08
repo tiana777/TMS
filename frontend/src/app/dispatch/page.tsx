@@ -514,7 +514,7 @@ export default function DispatchPage() {
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Colis Gares / Province</p>
               <div className="flex items-baseline gap-2 mt-1">
                 <span className="text-2xl font-black text-purple-400">{totalProvinceStock}</span>
-                <span className="text-xs text-slate-500 font-medium">navette coopératives</span>
+                <span className="text-xs text-slate-500 font-medium">dépôt coopératives</span>
               </div>
             </div>
 
@@ -1171,7 +1171,7 @@ export default function DispatchPage() {
 
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-300 block uppercase tracking-wider">
-                Sélectionner le Nouveau Coursier / Navette
+                Sélectionner le Nouveau Coursier
               </label>
               <select
                 data-cy="reassign-courier-select"

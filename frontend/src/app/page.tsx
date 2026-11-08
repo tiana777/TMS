@@ -466,7 +466,7 @@ export default function CockpitDashboardPage() {
               Flotte & Tournées Opérationnelles en Direct ({tours.length} tournées)
             </h3>
             <p className="text-xs text-slate-500">
-              Statut instantané des coursiers urbains et navette gares
+              Statut instantané des coursiers et tournées en cours
             </p>
           </div>
 

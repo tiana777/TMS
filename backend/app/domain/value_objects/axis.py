@@ -38,6 +38,6 @@ class LogisticAxis(str, Enum):
             LogisticAxis.AXE_RN4: "Moto Cross 150cc",
             LogisticAxis.AXE_RN7: "Scooter 150cc",
             LogisticAxis.AXE_SUD_EST: "Moto Roadster",
-            LogisticAxis.AXE_PROVINCE: "Fourgonnette Navette Transit",
+            LogisticAxis.AXE_PROVINCE: "Moto 125cc",
         }
         return vehicles.get(self, "Deux-roues")

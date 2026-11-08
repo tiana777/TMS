@@ -26,12 +26,12 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
         },
         {
           id: 4,
-          name: "NAVETTE Gares Routières",
+          name: "RAZAFI Paul (Livreur)",
           phone: "0381020304",
           phone_formatted: "038 10 203 04",
-          vehicle_type: "Fourgonnette Transit",
-          security_deposit: 300000,
-          security_deposit_formatted: "300 000 Ar",
+          vehicle_type: "Moto 125cc",
+          security_deposit: 150000,
+          security_deposit_formatted: "150 000 Ar",
           active: true,
         },
       ],
@@ -271,7 +271,7 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
     cy.wait(1000);
 
     // 5. Test selection and counter
-    cy.get('[data-cy="parcel-row-201"]').click();
+    cy.get('[data-cy="parcel-row-201"]').find('input[type="checkbox"]').check();
     cy.wait(800); // Observer la coche et la mise en surbrillance
     cy.get('[data-cy="selected-count"]').should("contain", "1 sélectionné(s)");
     cy.contains("50 000 Ar").should("be.visible");
@@ -393,7 +393,7 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
     // Verify parcel row updated with Provinces and Choix Manuel badge
     cy.get('[data-cy="parcel-row-201"]').within(() => {
       cy.contains("Provinces").should("be.visible");
-      cy.contains("Choix Manuel").should("be.visible");
+      cy.contains("Modifié manuellement").should("be.visible");
       cy.contains("PROVINCE").should("be.visible");
     });
   });

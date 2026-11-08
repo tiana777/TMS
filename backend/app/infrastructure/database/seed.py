@@ -239,10 +239,10 @@ def seed_master_data():
                     actif=1,
                 ),
                 CourierORM(
-                    nom="Randria Paul (Navette Gares)",
+                    nom="Randria Paul (Livreur)",
                     telephone="0334455667",
-                    type_vehicule="Fourgonnette Navette Transit",
-                    caution_garantie=300000.0,
+                    type_vehicule="Moto 125cc",
+                    caution_garantie=150000.0,
                     actif=1,
                 ),
             ]

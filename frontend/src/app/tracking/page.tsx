@@ -2252,7 +2252,7 @@ export default function TrackingPage() {
 
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-700 block uppercase tracking-wider">
-                Nouveau Coursier / Navette d'Affectation
+                Nouveau Coursier d'Affectation
               </label>
               <select
                 data-cy="reassign-courier-select"

@@ -129,10 +129,10 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
       id: 2,
       tour_date: "2026-11-08",
       courier_id: 4,
-      courier_name: "NAVETTE Gares Routières",
+      courier_name: "RAZAFI Paul (Livreur)",
       courier_phone: "0381020304",
       courier_phone_formatted: "038 10 203 04",
-      courier_vehicle: "Fourgonnette Transit",
+      courier_vehicle: "Moto 125cc",
       status: "ASSIGNE",
       theoretical_total: 40000,
       actual_remitted: 0,
@@ -152,10 +152,10 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
     },
     {
       id: 4,
-      name: "NAVETTE Gares Routières",
+      name: "RAZAFI Paul (Livreur)",
       phone: "0381020304",
       phone_formatted: "038 10 203 04",
-      vehicle_type: "Fourgonnette Transit",
+      vehicle_type: "Moto 125cc",
       active: true,
     },
   ];
@@ -333,7 +333,7 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
 
     cy.get('[data-cy="tour-card-2"]').should("be.visible");
     cy.get('[data-cy="tour-card-2"]').within(() => {
-      cy.contains("NAVETTE Gares Routières").should("be.visible");
+      cy.contains("RAZAFI Paul (Livreur)").should("be.visible");
     });
   });
 

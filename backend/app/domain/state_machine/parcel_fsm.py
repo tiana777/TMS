@@ -146,7 +146,7 @@ class ParcelStateMachine:
         if to_status == ParcelStatus.ASSIGNE:
             if not ctx.courier_id:
                 raise MissingRequiredDataException(
-                    "L'assignation d'un colis nécessite obligatoirement l'identifiant du coursier ou de la navette."
+                    "L'assignation d'un colis nécessite obligatoirement l'identifiant du coursier."
                 )
 
         elif to_status == ParcelStatus.SOUS_TRAITE:

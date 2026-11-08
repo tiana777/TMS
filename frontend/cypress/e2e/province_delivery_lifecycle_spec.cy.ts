@@ -5,7 +5,7 @@
  * Scénario métier couvert :
  * 1. Écran Inbound (01) : Saisie expéditeur, destinataire en province avec sélection manuelle
  *    de l'Axe Province (8. AXE_PROVINCE) et calcul automatique du COD (Marchandise 80 000 + Frais 15 000 = 95 000 Ar).
- * 2. Écran Dispatch (03) : Affichage dans le stock Province et affectation à la Navette Gares Routières (Tournée #10).
+ * 2. Écran Dispatch (03) : Affichage dans le stock Province et affectation au Livreur (Tournée #10).
  * 3. Écran Pointage (05) : Démarrage tournée, dépôt physique en gare coopérative (Cotisse Transport),
  *    saisie obligatoire du récépissé (COT-TMV-88412), du n° de véhicule (2841 TAB), du contact chauffeur
  *    (Rivo Chauffeur 034 22 334 45) et des frais fret (20 000 Ar).
@@ -166,25 +166,25 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
     active: true,
   };
 
-  const mockNavetteCourier = {
+  const mockCourier = {
     id: 4,
-    name: "NAVETTE Gares Routières",
+    name: "RAZAFI Paul (Livreur)",
     phone: "0381020304",
     phone_formatted: "038 10 203 04",
-    vehicle_type: "Fourgonnette Transit",
-    security_deposit: 300000,
-    security_deposit_formatted: "300 000 Ar",
+    vehicle_type: "Moto 125cc",
+    security_deposit: 150000,
+    security_deposit_formatted: "150 000 Ar",
     active: true,
   };
 
-  const mockNavetteTour = {
+  const mockTour = {
     id: 10,
     tour_date: "2026-11-08",
     courier_id: 4,
-    courier_name: "NAVETTE Gares Routières",
+    courier_name: "RAZAFI Paul (Livreur)",
     courier_phone: "0381020304",
     courier_phone_formatted: "038 10 203 04",
-    courier_vehicle: "Fourgonnette Transit",
+    courier_vehicle: "Moto 125cc",
     status: "ASSIGNE",
     theoretical_total: 95000,
     actual_remitted: 0,
@@ -196,7 +196,7 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
   beforeEach(() => {
     cy.intercept("GET", "**/api/v1/couriers*", {
       statusCode: 200,
-      body: [mockNavetteCourier],
+      body: [mockCourier],
     }).as("getCouriers");
 
     cy.intercept("GET", "**/api/v1/vendors*", {
@@ -223,12 +223,12 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
 
     cy.intercept("GET", "**/api/v1/tours*", {
       statusCode: 200,
-      body: [mockNavetteTour],
+      body: [mockTour],
     }).as("getTours");
 
     cy.intercept("GET", "**/api/v1/tours/10", {
       statusCode: 200,
-      body: mockNavetteTour,
+      body: mockTour,
     }).as("getTour10Detail");
   });
 
@@ -290,7 +290,7 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
     cy.wait(3000);
   });
 
-  it("2. Dispatching & Affectation à la Navette Gares Routières", () => {
+  it("2. Dispatching & Affectation au Livreur", () => {
     cy.intercept("GET", "**/api/v1/parcels*", {
       statusCode: 200,
       body: [mockProvinceParcel],
@@ -298,12 +298,12 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
 
     cy.intercept("POST", "**/api/v1/tours", {
       statusCode: 201,
-      body: mockNavetteTour,
-    }).as("createNavetteTour");
+      body: mockTour,
+    }).as("createTour");
 
     cy.visit("/dispatch");
     cy.wait(1000);
-    showStepBanner(2, "DISPATCH HUB", "Stock colis Province & Affectation à la Navette Gares");
+    showStepBanner(2, "DISPATCH HUB", "Stock colis Province & Affectation au Livreur");
 
     // Présence du colis province dans le stock en dépôt
     cy.contains("M. Razafy Toamasina").should("be.visible");
@@ -316,15 +316,15 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
     // Sélectionner le colis
     cy.get(`[data-cy="parcel-row-${provinceParcelId}"]`).slowClick(800);
 
-    // Sélectionner le livreur navette gares
+    // Sélectionner le livreur
     cy.get('[data-cy="select-courier"]').slowSelect("4", 800);
 
-    // ⏸️ PAUSE DE 3 SECONDES : Observer le colis coché et la navette sélectionnée
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le colis coché et le livreur sélectionné
     cy.wait(3000);
 
     // Valider la tournée
     cy.get('[data-cy="assign-tour-btn"]').should("not.be.disabled").slowClick(1000);
-    cy.wait("@createNavetteTour").its("request.body").should((body) => {
+    cy.wait("@createTour").its("request.body").should((body) => {
       expect(body.courier_id).to.equal(4);
       expect(body.parcel_ids).to.include(provinceParcelId);
     });
@@ -352,7 +352,7 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
     cy.intercept("POST", "**/api/v1/tours/10/start", {
       statusCode: 200,
       body: {
-        ...mockNavetteTour,
+        ...mockTour,
         status: "EN_COURS",
       },
     }).as("startTour10");
@@ -378,7 +378,7 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
     cy.wait(1000);
     showStepBanner(3, "POINTAGE TERRAIN", "Dépôt Gare Cotisse, N° Voiture 2841 TAB & Contact Chauffeur");
 
-    // Sélectionner la tournée Navette Gares #10
+    // Sélectionner la tournée du livreur #10
     cy.get('[data-cy="tour-selector"]').slowSelect("10", 800);
 
     // Démarrer la tournée

@@ -97,12 +97,12 @@ export async function fetchCouriers() {
       },
       {
         id: 4,
-        name: "NAVETTE Gares Routières",
+        name: "RAZAFI Paul (Livreur)",
         phone: "0381020304",
         phone_formatted: "038 10 203 04",
-        vehicle_type: "Fourgonnette Transit",
-        security_deposit: 300000,
-        security_deposit_formatted: "300 000 Ar",
+        vehicle_type: "Moto 125cc",
+        security_deposit: 150000,
+        security_deposit_formatted: "150 000 Ar",
         active: true,
       },
     ];
