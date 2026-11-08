@@ -436,31 +436,31 @@ export default function DispatchPage() {
       </div>
 
       {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-800">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-800">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-black text-white flex items-center gap-2">
-              <Truck className="w-7 h-7 text-blue-500" />
+            <h1 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+              <Truck className="w-5 h-5 text-blue-500" />
               03A. Dispatching Urbain — Livraison en Ville
             </h1>
-            <span className="px-2 py-0.5 text-xs font-black bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded">
+            <span className="px-2 py-0.5 text-[11px] font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded">
               Hub Tsiazotafo • Grand Tanà
             </span>
           </div>
-          <p className="text-sm text-slate-400 mt-1">
+          <p className="text-xs text-slate-400 mt-1">
             03. Dispatching & Feuilles de Route • Affectation matinale des 7 axes radiaux urbains aux coursiers (Plafond de colis paramétrable)
           </p>
         </div>
 
         {/* Date Selector & Refresh */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl">
-            <Calendar className="w-4 h-4 text-slate-400" />
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-2.5 py-1.5 rounded-lg">
+            <Calendar className="w-3.5 h-3.5 text-slate-400" />
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-transparent text-sm text-white font-medium focus:outline-none cursor-pointer"
+              className="bg-transparent text-xs text-white font-medium focus:outline-none cursor-pointer"
             />
           </div>
           <button
@@ -468,10 +468,10 @@ export default function DispatchPage() {
               loadStockParcels();
               loadTours();
             }}
-            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors border border-slate-700"
+            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors border border-slate-700"
             title="Rafraîchir"
           >
-            <RotateCcw className="w-4 h-4" />
+            <RotateCcw className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
@@ -481,15 +481,15 @@ export default function DispatchPage() {
         <button
           onClick={() => setActiveTab("dispatch")}
           data-cy="tab-dispatch"
-          className={`flex-1 py-3 px-4 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+          className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
             activeTab === "dispatch"
-              ? "bg-blue-600 text-white shadow-lg shadow-blue-900/30"
+              ? "bg-blue-600 text-white shadow-xs"
               : "text-slate-400 hover:text-white hover:bg-slate-800/60"
           }`}
         >
-          <Package className="w-4 h-4" />
+          <Package className="w-3.5 h-3.5" />
           <span>Écran 03 • Dispatching Matinal</span>
-          <span className="ml-1.5 px-2 py-0.5 text-xs font-black rounded-full bg-slate-950/40 text-blue-200">
+          <span className="ml-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-slate-950/40 text-blue-200">
             {totalStockCount} en stock
           </span>
         </button>
@@ -497,15 +497,15 @@ export default function DispatchPage() {
         <button
           onClick={() => setActiveTab("roadmaps")}
           data-cy="tab-roadmaps"
-          className={`flex-1 py-3 px-4 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+          className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
             activeTab === "roadmaps"
-              ? "bg-blue-600 text-white shadow-lg shadow-blue-900/30"
+              ? "bg-blue-600 text-white shadow-xs"
               : "text-slate-400 hover:text-white hover:bg-slate-800/60"
           }`}
         >
-          <Printer className="w-4 h-4" />
+          <Printer className="w-3.5 h-3.5" />
           <span>Écran 04 • Feuilles de Route & Tickets 80 mm</span>
-          <span className="ml-1.5 px-2 py-0.5 text-xs font-black rounded-full bg-slate-950/40 text-blue-200">
+          <span className="ml-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-slate-950/40 text-blue-200">
             {tours.length} tournées
           </span>
         </button>
@@ -515,18 +515,18 @@ export default function DispatchPage() {
       {assignSuccessMessage && (
         <div
           data-cy="assign-success-banner"
-          className="p-4 bg-emerald-950/80 border border-emerald-600/50 text-emerald-200 rounded-xl flex items-center justify-between shadow-lg"
+          className="p-3 bg-emerald-950/80 border border-emerald-600/50 text-emerald-200 rounded-xl flex items-center justify-between shadow-xs text-xs font-medium"
         >
-          <div className="flex items-center gap-3">
-            <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
-            <span className="text-sm font-bold">{assignSuccessMessage}</span>
+          <div className="flex items-center gap-2.5">
+            <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{assignSuccessMessage}</span>
           </div>
           <button
             onClick={() => setActiveTab("roadmaps")}
-            className="text-xs font-bold text-white underline hover:text-emerald-300 ml-4 flex items-center gap-1"
+            className="text-xs font-semibold text-white underline hover:text-emerald-300 ml-4 flex items-center gap-1"
           >
             <span>Voir les feuilles de route</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            <ArrowRight className="w-3 h-3" />
           </button>
         </div>
       )}
@@ -535,10 +535,10 @@ export default function DispatchPage() {
       {axisFeedback && (
         <div
           data-cy="axis-feedback-banner"
-          className="p-3 bg-emerald-950/80 border border-emerald-600/50 text-emerald-200 rounded-xl flex items-center justify-between shadow-lg text-xs font-bold"
+          className="p-2.5 bg-emerald-950/80 border border-emerald-600/50 text-emerald-200 rounded-xl flex items-center justify-between shadow-xs text-xs font-medium"
         >
           <div className="flex items-center gap-2">
-            <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+            <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
             <span>{axisFeedback}</span>
           </div>
           <button
@@ -554,39 +554,39 @@ export default function DispatchPage() {
       {/* TAB 1: ÉCRAN 03 - DISPATCHING MATINAL                                     */}
       {/* ========================================================================= */}
       {activeTab === "dispatch" && (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* KPI Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl shadow-md">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Colis en Stock (Hub)</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-slate-900/90 border border-slate-800 border-l-4 border-l-amber-500 p-3 rounded-xl shadow-xs">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Colis en Stock (Hub)</p>
               <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-2xl font-black text-amber-400">{totalStockCount}</span>
-                <span className="text-xs text-slate-500 font-medium">statut EN_DEPOT</span>
+                <span className="text-base sm:text-lg font-bold text-amber-400 tabular-nums">{totalStockCount}</span>
+                <span className="text-[11px] text-slate-500">statut EN_DEPOT</span>
               </div>
             </div>
 
-            <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl shadow-md">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total COD à Répartir</p>
+            <div className="bg-slate-900/90 border border-slate-800 border-l-4 border-l-emerald-500 p-3 rounded-xl shadow-xs">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total COD à Répartir</p>
               <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-2xl font-black text-emerald-400">
+                <span className="text-base sm:text-lg font-bold text-emerald-400 font-mono tabular-nums">
                   {totalStockCOD.toLocaleString("fr-FR")} Ar
                 </span>
               </div>
             </div>
 
-            <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl shadow-md">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Colis Gares / Province</p>
+            <div className="bg-slate-900/90 border border-slate-800 border-l-4 border-l-purple-500 p-3 rounded-xl shadow-xs">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Colis Gares / Province</p>
               <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-2xl font-black text-purple-400">{totalProvinceStock}</span>
-                <span className="text-xs text-slate-500 font-medium">dépôt coopératives</span>
+                <span className="text-base sm:text-lg font-bold text-purple-400 tabular-nums">{totalProvinceStock}</span>
+                <span className="text-[11px] text-slate-500">dépôt coopératives</span>
               </div>
             </div>
 
-            <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl shadow-md">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Coursiers Actifs</p>
+            <div className="bg-slate-900/90 border border-slate-800 border-l-4 border-l-blue-500 p-3 rounded-xl shadow-xs">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Coursiers Actifs</p>
               <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-2xl font-black text-blue-400">{couriers.length}</span>
-                <span className="text-xs text-slate-500 font-medium">disponibles quai</span>
+                <span className="text-base sm:text-lg font-bold text-blue-400 tabular-nums">{couriers.length}</span>
+                <span className="text-[11px] text-slate-500">disponibles quai</span>
               </div>
             </div>
           </div>

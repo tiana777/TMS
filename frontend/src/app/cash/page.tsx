@@ -448,32 +448,32 @@ export default function CashAndClosurePage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-16">
       {/* Top Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
-            <div className="flex items-center gap-3">
-              <span className="p-2 bg-emerald-100 text-emerald-700 rounded-lg">
-                <Wallet className="w-6 h-6" />
+            <div className="flex items-center gap-2.5">
+              <span className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg">
+                <Wallet className="w-5 h-5" />
               </span>
               <div>
-                <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">
+                <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900">
                   Caisse Centrale & Clôture Comptable
                 </h1>
-                <p className="text-xs sm:text-sm text-slate-500 font-medium">
+                <p className="text-xs text-slate-500 font-normal">
                   Écran 07 (Validation Encaissements COD) & Écran 08 (Décharge de Tournée Journalière)
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 text-sm">
-              <Calendar className="w-4 h-4 text-slate-500" />
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex items-center gap-2 bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs">
+              <Calendar className="w-3.5 h-3.5 text-slate-500" />
               <input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="bg-transparent text-slate-800 font-bold focus:outline-none text-xs sm:text-sm cursor-pointer"
+                className="bg-transparent text-slate-800 font-medium focus:outline-none text-xs cursor-pointer"
                 data-cy="cash-date-picker"
               />
             </div>
@@ -481,10 +481,10 @@ export default function CashAndClosurePage() {
             <button
               onClick={loadData}
               disabled={loading}
-              className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition border border-slate-200"
+              className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition border border-slate-200"
               title="Rafraîchir les données"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
             </button>
 
             <HeaderUserRole />
@@ -495,32 +495,32 @@ export default function CashAndClosurePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex border-t border-slate-100">
           <button
             onClick={() => setActiveTab("caisse")}
-            className={`py-3 px-5 text-sm font-bold border-b-2 flex items-center gap-2 transition ${
+            className={`py-2 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition ${
               activeTab === "caisse"
                 ? "border-emerald-600 text-emerald-700 bg-emerald-50/50"
                 : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
             data-cy="tab-caisse"
           >
-            <Coins className="w-4 h-4" />
+            <Coins className="w-3.5 h-3.5" />
             07. Caisse Centrale COD
-            <span className="ml-1.5 px-2 py-0.5 text-xs rounded-full bg-slate-200 text-slate-700 font-medium">
+            <span className="ml-1 px-1.5 py-0.5 text-[10px] rounded-full bg-slate-200 text-slate-700 font-medium">
               {codParcels.length}
             </span>
           </button>
 
           <button
             onClick={() => setActiveTab("decharge")}
-            className={`py-3 px-5 text-sm font-bold border-b-2 flex items-center gap-2 transition ${
+            className={`py-2 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition ${
               activeTab === "decharge"
                 ? "border-blue-600 text-blue-700 bg-blue-50/50"
                 : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
             data-cy="tab-decharge"
           >
-            <FileText className="w-4 h-4" />
+            <FileText className="w-3.5 h-3.5" />
             08. Décharge & Clôture de Tournée
-            <span className="ml-1.5 px-2 py-0.5 text-xs rounded-full bg-slate-200 text-slate-700 font-medium">
+            <span className="ml-1 px-1.5 py-0.5 text-[10px] rounded-full bg-slate-200 text-slate-700 font-medium">
               {tours.length}
             </span>
           </button>
@@ -528,20 +528,20 @@ export default function CashAndClosurePage() {
       </header>
 
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-4">
         {/* Banner Alert Feedback */}
         {error && (
           <div
-            className="p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl flex items-center justify-between shadow-sm"
+            className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl flex items-center justify-between shadow-xs text-xs"
             data-cy="cash-error-banner"
           >
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
-              <p className="text-sm font-medium">{error}</p>
+            <div className="flex items-center gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+              <p className="font-medium">{error}</p>
             </div>
             <button
               onClick={() => setError(null)}
-              className="text-rose-500 hover:text-rose-800 text-xs font-bold underline"
+              className="text-rose-500 hover:text-rose-800 text-xs font-semibold underline"
             >
               Fermer
             </button>
@@ -550,16 +550,16 @@ export default function CashAndClosurePage() {
 
         {successMessage && (
           <div
-            className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl flex items-center justify-between shadow-sm"
+            className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl flex items-center justify-between shadow-xs text-xs"
             data-cy="cash-success-banner"
           >
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-              <p className="text-sm font-medium">{successMessage}</p>
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <p className="font-medium">{successMessage}</p>
             </div>
             <button
               onClick={() => setSuccessMessage(null)}
-              className="text-emerald-500 hover:text-emerald-800 text-xs font-bold underline"
+              className="text-emerald-500 hover:text-emerald-800 text-xs font-semibold underline"
             >
               Fermer
             </button>
@@ -568,48 +568,48 @@ export default function CashAndClosurePage() {
 
         {/* TAB 1 : ÉCRAN 07 - CAISSE CENTRALE COD */}
         {activeTab === "caisse" && (
-          <div className="space-y-6" data-cy="view-caisse">
+          <div className="space-y-4" data-cy="view-caisse">
             {/* KPI Cards Bar */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="flex items-center justify-between text-slate-500 mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="bg-white p-3 rounded-xl border border-slate-200/90 border-l-4 border-l-emerald-500 shadow-xs">
+                <div className="flex items-center justify-between text-slate-500 mb-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider">
                     Total COD Encaissé / Dû
                   </span>
-                  <Coins className="w-5 h-5 text-emerald-600" />
+                  <Coins className="w-4 h-4 text-emerald-600" />
                 </div>
-                <div className="text-2xl font-black text-slate-900">
+                <div className="text-base sm:text-lg font-bold text-slate-900 font-mono tabular-nums">
                   {formatMGA(cashMetrics.totalCOD)}
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-[11px] text-slate-500 mt-1">
                   Sur un volume de {cashMetrics.totalCount} colis COD
                 </p>
               </div>
 
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="flex items-center justify-between text-slate-500 mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider">
+              <div className="bg-white p-3 rounded-xl border border-slate-200/90 border-l-4 border-l-teal-500 shadow-xs">
+                <div className="flex items-center justify-between text-slate-500 mb-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider">
                     Espèces Remises
                   </span>
-                  <DollarSign className="w-5 h-5 text-teal-600" />
+                  <DollarSign className="w-4 h-4 text-teal-600" />
                 </div>
-                <div className="text-2xl font-black text-teal-700">
+                <div className="text-base sm:text-lg font-bold text-teal-700 font-mono tabular-nums">
                   {formatMGA(cashMetrics.totalEspeces)}
                 </div>
-                <p className="text-xs text-slate-500 mt-1">Cash physique encaissé au Hub</p>
+                <p className="text-[11px] text-slate-500 mt-1">Cash physique encaissé au Hub</p>
               </div>
 
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="flex items-center justify-between text-slate-500 mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider">
+              <div className="bg-white p-3 rounded-xl border border-slate-200/90 border-l-4 border-l-amber-500 shadow-xs">
+                <div className="flex items-center justify-between text-slate-500 mb-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider">
                     Mobile Money Réconcilié
                   </span>
-                  <Smartphone className="w-5 h-5 text-amber-600" />
+                  <Smartphone className="w-4 h-4 text-amber-600" />
                 </div>
-                <div className="text-2xl font-black text-amber-700">
+                <div className="text-base sm:text-lg font-bold text-amber-700 font-mono tabular-nums">
                   {formatMGA(cashMetrics.totalMobile)}
                 </div>
-                <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500">
+                <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500 font-mono tabular-nums">
                   <span>MV: {formatNumber(cashMetrics.totalMvola)}</span>
                   <span>•</span>
                   <span>Air: {formatNumber(cashMetrics.totalAirtel)}</span>
@@ -618,17 +618,17 @@ export default function CashAndClosurePage() {
                 </div>
               </div>
 
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="flex items-center justify-between text-slate-500 mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider">
+              <div className="bg-white p-3 rounded-xl border border-slate-200/90 border-l-4 border-l-indigo-500 shadow-xs">
+                <div className="flex items-center justify-between text-slate-500 mb-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider">
                     À Valider en Caisse
                   </span>
-                  <Clock className="w-5 h-5 text-indigo-600" />
+                  <Clock className="w-4 h-4 text-indigo-600" />
                 </div>
-                <div className="text-2xl font-black text-indigo-700">
+                <div className="text-base sm:text-lg font-bold text-indigo-700 font-mono tabular-nums">
                   {formatMGA(cashMetrics.pendingValidation)}
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-[11px] text-slate-500 mt-1">
                   {cashMetrics.closedCount} colis déjà scellés en caisse
                 </p>
               </div>

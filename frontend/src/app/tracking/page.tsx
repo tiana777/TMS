@@ -656,36 +656,36 @@ export default function TrackingPage() {
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Title & Date Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-xs">
         <div>
           <div className="flex items-center gap-2">
-            <span className="p-2 bg-emerald-100 text-emerald-800 rounded-lg">
-              <CheckCircle2 className="w-5 h-5" />
+            <span className="p-1.5 bg-emerald-100 text-emerald-800 rounded-lg">
+              <CheckCircle2 className="w-4 h-4" />
             </span>
-            <h2 className="text-2xl font-black text-slate-800 tracking-tight">
+            <h2 className="text-base sm:text-lg font-bold text-slate-800 tracking-tight">
               Écran 05 : Pointage Terrain & Suivi en Direct
             </h2>
           </div>
-          <p className="text-slate-500 text-sm mt-1">
+          <p className="text-slate-500 text-xs mt-1">
             Qualification instantanée de l'issue des livraisons, validation des encaissements COD et contrôle FSM strict.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5">
-            <Calendar className="w-4 h-4 text-slate-500" />
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5">
+            <Calendar className="w-3.5 h-3.5 text-slate-500" />
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-transparent text-sm font-bold text-slate-800 focus:outline-none"
+              className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
             />
           </div>
           <button
             onClick={loadData}
-            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm rounded-xl transition shadow flex items-center gap-2"
+            className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded-lg transition shadow-xs flex items-center gap-1.5"
           >
-            <RotateCcw className="w-4 h-4" />
+            <RotateCcw className="w-3.5 h-3.5" />
             Actualiser
           </button>
         </div>
@@ -695,7 +695,7 @@ export default function TrackingPage() {
       {feedbackMessage && (
         <div
           data-cy="feedback-banner"
-          className={`p-4 rounded-xl flex items-center justify-between text-sm font-bold ${
+          className={`p-3 rounded-xl flex items-center justify-between text-xs font-semibold ${
             feedbackMessage.type === "success"
               ? "bg-emerald-50 text-emerald-800 border border-emerald-300"
               : "bg-rose-50 text-rose-800 border border-rose-300"
@@ -703,9 +703,9 @@ export default function TrackingPage() {
         >
           <div className="flex items-center gap-2">
             {feedbackMessage.type === "success" ? (
-              <ShieldCheck className="w-5 h-5 text-emerald-600" />
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
             ) : (
-              <AlertCircle className="w-5 h-5 text-rose-600" />
+              <AlertCircle className="w-4 h-4 text-rose-600" />
             )}
             <span>{feedbackMessage.text}</span>
           </div>
@@ -719,24 +719,24 @@ export default function TrackingPage() {
       )}
 
       {/* Tour Selection and Summary Card */}
-      <div className="bg-slate-900 text-white rounded-2xl p-6 shadow-xl space-y-6">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+      <div className="bg-slate-900 text-white rounded-xl p-4 shadow-sm space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-800 pb-3">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-blue-600/30 text-blue-400 rounded-xl border border-blue-500/20">
-              <Truck className="w-6 h-6" />
+            <div className="p-2 bg-blue-600/30 text-blue-400 rounded-lg border border-blue-500/20">
+              <Truck className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-xs uppercase font-bold text-slate-400 tracking-wider">
+              <p className="text-[11px] uppercase font-semibold text-slate-400 tracking-wider">
                 Sélection de la Tournée Opérationnelle
               </p>
-              <div className="flex items-center gap-3 mt-1">
+              <div className="flex items-center gap-2.5 mt-1">
                 <select
                   data-cy="tour-selector"
                   value={selectedTourId}
                   onChange={(e) =>
                     setSelectedTourId(e.target.value === "ALL" ? "ALL" : Number(e.target.value))
                   }
-                  className="bg-slate-800 border border-slate-700 text-white font-bold text-base rounded-xl px-3 py-1.5 focus:outline-none focus:border-blue-500"
+                  className="bg-slate-800 border border-slate-700 text-white font-medium text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-blue-500 cursor-pointer"
                 >
                   <option value="ALL">🌐 Toutes les Tournées ({tours.length} tournées)</option>
                   {tours.map((t) => (
@@ -752,9 +752,9 @@ export default function TrackingPage() {
                     data-cy="btn-start-tour"
                     onClick={() => handleStartTour(currentTour.id)}
                     disabled={isSubmitting}
-                    className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 font-black text-xs uppercase tracking-wider rounded-xl transition shadow flex items-center gap-1.5"
+                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 font-semibold text-xs rounded-lg transition shadow-xs flex items-center gap-1.5"
                   >
-                    <Play className="w-3.5 h-3.5 fill-current" />
+                    <Play className="w-3 h-3 fill-current" />
                     Lancer la Tournée (Départ Quai)
                   </button>
                 )}
@@ -763,18 +763,18 @@ export default function TrackingPage() {
           </div>
 
           {currentTour && (
-            <div className="flex items-center gap-4 text-xs text-slate-300 bg-slate-800/80 px-4 py-2.5 rounded-xl border border-slate-700">
-              <div className="flex items-center gap-2">
-                <User className="w-4 h-4 text-blue-400" />
-                <span className="font-bold text-white">{currentTour.courier_name}</span>
+            <div className="flex items-center gap-3 text-xs text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700 font-mono">
+              <div className="flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-blue-400" />
+                <span className="font-semibold text-white font-sans">{currentTour.courier_name}</span>
               </div>
-              <span>•</span>
-              <div className="flex items-center gap-2">
-                <Phone className="w-4 h-4 text-emerald-400" />
+              <span className="text-slate-500">•</span>
+              <div className="flex items-center gap-1.5">
+                <Phone className="w-3.5 h-3.5 text-emerald-400" />
                 <span>{currentTour.courier_phone_formatted || currentTour.courier_phone}</span>
               </div>
-              <span>•</span>
-              <span className="px-2 py-0.5 rounded bg-slate-700 font-medium">
+              <span className="text-slate-500">•</span>
+              <span className="px-1.5 py-0.5 rounded bg-slate-700 text-[11px] font-sans text-slate-200">
                 {currentTour.courier_vehicle}
               </span>
             </div>
@@ -782,19 +782,19 @@ export default function TrackingPage() {
         </div>
 
         {/* Live Metrics Row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-slate-800/60 p-4 rounded-xl border border-slate-800">
-            <p className="text-xs font-semibold text-slate-400">Total Colis</p>
-            <p className="text-2xl font-black text-white mt-1">{stats.total}</p>
-            <p className="text-[11px] text-slate-400 mt-1">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="bg-slate-800/70 p-3 rounded-lg border border-slate-800 border-l-4 border-l-blue-500">
+            <p className="text-[11px] font-semibold text-slate-400">Total Colis</p>
+            <p className="text-base sm:text-lg font-bold text-white mt-0.5 tabular-nums">{stats.total}</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">
               {stats.inProgress} en cours de livraison
             </p>
           </div>
 
-          <div className="bg-slate-800/60 p-4 rounded-xl border border-slate-800">
-            <p className="text-xs font-semibold text-slate-400">Taux d'Achèvement</p>
-            <p className="text-2xl font-black text-emerald-400 mt-1">{stats.completionRate} %</p>
-            <div className="w-full bg-slate-700 h-1.5 rounded-full mt-2 overflow-hidden">
+          <div className="bg-slate-800/70 p-3 rounded-lg border border-slate-800 border-l-4 border-l-emerald-500">
+            <p className="text-[11px] font-semibold text-slate-400">Taux d'Achèvement</p>
+            <p className="text-base sm:text-lg font-bold text-emerald-400 mt-0.5 tabular-nums">{stats.completionRate} %</p>
+            <div className="w-full bg-slate-700 h-1.5 rounded-full mt-1.5 overflow-hidden">
               <div
                 className="bg-emerald-500 h-full rounded-full transition-all duration-500"
                 style={{ width: `${stats.completionRate}%` }}
@@ -802,19 +802,19 @@ export default function TrackingPage() {
             </div>
           </div>
 
-          <div className="bg-slate-800/60 p-4 rounded-xl border border-slate-800">
-            <p className="text-xs font-semibold text-slate-400">Montant Encaissé</p>
-            <p className="text-2xl font-black text-amber-400 mt-1">
+          <div className="bg-slate-800/70 p-3 rounded-lg border border-slate-800 border-l-4 border-l-amber-500">
+            <p className="text-[11px] font-semibold text-slate-400">Montant Encaissé</p>
+            <p className="text-base sm:text-lg font-bold text-amber-400 mt-0.5 font-mono tabular-nums">
               {stats.collectedCash.toLocaleString()} Ar
             </p>
-            <p className="text-[11px] text-slate-400 mt-1">
+            <p className="text-[11px] text-slate-400 mt-0.5">
               sur {stats.theoreticalCash.toLocaleString()} Ar attendus
             </p>
           </div>
 
-          <div className="bg-slate-800/60 p-4 rounded-xl border border-slate-800">
-            <p className="text-xs font-semibold text-slate-400">Répartition Statuts</p>
-            <div className="flex items-center gap-2 mt-2 text-xs font-bold">
+          <div className="bg-slate-800/70 p-3 rounded-lg border border-slate-800 border-l-4 border-l-purple-500">
+            <p className="text-[11px] font-semibold text-slate-400">Répartition Statuts</p>
+            <div className="flex items-center gap-2 mt-1.5 text-xs font-semibold">
               <span className="text-teal-400" title="Colis Livrés">📦 {stats.delivered}</span>
               <span className="text-emerald-400" title="Colis Encaissés">💰 {stats.cashed}</span>
               <span className="text-amber-400" title="Reportés">⏳ {stats.rescheduled}</span>
