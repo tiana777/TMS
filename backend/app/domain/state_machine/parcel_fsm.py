@@ -68,6 +68,7 @@ ALLOWED_TRANSITIONS: Dict[Optional[ParcelStatus], Set[ParcelStatus]] = {
         ParcelStatus.EN_COURS,
         ParcelStatus.SOUS_TRAITE,
         ParcelStatus.EN_DEPOT,
+        ParcelStatus.ASSIGNE,
     },
     ParcelStatus.EN_COURS: {
         ParcelStatus.LIVRE_ENCAISSE,

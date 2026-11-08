@@ -193,6 +193,8 @@ export default function DispatchPage() {
       setAssignSuccessMessage(
         `${selectedParcelIds.length} colis assigné(s) avec succès à la tournée de ${assignedCourier?.name || "Livreur"} !`
       );
+      // Retirer immédiatement les colis assignés du stock en dépôt affiché
+      setStockParcels((prev) => prev.filter((p) => !selectedParcelIds.includes(p.id)));
       setSelectedParcelIds([]);
       await loadStockParcels();
       await loadTours();

@@ -221,12 +221,14 @@ class TestRESTandGraphQLAPI:
         assert p2_res.status_code == 201
         p2_id = p2_res.json()["id"]
 
-        # 2. Assign both parcels to Courier 3 on 2026-12-15
+        # 2. Assign both parcels to a courier on a unique date
+        import uuid
+        unique_date = f"2026-12-{uuid.uuid4().int % 28 + 1:02d}"
         tour_res = client.post(
             "/api/v1/tours",
             json={
                 "courier_id": 3,
-                "tour_date": "2026-12-15",
+                "tour_date": unique_date,
                 "parcel_ids": [p1_id, p2_id],
             },
             headers=headers,

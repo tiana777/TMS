@@ -277,47 +277,22 @@ export async function createOrAssignTour(courierId: number, tourDate: string, pa
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  try {
-    const res = await fetch(`${API_BASE_URL}/tours`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        courier_id: courierId,
-        tour_date: tourDate,
-        parcel_ids: parcelIds,
-      }),
-    });
-
-    if (!res.ok) {
-      if (res.status === 401 || res.status === 403) {
-        console.warn("API non authentifiée, mode démo activé");
-        return {
-          id: 1,
-          tour_date: tourDate,
-          courier_id: courierId,
-          status: "ASSIGNE",
-          theoretical_total: 50000,
-          actual_remitted: 0,
-          discrepancy: -50000,
-        };
-      }
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || "Erreur lors de l'assignation de la tournée.");
-    }
-
-    return await res.json();
-  } catch (e: any) {
-    console.warn("API hors-ligne, simulation d'assignation en mode démo", e);
-    return {
-      id: 1,
-      tour_date: tourDate,
+  const res = await fetch(`${API_BASE_URL}/tours`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
       courier_id: courierId,
-      status: "ASSIGNE",
-      theoretical_total: 50000,
-      actual_remitted: 0,
-      discrepancy: -50000,
-    };
+      tour_date: tourDate,
+      parcel_ids: parcelIds,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de l'assignation de la tournée.");
   }
+
+  return await res.json();
 }
 
 export async function unassignParcelFromTour(tourId: number, parcelId: number) {

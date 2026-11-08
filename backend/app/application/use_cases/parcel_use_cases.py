@@ -25,7 +25,7 @@ from backend.app.domain.state_machine.parcel_fsm import (
 from backend.app.domain.value_objects.axis import LogisticAxis
 from backend.app.domain.value_objects.money import Money
 from backend.app.domain.value_objects.phone_number import PhoneNumber
-from backend.app.infrastructure.persistence.models import ParcelStatusHistoryORM
+from backend.app.infrastructure.persistence.models import ParcelORM, ParcelStatusHistoryORM
 from backend.app.infrastructure.persistence.repositories import PostgresParcelRepository
 
 
