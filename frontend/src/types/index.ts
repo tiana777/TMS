@@ -62,6 +62,8 @@ export interface Parcel {
   incident_reason?: string | null;
   partner_name?: string | null;
   partner_reference?: string | null;
+  driver_contact?: string | null;
+  vehicle_plate?: string | null;
   observation?: string | null;
   active: boolean;
 }

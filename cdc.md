@@ -318,21 +318,26 @@ sequenceDiagram
 *   Le superviseur regroupe les colis Province selon leur gare de départ (Ambodivona pour l'Est, Fasan'ny Karana pour le Sud, Andohatapenaka pour le Nord/Ouest).
 *   Le superviseur édite la feuille de route du chauffeur de navette et remet une **avance de caisse de trésorerie** pour payer les frais de fret demandés par chaque coopérative.
 
-#### Phase 3 : Dépôt au Guichet & Obtention du Titre de Transport
-*   Le chauffeur de navette remet le colis au guichet de la coopérative concernée, s'acquitte des frais de transport (`frais_partenaire`), et exige le récépissé officiel physique.
-*   Le chauffeur ou le superviseur enregistre immédiatement dans le système les données de traçabilité obligatoires :
-    *   Nom de la coopérative (`nom_partenaire`) ;
-    *   Numéro officiel du récépissé (`reference_partenaire`) ;
-    *   Numéro de téléphone direct du guichetier ou du chef de station à destination ;
-    *   Montant exact des frais de fret décaissés (`frais_partenaire`).
+#### Phase 3 : Dépôt au Guichet, Remise au Véhicule & Preuves de Départ (Chauffeur & Voiture)
+*   Le chauffeur de navette remet le colis au guichet de la coopérative concernée ou directement au taxi-brousse affrété, s'acquitte des frais de fret (`frais_partenaire`), et exige le récépissé officiel physique.
+*   **Enregistrement Obligatoire des Preuves d'Embarquement :**
+    Le chauffeur ou le superviseur enregistre immédiatement dans le système les données de traçabilité complètes :
+    1.  Nom de la coopérative (`nom_partenaire`) ;
+    2.  Numéro officiel du récépissé (`reference_partenaire`) ;
+    3.  **Numéro de Voiture / Immatriculation Taxi-Brousse** (`vehicle_plate` / `numero_voiture`, ex: `1234 TAB`, n° coopérative) ;
+    4.  **Coordonnées Directes du Chauffeur** (`driver_contact`, ex: `Nom & Numéro de téléphone direct`) ;
+    5.  Montant exact des frais de fret décaissés (`frais_partenaire`).
 *   Le statut du colis passe automatiquement de `ASSIGNE` à **`SOUS_TRAITE`**.
 
-#### Phase 4 : Acheminement Routier National & Suivi
+#### Phase 4 : Déclenchement du Paiement COD Province & Acheminement Routier
+*   **Règle Fondamentale du COD Province (Paiement à la Mise en Voiture) :**
+    *   **Cas 1 : Envoi Sans COD (Course Simple Province / Port Payé) :** La valeur marchande est nulle ($\text{Montant Marchandise} = 0\text{ Ar}$) ou déjà prépayée au cybermarchand. Aucun encaissement n'est exigé du destinataire.
+    *   **Cas 2 : Envoi Avec COD Province :** Le client destinataire en province refuse de payer à l'aveugle avant que le colis ne soit effectivement confié au transporteur. **Dès que le colis est sous-traité et que les preuves de départ (Récépissé + N° de Voiture + Coordonnées du Chauffeur) sont transmises au client destinataire, celui-ci débloque et effectue immédiatement son paiement COD par Mobile Money (MVola, Orange Money, Airtel Money).**
 *   Délais d'acheminement indicatifs moyens constatés :
     *   Liaisons rapides (Antsirabe, Toamasina) : **12 à 24 heures**.
     *   Liaisons moyennes (Mahajanga, Fianarantsoa) : **24 à 48 heures**.
     *   Liaisons longues (Toliara, Antsiranana/Diego, Sambava, Fort-Dauphin) : **48 à 72 heures et plus**.
-*   Le destinataire est notifié par SMS automatique comportant le numéro de bordereau TMS Express, le nom de la coopérative, le numéro de récépissé, et les consignes pour retirer le colis au guichet d'arrivée.
+*   Le destinataire est notifié automatiquement par SMS / message comportant : le numéro de bordereau TMS Express, le nom de la coopérative, le numéro de récépissé, l'immatriculation du taxi-brousse, et le numéro direct du chauffeur.
 
 #### Phase 5 : Retrait au Guichet Destination & Clôture Financière
 *   Le destinataire se présente au guichet de la coopérative muni d'une pièce d'identité officielle et du récépissé.
@@ -345,9 +350,10 @@ Pour toute expédition en Province, les flux financiers sont distincts et transp
 2.  **Frais de Fret Coopérative (`frais_partenaire`) :** Tarif payé à la coopérative de transport pour le trajet inter-villes (ex: $10\,000\text{ Ar}$).
 3.  **Règle de Décharge Navette Gare :**
     $$\text{Décharge Navette} = \text{Avance de Caisse} - \Big(\text{Reliquat Espèces Rendu} + \sum \text{Frais de Fret Justifiés par Récépissés}\Big) = 0\text{ Ar}$$
-4.  **Recouvrement COD Province :**
-    *   *Option A (Pré-paiement Mobile Money) :* L'acheteur final règle la marchandise par MVola, Airtel Money ou Orange Money avant que le colis ne quitte le Hub Central.
-    *   *Option B (Encaissement au Guichet Coopérative) :* La coopérative encaisse le montant COD lors de la délivrance et le reverse par transfert Mobile Money sécurisé sur le compte marchand de TMS Express.
+4.  **Recouvrement COD Province (Possibilité Avec ou Sans COD) :**
+    *   *Cas 1 : Envoi Sans COD (Course Simple / Port Payé) :* Aucune valeur marchande à percevoir ($\text{COD} = 0\text{ Ar}$), seuls les frais d'expédition sont dus.
+    *   *Cas 2 : Envoi Avec COD Province (Déblocage Mobile Money à la Mise en Voiture - Règle Standard) :* Le client destinataire en province effectue son transfert Mobile Money (MVola, Orange Money, Airtel Money) dès réception des preuves irréfutables d'embarquement : **Coordonnées du chauffeur (Nom & Tél)** + **Numéro de voiture (Immatriculation)** + **Récépissé officiel**.
+    *   *Cas 3 : Encaissement au Guichet Coopérative :* La coopérative encaisse le montant COD lors de la délivrance et le reverse par transfert Mobile Money sécurisé sur le compte marchand de TMS Express.
 
 ---
 

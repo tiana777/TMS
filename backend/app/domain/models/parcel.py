@@ -56,6 +56,8 @@ class Parcel:
     payment_method: Optional[PaymentMethod] = None
     partner_reference: Optional[str] = None
     partner_name: Optional[str] = None
+    driver_contact: Optional[str] = None
+    vehicle_plate: Optional[str] = None
     observation: Optional[str] = None
     active: bool = True
     created_at: Optional[datetime] = None
@@ -188,7 +190,14 @@ class Parcel:
         self.incident_reason = reason
         self.status = ParcelStatus.ANNULE_RETOUR
 
-    def outsource_to_province(self, partner_name: str, partner_reference: str, partner_fee: Money) -> None:
+    def outsource_to_province(
+        self,
+        partner_name: str,
+        partner_reference: str,
+        partner_fee: Money,
+        driver_contact: Optional[str] = None,
+        vehicle_plate: Optional[str] = None,
+    ) -> None:
         """Handover to regional transport cooperative at bus station."""
         ctx = TransitionContext(
             partner_name=partner_name,
@@ -199,6 +208,8 @@ class Parcel:
         self.partner_name = partner_name
         self.partner_reference = partner_reference
         self.partner_fee = partner_fee
+        self.driver_contact = driver_contact
+        self.vehicle_plate = vehicle_plate
         self.status = ParcelStatus.SOUS_TRAITE
 
     def confirm_province_pickup(self) -> None:

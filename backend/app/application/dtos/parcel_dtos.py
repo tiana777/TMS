@@ -66,6 +66,8 @@ class UpdateParcelStatusDTO(BaseModel):
     partner_name: Optional[str] = None
     partner_reference: Optional[str] = None
     partner_fee: Optional[int] = None
+    driver_contact: Optional[str] = None
+    vehicle_plate: Optional[str] = None
 
 
 class ParcelResponseDTO(BaseModel):
@@ -103,5 +105,7 @@ class ParcelResponseDTO(BaseModel):
     incident_reason: Optional[str] = None
     partner_name: Optional[str] = None
     partner_reference: Optional[str] = None
+    driver_contact: Optional[str] = None
+    vehicle_plate: Optional[str] = None
     observation: Optional[str] = None
     active: bool

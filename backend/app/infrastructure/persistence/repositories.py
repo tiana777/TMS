@@ -63,6 +63,8 @@ class PostgresParcelRepository(IParcelRepository):
             payment_method=PaymentMethod(orm.mode_paiement) if orm.mode_paiement else None,
             partner_reference=orm.reference_partenaire,
             partner_name=orm.nom_partenaire,
+            driver_contact=orm.driver_contact,
+            vehicle_plate=orm.vehicle_plate,
             observation=orm.observation,
             active=bool(orm.actif),
             created_at=orm.created_at,
@@ -100,6 +102,8 @@ class PostgresParcelRepository(IParcelRepository):
             mode_paiement=domain.payment_method.value if domain.payment_method else None,
             reference_partenaire=domain.partner_reference,
             nom_partenaire=domain.partner_name,
+            driver_contact=domain.driver_contact,
+            vehicle_plate=domain.vehicle_plate,
             actif=1 if domain.active else 0,
         )
 
@@ -135,6 +139,8 @@ class PostgresParcelRepository(IParcelRepository):
                 orm.mode_paiement = parcel.payment_method.value if parcel.payment_method else None
                 orm.reference_partenaire = parcel.partner_reference
                 orm.nom_partenaire = parcel.partner_name
+                orm.driver_contact = parcel.driver_contact
+                orm.vehicle_plate = parcel.vehicle_plate
                 orm.actif = 1 if parcel.active else 0
                 orm.updated_at = datetime.utcnow()
                 self.session.commit()

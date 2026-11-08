@@ -74,6 +74,8 @@ class ParcelUseCases:
             incident_reason=p.incident_reason,
             partner_name=p.partner_name,
             partner_reference=p.partner_reference,
+            driver_contact=p.driver_contact,
+            vehicle_plate=p.vehicle_plate,
             observation=p.observation,
             active=p.active,
         )
@@ -191,7 +193,13 @@ class ParcelUseCases:
             if not dto.partner_name or not dto.partner_reference:
                 raise BusinessRuleViolationException("Nom de la coopérative et récépissé obligatoires.")
             partner_fee = Money(dto.partner_fee or 0)
-            parcel.outsource_to_province(dto.partner_name, dto.partner_reference, partner_fee)
+            parcel.outsource_to_province(
+                dto.partner_name,
+                dto.partner_reference,
+                partner_fee,
+                dto.driver_contact,
+                dto.vehicle_plate,
+            )
 
         elif target_status == ParcelStatus.EN_DEPOT:
             if old_status == ParcelStatus.ASSIGNE:

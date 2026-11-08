@@ -477,11 +477,11 @@ class TestRESTandGraphQLAPI:
         p2_id = p2_res.json()["id"]
 
         # 3. Create tour and assign parcels
-        unique_date = f"2026-11-{(uuid.uuid4().int % 25) + 1:02d}"
+        unique_date = f"{2040 + (uuid.uuid4().int % 50):04d}-{uuid.uuid4().int % 12 + 1:02d}-{uuid.uuid4().int % 28 + 1:02d}"
         tour_res = client.post(
             "/api/v1/tours",
             json={
-                "courier_id": 1,
+                "courier_id": 2,
                 "tour_date": unique_date,
                 "parcel_ids": [p1_id, p2_id],
             },
@@ -677,4 +677,69 @@ class TestRESTandGraphQLAPI:
         v_data = vendor_res.json()
         assert v_data["adresse"] == "Pavillon Analakely Box 99"
         assert v_data["modalite_paiement"] == "FACTURE_MENSUELLE"
+
+    def test_province_outsource_with_vehicle_and_driver_and_cod_collection(self):
+        login_res = client.post(
+            "/api/v1/auth/login",
+            json={"username": "admin", "password": "admin123"},
+        )
+        assert login_res.status_code == 200
+        token = login_res.json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # 1. Create a province parcel with COD
+        import uuid
+        uid = uuid.uuid4().hex[:4]
+        res = client.post(
+            "/api/v1/parcels",
+            json={
+                "tracking_number": f"PRV-{uid}",
+                "reception_date": "2026-11-08",
+                "vendor_id": 1,
+                "recipient_name": "Rabe Province",
+                "recipient_phone": "0345566778",
+                "delivery_address": "Gare Ambodivona vers Tamatave",
+                "axis": "AXE_PROVINCE",
+                "flux_type": "PROVINCE",
+                "merchandise_amount": 75000,
+                "delivery_fee": 10000,
+            },
+            headers=headers,
+        )
+        assert res.status_code == 201
+        p_id = res.json()["id"]
+
+        # 2. Outsource to province with vehicle plate & driver contact
+        outsource_res = client.patch(
+            f"/api/v1/parcels/{p_id}/status",
+            json={
+                "status": "SOUS_TRAITE",
+                "partner_name": "Cotisse Transport",
+                "partner_reference": f"COT-{uid}",
+                "partner_fee": 12000,
+                "vehicle_plate": "1234 TAB",
+                "driver_contact": "Rakoto 034 11 222 33",
+            },
+            headers=headers,
+        )
+        assert outsource_res.status_code == 200
+        data = outsource_res.json()
+        assert data["status"] == "SOUS_TRAITE"
+        assert data["vehicle_plate"] == "1234 TAB"
+        assert data["driver_contact"] == "Rakoto 034 11 222 33"
+        assert data["partner_reference"] == f"COT-{uid}"
+
+        # 3. Upon receiving driver & vehicle proof, recipient pays COD via MVola
+        pay_res = client.patch(
+            f"/api/v1/parcels/{p_id}/status",
+            json={
+                "status": "ENCAISSE",
+                "payment_method": "MVOLA",
+            },
+            headers=headers,
+        )
+        assert pay_res.status_code == 200
+        paid_data = pay_res.json()
+        assert paid_data["status"] == "ENCAISSE"
+        assert paid_data["payment_method"] == "MVOLA"
 

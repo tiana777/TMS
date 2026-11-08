@@ -387,6 +387,8 @@ export interface UpdateParcelStatusPayload {
   partner_name?: string;
   partner_reference?: string;
   partner_fee?: number;
+  driver_contact?: string;
+  vehicle_plate?: string;
 }
 
 export async function updateParcelStatus(parcelId: number, payload: UpdateParcelStatusPayload) {

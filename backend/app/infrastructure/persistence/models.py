@@ -187,6 +187,8 @@ class ParcelORM(Base):
     )
     reference_partenaire = Column(String(50), nullable=True)
     nom_partenaire = Column(String(100), nullable=True)
+    driver_contact = Column(String(100), nullable=True)
+    vehicle_plate = Column(String(50), nullable=True)
     actif = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

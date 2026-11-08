@@ -253,15 +253,30 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
       }
     }).as("cancelParcel");
 
-    cy.intercept("PATCH", "**/api/v1/parcels/304/status", {
-      statusCode: 200,
-      body: {
-        ...mockParcels[3],
-        status: "SOUS_TRAITE",
-        partner_name: "Cotisse Transport",
-        partner_reference: "COT-99482",
-        partner_fee: 10000,
-      },
+    cy.intercept("PATCH", "**/api/v1/parcels/304/status", (req) => {
+      if (req.body.status === "SOUS_TRAITE") {
+        req.reply({
+          statusCode: 200,
+          body: {
+            ...mockParcels[3],
+            status: "SOUS_TRAITE",
+            partner_name: req.body.partner_name || "Cotisse Transport",
+            partner_reference: req.body.partner_reference || "COT-99482",
+            partner_fee: req.body.partner_fee || 10000,
+            vehicle_plate: req.body.vehicle_plate || "1234 TAB",
+            driver_contact: req.body.driver_contact || "Rakoto 034 11 222 33",
+          },
+        });
+      } else if (req.body.status === "ENCAISSE" || req.body.status === "LIVRE_ENCAISSE") {
+        req.reply({
+          statusCode: 200,
+          body: {
+            ...mockParcels[3],
+            status: "ENCAISSE",
+            payment_method: req.body.payment_method || "MVOLA",
+          },
+        });
+      }
     }).as("outsourceParcel");
 
     cy.intercept("PATCH", "**/api/v1/parcels/*/contact", (req) => {
@@ -417,7 +432,7 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
     });
   });
 
-  it("Test 5: Écran 05 Pointage - Dépôt en Gare Routière Province (SOUS_TRAITE)", () => {
+  it("Test 5: Écran 05 Pointage - Dépôt en Gare Routière Province (SOUS_TRAITE) & Encaissement COD après Réception Coordonnées Chauffeur", () => {
     cy.visit("/tracking");
     cy.wait(["@getParcels", "@getTours", "@getCouriers"]);
 
@@ -428,6 +443,8 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
     cy.get('[data-cy="modal-outsource"]').within(() => {
       cy.get('[data-cy="outsource-partner-select"]').select("Cotisse Transport");
       cy.get('[data-cy="outsource-ref-input"]').clear().type("COT-99482");
+      cy.get('[data-cy="outsource-plate-input"]').clear().type("1234 TAB");
+      cy.get('[data-cy="outsource-driver-input"]').clear().type("Rakoto 034 11 222 33");
       cy.get('[data-cy="outsource-fee-input"]').clear().type("10000");
       cy.get('[data-cy="btn-confirm-outsource"]').click();
     });
@@ -437,12 +454,35 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
       expect(body.partner_name).to.equal("Cotisse Transport");
       expect(body.partner_reference).to.equal("COT-99482");
       expect(body.partner_fee).to.be.at.least(10000);
+      expect(body.vehicle_plate).to.equal("1234 TAB");
+      expect(body.driver_contact).to.equal("Rakoto 034 11 222 33");
     });
 
     cy.get('[data-cy="parcel-row-304"]').within(() => {
       cy.contains("Sous-traité Gare").should("be.visible");
       cy.contains("Cotisse Transport").should("be.visible");
       cy.contains("COT-99482").should("be.visible");
+      cy.contains("1234 TAB").should("be.visible");
+      cy.contains("Rakoto 034 11 222 33").should("be.visible");
+      // Le bouton d'encaissement COD est maintenant visible pour ce colis province sous-traité
+      cy.get('[data-cy="btn-collect-province-cod-304"]').should("be.visible").click();
+    });
+
+    // Modale d'encaissement du COD Province
+    cy.get('[data-cy="modal-deliver"]').should("be.visible");
+    cy.get('[data-cy="modal-deliver"]').within(() => {
+      cy.contains("40 000 Ar").should("be.visible");
+      cy.get('[data-cy="payment-method-mvola"]').click();
+      cy.get('[data-cy="btn-confirm-deliver"]').click();
+    });
+
+    cy.wait("@outsourceParcel").its("request.body").should((body) => {
+      expect(body.status).to.equal("ENCAISSE");
+      expect(body.payment_method).to.equal("MVOLA");
+    });
+
+    cy.get('[data-cy="parcel-row-304"]').within(() => {
+      cy.contains("Encaissé").should("be.visible");
     });
   });
 

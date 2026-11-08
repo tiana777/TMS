@@ -103,6 +103,8 @@ interface Parcel {
   incident_reason?: string;
   partner_name?: string;
   partner_reference?: string;
+  driver_contact?: string;
+  vehicle_plate?: string;
   observation?: string;
 }
 
@@ -187,6 +189,8 @@ export default function TrackingPage() {
   const [partnerName, setPartnerName] = useState<string>("Cotisse Transport");
   const [partnerReference, setPartnerReference] = useState<string>("");
   const [partnerFee, setPartnerFee] = useState<number>(10000);
+  const [driverContact, setDriverContact] = useState<string>("");
+  const [vehiclePlate, setVehiclePlate] = useState<string>("");
 
   // Load custom reasons from localStorage or fallback to defaults
   useEffect(() => {
@@ -532,7 +536,7 @@ export default function TrackingPage() {
       const payload: UpdateParcelStatusPayload = { status: "EN_COURS" };
 
       if (activeModal === "DELIVER") {
-        payload.status = targetParcel.status === "LIVRE" ? "ENCAISSE" : "LIVRE_ENCAISSE";
+        payload.status = targetParcel.status === "LIVRE" || targetParcel.status === "SOUS_TRAITE" ? "ENCAISSE" : "LIVRE_ENCAISSE";
         payload.payment_method = selectedPaymentMethod;
       } else if (activeModal === "MARK_DELIVERED") {
         payload.status = "LIVRE";
@@ -556,6 +560,8 @@ export default function TrackingPage() {
         payload.partner_name = partnerName;
         payload.partner_reference = partnerReference.trim();
         payload.partner_fee = Number(partnerFee) || 0;
+        payload.driver_contact = driverContact.trim() || undefined;
+        payload.vehicle_plate = vehiclePlate.trim() || undefined;
         if (!payload.partner_reference) {
           throw new Error("Le numéro de récépissé officiel de la coopérative est obligatoire.");
         }
@@ -585,6 +591,8 @@ export default function TrackingPage() {
                 incident_reason: payload.incident_reason,
                 partner_name: payload.partner_name,
                 partner_reference: payload.partner_reference,
+                driver_contact: payload.driver_contact,
+                vehicle_plate: payload.vehicle_plate,
               }
             : p
         )
@@ -968,10 +976,17 @@ export default function TrackingPage() {
                       </p>
                     )}
                     {parcel.status === "SOUS_TRAITE" && (
-                      <p className="text-xs font-semibold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200 inline-block">
-                        🏢 Gare / Coopérative : {parcel.partner_name} • Récépissé :{" "}
-                        {parcel.partner_reference} ({parcel.partner_fee?.toLocaleString()} Ar frais)
-                      </p>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <p className="text-xs font-semibold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200 inline-block">
+                          🚌 Gare / Coopérative : {parcel.partner_name} • Récépissé :{" "}
+                          {parcel.partner_reference} ({parcel.partner_fee?.toLocaleString()} Ar frais)
+                        </p>
+                        {(parcel.vehicle_plate || parcel.driver_contact) && (
+                          <p className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200 inline-block">
+                            🚗 Voiture : {parcel.vehicle_plate || "N/A"} • 📞 Chauffeur : {parcel.driver_contact || "N/A"}
+                          </p>
+                        )}
+                      </div>
                     )}
                     {parcel.payment_method && (
                       <p className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 inline-block">
@@ -1125,6 +1140,16 @@ export default function TrackingPage() {
                           Livré & Réglé (0 Ar)
                         </span>
                       )
+                    ) : parcel.status === "SOUS_TRAITE" && parcel.total_to_collect > 0 ? (
+                      <button
+                        data-cy={`btn-collect-province-cod-${parcel.id}`}
+                        onClick={() => openModal("DELIVER", parcel)}
+                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition shadow flex items-center gap-1.5 animate-pulse"
+                        title="Encaisser le COD Mobile Money versé par le client après réception des coordonnées chauffeur & n° voiture"
+                      >
+                        <DollarSign className="w-3.5 h-3.5" />
+                        Encaisser COD ({parcel.total_to_collect?.toLocaleString()} Ar)
+                      </button>
                     ) : (
                       <span className="text-xs font-bold text-slate-400 italic px-2 py-1">
                         Pointage clôturé
@@ -1388,7 +1413,9 @@ export default function TrackingPage() {
               </div>
               <div>
                 <h3 className="font-black text-lg text-slate-800">
-                  {targetParcel.status === "LIVRE" ? "Validation d'Encaissement" : "Validation de Livraison & Encaissement"}
+                  {targetParcel.status === "LIVRE" || targetParcel.status === "SOUS_TRAITE"
+                    ? "Validation d'Encaissement"
+                    : "Validation de Livraison & Encaissement"}
                 </h3>
                 <p className="text-xs text-slate-500">
                   Colis BDR-{targetParcel.tracking_number} • {targetParcel.recipient_name}
@@ -2113,6 +2140,35 @@ export default function TrackingPage() {
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block uppercase tracking-wider mb-1">
+                    N° de Voiture / Immatriculation
+                  </label>
+                  <input
+                    data-cy="outsource-plate-input"
+                    type="text"
+                    placeholder="Ex: 1234 TAB / N° 14"
+                    value={vehiclePlate}
+                    onChange={(e) => setVehiclePlate(e.target.value)}
+                    className="w-full px-3 py-2 text-xs font-bold border border-slate-300 rounded-xl focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block uppercase tracking-wider mb-1">
+                    Coordonnées Chauffeur (Nom & Tél)
+                  </label>
+                  <input
+                    data-cy="outsource-driver-input"
+                    type="text"
+                    placeholder="Ex: Rakoto 034 11 222 33"
+                    value={driverContact}
+                    onChange={(e) => setDriverContact(e.target.value)}
+                    className="w-full px-3 py-2 text-xs font-bold border border-slate-300 rounded-xl focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="text-xs font-bold text-slate-700 block uppercase tracking-wider mb-1">
                   Frais de Fret Payés en Gare (Ariary)
@@ -2125,6 +2181,12 @@ export default function TrackingPage() {
                   onChange={(e) => setPartnerFee(Number(e.target.value))}
                   className="w-full px-3 py-2 text-xs font-bold border border-slate-300 rounded-xl focus:outline-none focus:border-purple-500"
                 />
+              </div>
+
+              <div className="bg-purple-50/80 p-3 rounded-xl border border-purple-200 text-purple-900 text-[11px] leading-relaxed">
+                <strong>💡 Preuves d'Embarquement Province :</strong> Le numéro de récépissé, l'immatriculation du
+                taxi-brousse et le contact du chauffeur constituent la preuve formelle transmise au client destinataire.
+                Si le colis comporte un COD, ce dernier effectue alors son transfert Mobile Money vers TMS Express.
               </div>
             </div>
 
