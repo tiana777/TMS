@@ -38,7 +38,7 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
     }).as("getCouriers");
 
     // Intercept Stock Parcels
-    cy.intercept("GET", "**/api/v1/parcels*status=EN_DEPOT*", {
+    cy.intercept("GET", "**/api/v1/parcels*", {
       statusCode: 200,
       body: [
         {

@@ -280,7 +280,8 @@ export default function DispatchPage() {
   };
 
   // Strictly Urban parcels on this page (CDC Section 4.1 & Écran 03A)
-  const urbanStockParcels = stockParcels.filter((p) => p.axis !== "AXE_PROVINCE");
+  // Parcels manually overridden in this screen also remain visible to display the manual choice badge
+  const urbanStockParcels = stockParcels.filter((p) => p.axis !== "AXE_PROVINCE" || p.is_manual_axis);
   const totalProvinceStock = stockParcels.filter((p) => p.axis === "AXE_PROVINCE").length;
 
   const selectedCourier = couriers.find((c) => c.id === Number(assignedCourierId));
@@ -310,15 +311,21 @@ export default function DispatchPage() {
     }
   };
 
-  // Filtered urban parcels for Écran 03A
-  const filteredParcels = urbanStockParcels.filter((p) => {
+  // Filtered parcels for Écran 03A: urban by default, or specific axis including province if explicitly selected
+  const sourceParcels = selectedAxis === "AXE_PROVINCE" ? stockParcels : urbanStockParcels;
+  const filteredParcels = sourceParcels.filter((p) => {
     if (selectedAxis !== "ALL" && p.axis !== selectedAxis) return false;
+    if (selectedAxis === "AXE_PROVINCE" && selectedGare !== "ALL") {
+      if (!p.delivery_address?.toLowerCase().includes(selectedGare.toLowerCase())) {
+        return false;
+      }
+    }
     if (searchQuery.trim() !== "") {
       const q = searchQuery.toLowerCase();
       const matchBDR = p.tracking_number.toLowerCase().includes(q);
-      const matchClient = p.recipient_name.toLowerCase().includes(q);
-      const matchPhone = p.recipient_phone.includes(q);
-      const matchAddress = p.delivery_address.toLowerCase().includes(q);
+      const matchClient = p.recipient_name?.toLowerCase().includes(q);
+      const matchPhone = p.recipient_phone?.includes(q);
+      const matchAddress = p.delivery_address?.toLowerCase().includes(q);
       const matchSender = p.sender_name?.toLowerCase().includes(q);
       const matchItem = p.designation?.toLowerCase().includes(q);
       if (!matchBDR && !matchClient && !matchPhone && !matchAddress && !matchSender && !matchItem) {
@@ -437,11 +444,11 @@ export default function DispatchPage() {
               03A. Dispatching Urbain — Livraison en Ville
             </h1>
             <span className="px-2 py-0.5 text-xs font-black bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded">
-              Grand Tanà
+              Hub Tsiazotafo • Grand Tanà
             </span>
           </div>
           <p className="text-sm text-slate-400 mt-1">
-            Affectation matinale des 7 axes radiaux urbains aux coursiers (Plafond de colis paramétrable)
+            03. Dispatching & Feuilles de Route • Affectation matinale des 7 axes radiaux urbains aux coursiers (Plafond de colis paramétrable)
           </p>
         </div>
 

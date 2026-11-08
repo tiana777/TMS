@@ -36,6 +36,14 @@ import {
 } from "@/lib/api";
 import { Parcel, Tour, Courier, ParcelStatus } from "@/types";
 
+function formatMGA(amount: number): string {
+  return amount.toLocaleString("fr-FR").replace(/[\u202f\u00a0]/g, " ") + " Ar";
+}
+
+function formatNumber(amount: number): string {
+  return amount.toLocaleString("fr-FR").replace(/[\u202f\u00a0]/g, " ");
+}
+
 export default function CashAndClosurePage() {
   const [activeTab, setActiveTab] = useState<"caisse" | "decharge">("caisse");
   const [selectedDate, setSelectedDate] = useState<string>("2026-11-08");
@@ -320,8 +328,8 @@ export default function CashAndClosurePage() {
           cashDiscrepancy === 0
             ? "0 Ar (Équilibrée)"
             : cashDiscrepancy < 0
-            ? `${cashDiscrepancy.toLocaleString("fr-FR")} Ar (Déficit consigné en litige)`
-            : `+${cashDiscrepancy.toLocaleString("fr-FR")} Ar (Excédent)`
+            ? `${formatMGA(cashDiscrepancy)} (Déficit consigné en litige)`
+            : `+${formatMGA(cashDiscrepancy)} (Excédent)`
         }`
       );
 
@@ -571,7 +579,7 @@ export default function CashAndClosurePage() {
                   <Coins className="w-5 h-5 text-emerald-600" />
                 </div>
                 <div className="text-2xl font-black text-slate-900">
-                  {cashMetrics.totalCOD.toLocaleString("fr-FR")} Ar
+                  {formatMGA(cashMetrics.totalCOD)}
                 </div>
                 <p className="text-xs text-slate-500 mt-1">
                   Sur un volume de {cashMetrics.totalCount} colis COD
@@ -586,7 +594,7 @@ export default function CashAndClosurePage() {
                   <DollarSign className="w-5 h-5 text-teal-600" />
                 </div>
                 <div className="text-2xl font-black text-teal-700">
-                  {cashMetrics.totalEspeces.toLocaleString("fr-FR")} Ar
+                  {formatMGA(cashMetrics.totalEspeces)}
                 </div>
                 <p className="text-xs text-slate-500 mt-1">Cash physique encaissé au Hub</p>
               </div>
@@ -599,14 +607,14 @@ export default function CashAndClosurePage() {
                   <Smartphone className="w-5 h-5 text-amber-600" />
                 </div>
                 <div className="text-2xl font-black text-amber-700">
-                  {cashMetrics.totalMobile.toLocaleString("fr-FR")} Ar
+                  {formatMGA(cashMetrics.totalMobile)}
                 </div>
                 <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500">
-                  <span>MV: {cashMetrics.totalMvola.toLocaleString("fr-FR")}</span>
+                  <span>MV: {formatNumber(cashMetrics.totalMvola)}</span>
                   <span>•</span>
-                  <span>Air: {cashMetrics.totalAirtel.toLocaleString("fr-FR")}</span>
+                  <span>Air: {formatNumber(cashMetrics.totalAirtel)}</span>
                   <span>•</span>
-                  <span>Org: {cashMetrics.totalOrange.toLocaleString("fr-FR")}</span>
+                  <span>Org: {formatNumber(cashMetrics.totalOrange)}</span>
                 </div>
               </div>
 
@@ -618,7 +626,7 @@ export default function CashAndClosurePage() {
                   <Clock className="w-5 h-5 text-indigo-600" />
                 </div>
                 <div className="text-2xl font-black text-indigo-700">
-                  {cashMetrics.pendingValidation.toLocaleString("fr-FR")} Ar
+                  {formatMGA(cashMetrics.pendingValidation)}
                 </div>
                 <p className="text-xs text-slate-500 mt-1">
                   {cashMetrics.closedCount} colis déjà scellés en caisse
@@ -783,13 +791,13 @@ export default function CashAndClosurePage() {
                             </td>
                             <td className="p-4">{getPaymentBadge(parcel.payment_method)}</td>
                             <td className="p-4 text-right font-medium text-slate-600">
-                              {parcel.merchandise_amount.toLocaleString("fr-FR")} Ar
+                              {formatMGA(parcel.merchandise_amount)}
                             </td>
                             <td className="p-4 text-right font-medium text-slate-600">
-                              {parcel.delivery_fee.toLocaleString("fr-FR")} Ar
+                              {formatMGA(parcel.delivery_fee)}
                             </td>
                             <td className="p-4 text-right font-mono font-black text-slate-900">
-                              {parcel.total_to_collect.toLocaleString("fr-FR")} Ar
+                              {formatMGA(parcel.total_to_collect)}
                             </td>
                             <td className="p-4 text-center">{getStatusBadge(parcel.status)}</td>
                             <td className="p-4 text-center">
@@ -875,7 +883,7 @@ export default function CashAndClosurePage() {
                         <div className="text-right">
                           <span className="text-xs text-slate-400 block">Dû estimé</span>
                           <span className="font-mono font-bold text-slate-800 text-sm">
-                            {(t.theoretical_total || 0).toLocaleString("fr-FR")} Ar
+                            {formatMGA(t.theoretical_total || 0)}
                           </span>
                         </div>
                       </div>
@@ -967,7 +975,8 @@ export default function CashAndClosurePage() {
                           type="number"
                           min={0}
                           step={500}
-                          value={remittedCash}
+                          placeholder="0"
+                          value={remittedCash === 0 ? "" : remittedCash}
                           onChange={(e) => setRemittedCash(Number(e.target.value) || 0)}
                           disabled={selectedTourDetail.status === "CLOTURE"}
                           className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-lg text-lg font-mono font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -988,7 +997,8 @@ export default function CashAndClosurePage() {
                           type="number"
                           min={0}
                           step={500}
-                          value={remittedMobile}
+                          placeholder="0"
+                          value={remittedMobile === 0 ? "" : remittedMobile}
                           onChange={(e) => setRemittedMobile(Number(e.target.value) || 0)}
                           disabled={selectedTourDetail.status === "CLOTURE"}
                           className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-lg text-lg font-mono font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-yellow-500"
@@ -1009,7 +1019,8 @@ export default function CashAndClosurePage() {
                           type="number"
                           min={0}
                           step={500}
-                          value={remittedExpenses}
+                          placeholder="0"
+                          value={remittedExpenses === 0 ? "" : remittedExpenses}
                           onChange={(e) => setRemittedExpenses(Number(e.target.value) || 0)}
                           disabled={selectedTourDetail.status === "CLOTURE"}
                           className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-lg text-lg font-mono font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -1030,14 +1041,14 @@ export default function CashAndClosurePage() {
                         <div className="flex items-center justify-between text-slate-600 pb-2 border-b border-slate-200">
                           <span>Total Théorique Dû :</span>
                           <span className="font-bold text-slate-900">
-                            {theoreticalTotal.toLocaleString("fr-FR")} Ar
+                            {formatMGA(theoreticalTotal)}
                           </span>
                         </div>
 
                         <div className="flex items-center justify-between text-slate-600">
                           <span>Total Remis (1+2+3) :</span>
                           <span className="font-bold text-slate-900">
-                            {totalRemitted.toLocaleString("fr-FR")} Ar
+                            {formatMGA(totalRemitted)}
                           </span>
                         </div>
 
@@ -1056,7 +1067,7 @@ export default function CashAndClosurePage() {
                             data-cy="cash-discrepancy-value"
                           >
                             {cashDiscrepancy > 0 ? "+" : ""}
-                            {cashDiscrepancy.toLocaleString("fr-FR")} Ar
+                            {formatMGA(cashDiscrepancy)}
                           </span>
                         </div>
                       </div>
@@ -1082,7 +1093,7 @@ export default function CashAndClosurePage() {
                             <ShieldAlert className="w-4 h-4 text-rose-700 shrink-0 mt-0.5" />
                             <div>
                               <strong className="block font-bold">
-                                Déficit de Caisse : {Math.abs(cashDiscrepancy).toLocaleString("fr-FR")} Ar
+                                Déficit de Caisse : {formatMGA(Math.abs(cashDiscrepancy))}
                               </strong>
                               Un dossier de litige <code className="bg-rose-200 px-1 rounded">DEFICIT_COD</code> sera
                               automatiquement imputé au compte de ce livreur dans le registre des litiges.
@@ -1096,7 +1107,7 @@ export default function CashAndClosurePage() {
                             <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
                             <div>
                               <strong className="block font-bold">
-                                Excédent de Caisse : +{cashDiscrepancy.toLocaleString("fr-FR")} Ar
+                                Excédent de Caisse : +{formatMGA(cashDiscrepancy)}
                               </strong>
                               Le montant remis est supérieur au total théorique des livraisons de la tournée.
                             </div>
@@ -1164,13 +1175,13 @@ export default function CashAndClosurePage() {
                             <td className="p-3">{getStatusBadge(p.status)}</td>
                             <td className="p-3">{getPaymentBadge(p.payment_method)}</td>
                             <td className="p-3 text-right font-mono">
-                              {p.merchandise_amount.toLocaleString("fr-FR")} Ar
+                              {formatMGA(p.merchandise_amount)}
                             </td>
                             <td className="p-3 text-right font-mono">
-                              {p.delivery_fee.toLocaleString("fr-FR")} Ar
+                              {formatMGA(p.delivery_fee)}
                             </td>
                             <td className="p-3 text-right font-mono font-black text-slate-900">
-                              {p.total_to_collect.toLocaleString("fr-FR")} Ar
+                              {formatMGA(p.total_to_collect)}
                             </td>
                           </tr>
                         ))}
@@ -1222,20 +1233,20 @@ export default function CashAndClosurePage() {
               <div className="border-t border-slate-200 pt-2 flex justify-between">
                 <span className="text-slate-500">Total Théorique Dû :</span>
                 <span className="font-bold">
-                  {(receiptData.tour.theoretical_total || 0).toLocaleString("fr-FR")} Ar
+                  {formatMGA(receiptData.tour.theoretical_total || 0)}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Espèces Physiques :</span>
-                <span>{receiptData.cash.toLocaleString("fr-FR")} Ar</span>
+                <span>{formatMGA(receiptData.cash)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Preuves Mobile Money :</span>
-                <span>{receiptData.mobile.toLocaleString("fr-FR")} Ar</span>
+                <span>{formatMGA(receiptData.mobile)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Frais Fret / Dépenses :</span>
-                <span>{receiptData.expenses.toLocaleString("fr-FR")} Ar</span>
+                <span>{formatMGA(receiptData.expenses)}</span>
               </div>
               <div className="border-t-2 border-dashed border-slate-400 pt-2 flex justify-between text-sm font-black">
                 <span>Écart de Caisse :</span>
@@ -1249,7 +1260,7 @@ export default function CashAndClosurePage() {
                   }
                 >
                   {receiptData.discrepancy > 0 ? "+" : ""}
-                  {receiptData.discrepancy.toLocaleString("fr-FR")} Ar
+                  {formatMGA(receiptData.discrepancy)}
                 </span>
               </div>
             </div>
