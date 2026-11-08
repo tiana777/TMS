@@ -102,38 +102,41 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
     }).as("createProvinceBatch");
 
     cy.visit("/inbound");
-    cy.wait(400);
+    cy.wait(1000);
 
     // Saisie de l'expéditeur
     cy.get('[data-testid="type-cybermarchand"]').click();
     cy.get('[data-testid="sender-name-input"]').clear().type("Boutique MadaStyle");
     cy.get('[data-testid="sender-phone-input"]').clear().type("0341122334");
 
-    // Saisie des données du destinataire avec adresse neutre (Itaosy)
+    // Saisie des données du destinataire
     cy.get('[data-testid="input-name-0"]').type("M. Razafy Toamasina");
     cy.get('[data-testid="input-phone-0"]').type("0347788990");
-    cy.wait(400);
+    cy.wait(500);
 
     cy.get('[data-testid="input-designation-0"]').type("Colis Vêtements & Produits Beauté");
-    cy.get('[data-testid="input-address-0"]').type("Itaosy Cité - Livraison spéciale Province");
-    cy.wait(400);
+    cy.get('[data-testid="input-address-0"]').type("Itaosy Cité - Expédition spéciale vers Province");
+    cy.wait(500);
 
-    // Sélection manuelle de l'Axe Province (déclenche onChange et bascule is_manual_axis)
+    // Sélection manuelle de l'Axe Province (8. AXE_PROVINCE)
     cy.get('[data-testid="select-axis-0"]').select("AXE_PROVINCE");
-    cy.wait(300);
+    cy.wait(500);
     cy.get('[data-testid="badge-axis-axe_province"]').should("be.visible");
     cy.contains("Choix Manuel").should("be.visible");
 
-    // Saisie des montants
+    // Saisie financière : Montant Marchandise COD + Frais
     cy.get('[data-testid="input-merch-0"]').type("{selectall}80000");
     cy.get('[data-testid="input-fee-0"]').type("{selectall}15000");
-    cy.wait(400);
+    cy.wait(500);
 
     // Vérifier le total à encaisser (80 000 + 15 000 = 95 000 Ar)
     cy.get('[data-testid="total-to-collect"]').should(($el) => {
       const text = $el.text().replace(/\s+/g, " ").trim();
       expect(text).to.contain("95 000 Ar");
     });
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le formulaire rempli avec l'axe province
+    cy.wait(3000);
 
     // Soumission du lot
     cy.get('[data-testid="submit-batch-btn"]').click();
@@ -146,9 +149,12 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
       expect(p.delivery_fee).to.equal(15000);
     });
 
-    // Confirmation du succès
+    // Confirmation du succès et affichage du bordereau généré
     cy.get('[data-testid="success-modal"]').should("be.visible");
     cy.contains("BDR-PRV-001").should("be.visible");
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le modal de confirmation BDR
+    cy.wait(3000);
   });
 
   it("2. Dispatching & Affectation à la Navette Gares Routières", () => {
@@ -163,18 +169,24 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
     }).as("createNavetteTour");
 
     cy.visit("/dispatch");
-    cy.wait(600);
+    cy.wait(1000);
 
-    // Présence du colis province
+    // Présence du colis province dans le stock en dépôt
     cy.contains("M. Razafy Toamasina").should("be.visible");
     cy.contains("Provinces & Gares Routières").should("be.visible");
     cy.contains("PROVINCE").should("be.visible");
 
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le stock avant sélection
+    cy.wait(3000);
+
     // Sélectionner le colis
     cy.get(`[data-cy="parcel-row-${provinceParcelId}"]`).click();
 
-    // Sélectionner le livreur navette
+    // Sélectionner le livreur navette gares
     cy.get('[data-cy="select-courier"]').select("4");
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le colis coché et la navette sélectionnée
+    cy.wait(3000);
 
     // Valider la tournée
     cy.get('[data-cy="assign-tour-btn"]').should("not.be.disabled").click();
@@ -185,6 +197,9 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
 
     // Confirmation d'assignation
     cy.contains("assigné(s) avec succès").should("be.visible");
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la confirmation de dispatch
+    cy.wait(3000);
   });
 
   it("3. Pointage Terrain - Dépôt en Gare avec Récépissé, Immatriculation Voiture & Chauffeur", () => {
@@ -226,7 +241,7 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
     }).as("outsourceHandover");
 
     cy.visit("/tracking");
-    cy.wait(600);
+    cy.wait(1000);
 
     // Sélectionner la tournée Navette Gares #10
     cy.get('[data-cy="tour-selector"]').select("10");
@@ -234,6 +249,9 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
     // Démarrer la tournée
     cy.get('[data-cy="btn-start-tour"]').should("be.visible").click();
     cy.wait("@startTour10");
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la tournée démarrée (EN_COURS)
+    cy.wait(3000);
 
     // Cliquer sur le bouton Gare
     cy.get(`[data-cy="btn-outsource-${provinceParcelId}"]`).should("be.visible").click();
@@ -246,8 +264,12 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
       cy.get('[data-cy="outsource-plate-input"]').clear().type("2841 TAB");
       cy.get('[data-cy="outsource-driver-input"]').clear().type("Rivo Chauffeur 034 22 334 45");
       cy.get('[data-cy="outsource-fee-input"]').type("{selectall}20000");
-      cy.get('[data-cy="btn-confirm-outsource"]').click();
     });
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la modale remplie avec récépissé, n° voiture et contact chauffeur
+    cy.wait(3000);
+
+    cy.get('[data-cy="btn-confirm-outsource"]').click();
 
     cy.wait("@outsourceHandover").its("request.body").should((body) => {
       expect(body.status).to.equal("SOUS_TRAITE");
@@ -266,6 +288,9 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
       cy.contains("2841 TAB").should("be.visible");
       cy.contains("Rivo Chauffeur 034 22 334 45").should("be.visible");
     });
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la ligne avec toutes les coordonnées du chauffeur et du véhicule
+    cy.wait(3000);
   });
 
   it("4. Déclenchement & Validation de l'Encaissement COD Mobile Money dès Réception des Preuves", () => {
@@ -304,13 +329,17 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
     }).as("collectProvinceCOD");
 
     cy.visit("/tracking");
-    cy.wait(600);
+    cy.wait(1000);
 
     // Le bouton d'encaissement COD est actif pour le colis sous-traité
     cy.get(`[data-cy="btn-collect-province-cod-${provinceParcelId}"]`)
       .should("be.visible")
-      .and("contain", "Encaisser COD")
-      .click();
+      .and("contain", "Encaisser COD");
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le bouton clignotant d'encaissement COD
+    cy.wait(3000);
+
+    cy.get(`[data-cy="btn-collect-province-cod-${provinceParcelId}"]`).click();
 
     // Modale d'encaissement
     cy.get('[data-cy="modal-deliver"]').should("be.visible");
@@ -319,6 +348,12 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
       cy.get('[data-cy="payment-method-mvola"]').click();
       cy.get('[data-cy="mobile-money-phone-input"]').clear().type("034 12 345 67");
       cy.get('[data-cy="mm-phone-success"]').should("be.visible").and("contain", "TELMA");
+    });
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la saisie Mobile Money MVola avec validation regex
+    cy.wait(3000);
+
+    cy.get('[data-cy="modal-deliver"]').within(() => {
       cy.get('[data-cy="btn-confirm-deliver"]').click();
     });
 
@@ -331,6 +366,9 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
     cy.get(`[data-cy="parcel-row-${provinceParcelId}"]`).within(() => {
       cy.contains("Encaissé").should("be.visible");
     });
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le passage au statut Encaissé
+    cy.wait(3000);
   });
 
   it("5. Rapprochement Comptable & Clôture Définitive en Caisse Centrale", () => {
@@ -360,15 +398,22 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
     }).as("closeCashProvince");
 
     cy.visit("/cash");
-    cy.wait(600);
+    cy.wait(1000);
 
     // Le colis province avec COD Mobile Money apparaît dans la caisse centrale
     cy.contains("M. Razafy Toamasina").should("be.visible");
     cy.contains("95 000 Ar").should("be.visible");
     cy.contains("MVola (Telma)").should("be.visible");
 
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le colis en attente de validation caisse
+    cy.wait(3000);
+
     // Valider la clôture de caisse
     cy.get(`[data-cy="select-cash-parcel-${provinceParcelId}"]`).check();
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la case cochée
+    cy.wait(3000);
+
     cy.get('[data-cy="btn-bulk-validate-cash"]').should("be.visible").click();
 
     cy.wait("@closeCashProvince").its("request.body").should((body) => {
@@ -379,5 +424,8 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
     cy.get('[data-cy="cash-success-banner"]')
       .should("be.visible")
       .and("contain", "validé(s) avec succès et clôturé(s)");
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la confirmation de clôture scellée
+    cy.wait(3000);
   });
 });
