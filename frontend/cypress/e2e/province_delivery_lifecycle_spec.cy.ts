@@ -1,3 +1,140 @@
+// @ts-nocheck
+/**
+ * Test E2E Cypress - Cycle Complet de Livraison Province (Ralenti pour observation visuelle en direct)
+ *
+ * Scénario métier couvert :
+ * 1. Écran Inbound (01) : Saisie expéditeur, destinataire en province avec sélection manuelle
+ *    de l'Axe Province (8. AXE_PROVINCE) et calcul automatique du COD (Marchandise 80 000 + Frais 15 000 = 95 000 Ar).
+ * 2. Écran Dispatch (03) : Affichage dans le stock Province et affectation à la Navette Gares Routières (Tournée #10).
+ * 3. Écran Pointage (05) : Démarrage tournée, dépôt physique en gare coopérative (Cotisse Transport),
+ *    saisie obligatoire du récépissé (COT-TMV-88412), du n° de véhicule (2841 TAB), du contact chauffeur
+ *    (Rivo Chauffeur 034 22 334 45) et des frais fret (20 000 Ar).
+ * 4. Écran Pointage (05) - Encaissement COD : Bouton dédié "Encaisser COD", saisie et validation du numéro
+ *    Mobile Money MVola (034 12 345 67) et mise à jour du statut vers ENCAISSE.
+ * 5. Écran Caisse Centrale (07) : Rapprochement bancaire Mobile Money, sélection et validation en lot
+ *    avec clôture scellée (statut CLOTURE_CAISSE).
+ */
+
+// ============================================================================
+// COMMANDES CYPRESS RALENTIES (SLOW-MO & HIGHLIGHT) POUR DÉMONSTRATION VISUELLE
+// ============================================================================
+
+Cypress.Commands.add("slowClick", { prevSubject: "element" }, (subject, pauseAfter = 800) => {
+  cy.wrap(subject)
+    .scrollIntoView({ duration: 250 })
+    .then(($el) => {
+      $el.css({
+        outline: "3px solid #f59e0b",
+        boxShadow: "0 0 16px rgba(245, 158, 11, 0.9)",
+        transition: "all 0.2s ease-in-out",
+      });
+    });
+  cy.wait(600);
+  cy.wrap(subject).click();
+  cy.wait(pauseAfter);
+  cy.wrap(subject).then(($el) => {
+    if ($el && $el.length && document.body.contains($el[0])) {
+      $el.css({ outline: "none", boxShadow: "none" });
+    }
+  });
+});
+
+Cypress.Commands.add("slowType", { prevSubject: "element" }, (subject, text, delay = 75, pauseAfter = 700) => {
+  cy.wrap(subject)
+    .scrollIntoView({ duration: 250 })
+    .then(($el) => {
+      $el.css({
+        outline: "3px solid #3b82f6",
+        boxShadow: "0 0 16px rgba(59, 130, 246, 0.8)",
+        transition: "all 0.2s ease-in-out",
+      });
+    });
+  cy.wait(400);
+  cy.wrap(subject).type(text, { delay });
+  cy.wait(pauseAfter);
+  cy.wrap(subject).then(($el) => {
+    if ($el && $el.length && document.body.contains($el[0])) {
+      $el.css({ outline: "none", boxShadow: "none" });
+    }
+  });
+});
+
+Cypress.Commands.add("slowSelect", { prevSubject: "element" }, (subject, valueOrText, pauseAfter = 800) => {
+  cy.wrap(subject)
+    .scrollIntoView({ duration: 250 })
+    .then(($el) => {
+      $el.css({
+        outline: "3px solid #8b5cf6",
+        boxShadow: "0 0 16px rgba(139, 92, 246, 0.8)",
+        transition: "all 0.2s ease-in-out",
+      });
+    });
+  cy.wait(500);
+  cy.wrap(subject).select(valueOrText);
+  cy.wait(pauseAfter);
+  cy.wrap(subject).then(($el) => {
+    if ($el && $el.length && document.body.contains($el[0])) {
+      $el.css({ outline: "none", boxShadow: "none" });
+    }
+  });
+});
+
+Cypress.Commands.add("slowCheck", { prevSubject: "element" }, (subject, pauseAfter = 800) => {
+  cy.wrap(subject)
+    .scrollIntoView({ duration: 250 })
+    .then(($el) => {
+      $el.css({
+        outline: "3px solid #10b981",
+        boxShadow: "0 0 16px rgba(16, 185, 129, 0.8)",
+        transition: "all 0.2s ease-in-out",
+      });
+    });
+  cy.wait(500);
+  cy.wrap(subject).check();
+  cy.wait(pauseAfter);
+  cy.wrap(subject).then(($el) => {
+    if ($el && $el.length && document.body.contains($el[0])) {
+      $el.css({ outline: "none", boxShadow: "none" });
+    }
+  });
+});
+
+function showStepBanner(stepNumber: number, title: string, subtitle: string) {
+  cy.window({ log: false }).then((win) => {
+    let banner = win.document.getElementById("cypress-demo-banner");
+    if (!banner) {
+      banner = win.document.createElement("div");
+      banner.id = "cypress-demo-banner";
+      banner.style.position = "fixed";
+      banner.style.top = "16px";
+      banner.style.left = "50%";
+      banner.style.transform = "translateX(-50%)";
+      banner.style.zIndex = "999999";
+      banner.style.backgroundColor = "rgba(15, 23, 42, 0.96)";
+      banner.style.color = "#ffffff";
+      banner.style.padding = "10px 24px";
+      banner.style.borderRadius = "9999px";
+      banner.style.boxShadow = "0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 20px rgba(59, 130, 246, 0.5)";
+      banner.style.border = "2px solid #3b82f6";
+      banner.style.fontFamily = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      banner.style.fontSize = "13px";
+      banner.style.fontWeight = "600";
+      banner.style.display = "flex";
+      banner.style.alignItems = "center";
+      banner.style.gap = "10px";
+      banner.style.pointerEvents = "none";
+      banner.style.transition = "all 0.3s ease";
+      win.document.body.appendChild(banner);
+    }
+    banner.innerHTML = `<span style="background-color: #2563eb; color: #fff; padding: 3px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Étape ${stepNumber}/5</span> <span style="color: #93c5fd; font-weight: 700;">${title}</span> <span style="color: #cbd5e1; font-weight: 400;">— ${subtitle}</span>`;
+  });
+  cy.wait(800, { log: false });
+}
+
+// ============================================================================
+// SUITE DE TESTS E2E LIVRAISON PROVINCE
+// ============================================================================
+
 describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Caisse", () => {
   const provinceParcelId = 701;
   const trackingNumber = "PRV-001";
@@ -103,31 +240,27 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
 
     cy.visit("/inbound");
     cy.wait(1000);
+    showStepBanner(1, "INBOUND (PRISE EN CHARGE)", "Sélection manuelle Axe Province & Calcul COD 95 000 Ar");
 
-    // Saisie de l'expéditeur
-    cy.get('[data-testid="type-cybermarchand"]').click();
-    cy.get('[data-testid="sender-name-input"]').clear().type("Boutique MadaStyle");
-    cy.get('[data-testid="sender-phone-input"]').clear().type("0341122334");
+    // Saisie ralentie de l'expéditeur
+    cy.get('[data-testid="type-cybermarchand"]').slowClick(600);
+    cy.get('[data-testid="sender-name-input"]').clear().slowType("Boutique MadaStyle", 70, 500);
+    cy.get('[data-testid="sender-phone-input"]').clear().slowType("0341122334", 70, 500);
 
-    // Saisie des données du destinataire
-    cy.get('[data-testid="input-name-0"]').type("M. Razafy Toamasina");
-    cy.get('[data-testid="input-phone-0"]').type("0347788990");
-    cy.wait(500);
-
-    cy.get('[data-testid="input-designation-0"]').type("Colis Vêtements & Produits Beauté");
-    cy.get('[data-testid="input-address-0"]').type("Itaosy Cité - Expédition spéciale vers Province");
-    cy.wait(500);
+    // Saisie ralentie du destinataire
+    cy.get('[data-testid="input-name-0"]').slowType("M. Razafy Toamasina", 70, 500);
+    cy.get('[data-testid="input-phone-0"]').slowType("0347788990", 70, 500);
+    cy.get('[data-testid="input-designation-0"]').slowType("Colis Vêtements & Produits Beauté", 60, 500);
+    cy.get('[data-testid="input-address-0"]').slowType("Itaosy Cité - Expédition spéciale vers Province", 60, 500);
 
     // Sélection manuelle de l'Axe Province (8. AXE_PROVINCE)
-    cy.get('[data-testid="select-axis-0"]').select("AXE_PROVINCE");
-    cy.wait(500);
+    cy.get('[data-testid="select-axis-0"]').slowSelect("AXE_PROVINCE", 800);
     cy.get('[data-testid="badge-axis-axe_province"]').should("be.visible");
     cy.contains("Choix Manuel").should("be.visible");
 
     // Saisie financière : Montant Marchandise COD + Frais
-    cy.get('[data-testid="input-merch-0"]').type("{selectall}80000");
-    cy.get('[data-testid="input-fee-0"]').type("{selectall}15000");
-    cy.wait(500);
+    cy.get('[data-testid="input-merch-0"]').slowType("{selectall}80000", 60, 400);
+    cy.get('[data-testid="input-fee-0"]').slowType("{selectall}15000", 60, 400);
 
     // Vérifier le total à encaisser (80 000 + 15 000 = 95 000 Ar)
     cy.get('[data-testid="total-to-collect"]').should(($el) => {
@@ -135,11 +268,11 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
       expect(text).to.contain("95 000 Ar");
     });
 
-    // ⏸️ PAUSE DE 3 SECONDES : Observer le formulaire rempli avec l'axe province
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le formulaire rempli
     cy.wait(3000);
 
     // Soumission du lot
-    cy.get('[data-testid="submit-batch-btn"]').click();
+    cy.get('[data-testid="submit-batch-btn"]').slowClick(1000);
     cy.wait("@createProvinceBatch").its("request.body").should((body) => {
       const p = body.parcels ? body.parcels[0] : body[0];
       expect(p.axis).to.equal("AXE_PROVINCE");
@@ -170,6 +303,7 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
 
     cy.visit("/dispatch");
     cy.wait(1000);
+    showStepBanner(2, "DISPATCH HUB", "Stock colis Province & Affectation à la Navette Gares");
 
     // Présence du colis province dans le stock en dépôt
     cy.contains("M. Razafy Toamasina").should("be.visible");
@@ -180,16 +314,16 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
     cy.wait(3000);
 
     // Sélectionner le colis
-    cy.get(`[data-cy="parcel-row-${provinceParcelId}"]`).click();
+    cy.get(`[data-cy="parcel-row-${provinceParcelId}"]`).slowClick(800);
 
     // Sélectionner le livreur navette gares
-    cy.get('[data-cy="select-courier"]').select("4");
+    cy.get('[data-cy="select-courier"]').slowSelect("4", 800);
 
     // ⏸️ PAUSE DE 3 SECONDES : Observer le colis coché et la navette sélectionnée
     cy.wait(3000);
 
     // Valider la tournée
-    cy.get('[data-cy="assign-tour-btn"]').should("not.be.disabled").click();
+    cy.get('[data-cy="assign-tour-btn"]').should("not.be.disabled").slowClick(1000);
     cy.wait("@createNavetteTour").its("request.body").should((body) => {
       expect(body.courier_id).to.equal(4);
       expect(body.parcel_ids).to.include(provinceParcelId);
@@ -242,34 +376,35 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
 
     cy.visit("/tracking");
     cy.wait(1000);
+    showStepBanner(3, "POINTAGE TERRAIN", "Dépôt Gare Cotisse, N° Voiture 2841 TAB & Contact Chauffeur");
 
     // Sélectionner la tournée Navette Gares #10
-    cy.get('[data-cy="tour-selector"]').select("10");
+    cy.get('[data-cy="tour-selector"]').slowSelect("10", 800);
 
     // Démarrer la tournée
-    cy.get('[data-cy="btn-start-tour"]').should("be.visible").click();
+    cy.get('[data-cy="btn-start-tour"]').should("be.visible").slowClick(1000);
     cy.wait("@startTour10");
 
     // ⏸️ PAUSE DE 3 SECONDES : Observer la tournée démarrée (EN_COURS)
     cy.wait(3000);
 
     // Cliquer sur le bouton Gare
-    cy.get(`[data-cy="btn-outsource-${provinceParcelId}"]`).should("be.visible").click();
+    cy.get(`[data-cy="btn-outsource-${provinceParcelId}"]`).should("be.visible").slowClick(800);
 
     // Remplir les données de dépôt et d'embarquement
     cy.get('[data-cy="modal-outsource"]').should("be.visible");
     cy.get('[data-cy="modal-outsource"]').within(() => {
-      cy.get('[data-cy="outsource-partner-select"]').select("Cotisse Transport");
-      cy.get('[data-cy="outsource-ref-input"]').clear().type("COT-TMV-88412");
-      cy.get('[data-cy="outsource-plate-input"]').clear().type("2841 TAB");
-      cy.get('[data-cy="outsource-driver-input"]').clear().type("Rivo Chauffeur 034 22 334 45");
-      cy.get('[data-cy="outsource-fee-input"]').type("{selectall}20000");
+      cy.get('[data-cy="outsource-partner-select"]').slowSelect("Cotisse Transport", 600);
+      cy.get('[data-cy="outsource-ref-input"]').clear().slowType("COT-TMV-88412", 70, 500);
+      cy.get('[data-cy="outsource-plate-input"]').clear().slowType("2841 TAB", 70, 500);
+      cy.get('[data-cy="outsource-driver-input"]').clear().slowType("Rivo Chauffeur 034 22 334 45", 70, 500);
+      cy.get('[data-cy="outsource-fee-input"]').slowType("{selectall}20000", 60, 500);
     });
 
     // ⏸️ PAUSE DE 3 SECONDES : Observer la modale remplie avec récépissé, n° voiture et contact chauffeur
     cy.wait(3000);
 
-    cy.get('[data-cy="btn-confirm-outsource"]').click();
+    cy.get('[data-cy="btn-confirm-outsource"]').slowClick(1000);
 
     cy.wait("@outsourceHandover").its("request.body").should((body) => {
       expect(body.status).to.equal("SOUS_TRAITE");
@@ -330,6 +465,7 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
 
     cy.visit("/tracking");
     cy.wait(1000);
+    showStepBanner(4, "ENCAISSEMENT COD", "Validation paiement Mobile Money MVola du destinataire");
 
     // Le bouton d'encaissement COD est actif pour le colis sous-traité
     cy.get(`[data-cy="btn-collect-province-cod-${provinceParcelId}"]`)
@@ -339,14 +475,14 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
     // ⏸️ PAUSE DE 3 SECONDES : Observer le bouton clignotant d'encaissement COD
     cy.wait(3000);
 
-    cy.get(`[data-cy="btn-collect-province-cod-${provinceParcelId}"]`).click();
+    cy.get(`[data-cy="btn-collect-province-cod-${provinceParcelId}"]`).slowClick(800);
 
     // Modale d'encaissement
     cy.get('[data-cy="modal-deliver"]').should("be.visible");
     cy.get('[data-cy="modal-deliver"]').within(() => {
       cy.contains("95 000 Ar").should("be.visible");
-      cy.get('[data-cy="payment-method-mvola"]').click();
-      cy.get('[data-cy="mobile-money-phone-input"]').clear().type("034 12 345 67");
+      cy.get('[data-cy="payment-method-mvola"]').slowClick(600);
+      cy.get('[data-cy="mobile-money-phone-input"]').clear().slowType("034 12 345 67", 80, 500);
       cy.get('[data-cy="mm-phone-success"]').should("be.visible").and("contain", "TELMA");
     });
 
@@ -354,7 +490,7 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
     cy.wait(3000);
 
     cy.get('[data-cy="modal-deliver"]').within(() => {
-      cy.get('[data-cy="btn-confirm-deliver"]').click();
+      cy.get('[data-cy="btn-confirm-deliver"]').slowClick(1000);
     });
 
     cy.wait("@collectProvinceCOD").its("request.body").should((body) => {
@@ -399,6 +535,7 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
 
     cy.visit("/cash");
     cy.wait(1000);
+    showStepBanner(5, "CAISSE CENTRALE", "Rapprochement bancaire & Clôture scellée des fonds");
 
     // Le colis province avec COD Mobile Money apparaît dans la caisse centrale
     cy.contains("M. Razafy Toamasina").should("be.visible");
@@ -409,12 +546,12 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
     cy.wait(3000);
 
     // Valider la clôture de caisse
-    cy.get(`[data-cy="select-cash-parcel-${provinceParcelId}"]`).check();
+    cy.get(`[data-cy="select-cash-parcel-${provinceParcelId}"]`).slowCheck(1000);
 
     // ⏸️ PAUSE DE 3 SECONDES : Observer la case cochée
     cy.wait(3000);
 
-    cy.get('[data-cy="btn-bulk-validate-cash"]').should("be.visible").click();
+    cy.get('[data-cy="btn-bulk-validate-cash"]').should("be.visible").slowClick(1000);
 
     cy.wait("@closeCashProvince").its("request.body").should((body) => {
       expect(body.parcel_ids).to.include(provinceParcelId);
