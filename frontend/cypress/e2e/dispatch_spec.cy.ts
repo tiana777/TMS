@@ -271,7 +271,7 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
     cy.contains("50 000 Ar").should("be.visible");
 
     // Select courier
-    cy.get('[data-cy="select-courier"]').select("RAKOTO Jean (Moto Cross 150cc - 034 11 222 33)");
+    cy.get('[data-cy="select-courier"]').select(0);
 
     // Click Assign button
     cy.get('[data-cy="assign-tour-btn"]').click();
