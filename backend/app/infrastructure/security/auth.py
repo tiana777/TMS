@@ -6,7 +6,7 @@ import hmac
 import json
 import time
 from typing import List, Optional
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from backend.app.core.config import settings
@@ -82,11 +82,18 @@ def decode_access_token(token: str) -> dict:
 
 
 def get_current_user(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_bearer),
     db: Session = Depends(get_db),
 ) -> UserORM:
     if not credentials:
-        # Development fallback: use supervisor or admin user when no bearer token is provided by frontend
+        # Development fallback: check X-User-Role header or default to supervisor
+        simulated_role = request.headers.get("x-user-role")
+        if simulated_role:
+            user_by_role = db.query(UserORM).filter(UserORM.role == simulated_role.upper(), UserORM.actif == 1).first()
+            if user_by_role:
+                return user_by_role
+
         default_user = db.query(UserORM).filter(UserORM.username == "superviseur").first()
         if not default_user:
             default_user = db.query(UserORM).filter(UserORM.role == "SUPER_ADMIN").first()

@@ -7,6 +7,7 @@ from backend.app.application.dtos.parcel_dtos import (
     CreateBatchParcelDTO,
     CreateParcelDTO,
     ParcelResponseDTO,
+    ReassignParcelDTO,
     UpdateParcelAxisDTO,
     UpdateParcelStatusDTO,
 )
@@ -95,5 +96,27 @@ def override_parcel_axis(
     try:
         use_cases = ParcelUseCases(db)
         return use_cases.override_parcel_axis(parcel_id, dto.axis)
+    except DomainException as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/{parcel_id}/reassign", response_model=ParcelResponseDTO)
+def reassign_parcel(
+    parcel_id: int,
+    dto: ReassignParcelDTO,
+    db: Session = Depends(get_db),
+    current_user: UserORM = Depends(require_roles(["RECEPTIONNISTE", "SUPERVISEUR", "SUPER_ADMIN"])),
+):
+    try:
+        use_cases = ParcelUseCases(db)
+        return use_cases.reassign_parcel(
+            parcel_id=parcel_id,
+            courier_id=dto.courier_id,
+            tour_id=dto.tour_id,
+            tour_date=dto.tour_date,
+            reason=dto.reason,
+            user_role=current_user.role,
+            user_id=current_user.id,
+        )
     except DomainException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

@@ -272,10 +272,19 @@ export async function fetchTourDetail(tourId: number) {
   }
 }
 
-export async function createOrAssignTour(courierId: number, tourDate: string, parcelIds: number[]) {
+function getAuthHeaders(): Record<string, string> {
   const token = typeof window !== "undefined" ? localStorage.getItem("tms_token") : null;
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const userRole = typeof window !== "undefined" ? localStorage.getItem("tms_user_role") || "SUPERVISEUR" : "SUPERVISEUR";
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-User-Role": userRole,
+  };
   if (token) headers["Authorization"] = `Bearer ${token}`;
+  return headers;
+}
+
+export async function createOrAssignTour(courierId: number, tourDate: string, parcelIds: number[]) {
+  const headers = getAuthHeaders();
 
   const res = await fetch(`${API_BASE_URL}/tours`, {
     method: "POST",
@@ -295,10 +304,34 @@ export async function createOrAssignTour(courierId: number, tourDate: string, pa
   return await res.json();
 }
 
+export async function reassignParcel(
+  parcelId: number,
+  courierId: number,
+  options?: { tourId?: number; tourDate?: string; reason?: string }
+) {
+  const headers = getAuthHeaders();
+
+  const res = await fetch(`${API_BASE_URL}/parcels/${parcelId}/reassign`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      courier_id: courierId,
+      tour_id: options?.tourId,
+      tour_date: options?.tourDate,
+      reason: options?.reason,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de la réassignation du colis.");
+  }
+
+  return await res.json();
+}
+
 export async function unassignParcelFromTour(tourId: number, parcelId: number) {
-  const token = typeof window !== "undefined" ? localStorage.getItem("tms_token") : null;
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const headers = getAuthHeaders();
 
   const res = await fetch(`${API_BASE_URL}/tours/${tourId}/unassign/${parcelId}`, {
     method: "POST",
@@ -314,9 +347,7 @@ export async function unassignParcelFromTour(tourId: number, parcelId: number) {
 }
 
 export async function createParcelBatch(parcels: any[]) {
-  const token = typeof window !== "undefined" ? localStorage.getItem("tms_token") : null;
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const headers = getAuthHeaders();
 
   const res = await fetch(`${API_BASE_URL}/parcels/batch`, {
     method: "POST",
@@ -333,9 +364,7 @@ export async function createParcelBatch(parcels: any[]) {
 }
 
 export async function startTour(tourId: number) {
-  const token = typeof window !== "undefined" ? localStorage.getItem("tms_token") : null;
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const headers = getAuthHeaders();
 
   const res = await fetch(`${API_BASE_URL}/tours/${tourId}/start`, {
     method: "POST",
@@ -361,9 +390,7 @@ export interface UpdateParcelStatusPayload {
 }
 
 export async function updateParcelStatus(parcelId: number, payload: UpdateParcelStatusPayload) {
-  const token = typeof window !== "undefined" ? localStorage.getItem("tms_token") : null;
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const headers = getAuthHeaders();
 
   const res = await fetch(`${API_BASE_URL}/parcels/${parcelId}/status`, {
     method: "PATCH",
@@ -380,9 +407,7 @@ export async function updateParcelStatus(parcelId: number, payload: UpdateParcel
 }
 
 export async function closeTour(tourId: number, cashAndMobileRemitted: number) {
-  const token = typeof window !== "undefined" ? localStorage.getItem("tms_token") : null;
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const headers = getAuthHeaders();
 
   const res = await fetch(`${API_BASE_URL}/tours/${tourId}/close`, {
     method: "POST",

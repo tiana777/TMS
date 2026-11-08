@@ -1,6 +1,7 @@
 import React from "react";
 import "./globals.css";
 import { Sidebar } from "../components/Sidebar";
+import { HeaderUserRole } from "../components/HeaderUserRole";
 
 export const metadata = {
   title: "TMS EXPRESS - Gestion Logistique Dernier Kilomètre",
@@ -26,15 +27,7 @@ export default function RootLayout({
                 🌐 Réseau National : 8 Corridors & 3 Gares
               </span>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-xs font-bold text-slate-800">Superviseur Logistique</p>
-                <p className="text-[11px] text-slate-500">superviseur@tmsexpress.mg</p>
-              </div>
-              <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs shadow">
-                SL
-              </div>
-            </div>
+            <HeaderUserRole />
           </header>
           <main className="flex-1 p-8">{children}</main>
         </div>

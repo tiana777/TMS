@@ -246,3 +246,91 @@ class ParcelUseCases:
         orms = q.order_by(ParcelORM.id.desc()).all()
         parcels = [self.repo._to_domain(o) for o in orms]
         return [self._to_response_dto(p) for p in parcels]
+
+    def reassign_parcel(
+        self,
+        parcel_id: int,
+        courier_id: int,
+        tour_id: Optional[int] = None,
+        tour_date: Optional[str] = None,
+        reason: Optional[str] = None,
+        user_role: str = "SUPER_ADMIN",
+        user_id: Optional[int] = None,
+    ) -> ParcelResponseDTO:
+        parcel = self.repo.get_by_id(parcel_id)
+        if not parcel:
+            raise BusinessRuleViolationException(f"Colis introuvable (ID: {parcel_id})")
+
+        # RBAC Check according to CDC Section 3 & 8.1
+        if parcel.status == ParcelStatus.EN_COURS:
+            if user_role != "SUPER_ADMIN":
+                raise BusinessRuleViolationException(
+                    f"Le colis BDR-{parcel.tracking_number} est déjà en cours de livraison. "
+                    f"Seul le Super Admin est habilité à effectuer une réassignation d'urgence."
+                )
+        elif parcel.status not in [ParcelStatus.EN_DEPOT, ParcelStatus.ASSIGNE, ParcelStatus.REPORTE]:
+            raise BusinessRuleViolationException(
+                f"Impossible de réassigner le colis BDR-{parcel.tracking_number} au statut '{parcel.status.value}'."
+            )
+
+        # Resolve or create target tour
+        from backend.app.infrastructure.persistence.models import TourORM
+        target_tour_id = tour_id
+        if not target_tour_id:
+            effective_date = tour_date or parcel.reception_date
+            existing_tour = self.db.query(TourORM).filter(
+                TourORM.livreur_id == courier_id,
+                TourORM.date_tournee == effective_date,
+            ).first()
+            if existing_tour:
+                target_tour_id = existing_tour.id
+            else:
+                new_tour = TourORM(
+                    date_tournee=effective_date,
+                    livreur_id=courier_id,
+                    statut="ASSIGNE",
+                    total_theorique_caisse=0,
+                    total_reel_verse=0,
+                )
+                self.db.add(new_tour)
+                self.db.commit()
+                self.db.refresh(new_tour)
+                target_tour_id = new_tour.id
+
+        old_status = parcel.status
+        old_courier_id = parcel.courier_id
+
+        assignment_motif = (
+            reason
+            or (f"Réassignation d'urgence (Super Admin) vers le coursier #{courier_id}"
+                if old_status == ParcelStatus.EN_COURS
+                else f"Réassigné du coursier #{old_courier_id} vers le coursier #{courier_id}")
+        )
+
+        parcel.assign_to_courier(courier_id=courier_id, tour_id=target_tour_id, reason=assignment_motif)
+        saved = self.repo.save(parcel)
+
+        # Record audit trail
+        history = ParcelStatusHistoryORM(
+            colis_id=saved.id,
+            utilisateur_id=user_id,
+            statut_precedent=old_status.value,
+            statut_nouveau=saved.status.value,
+            motif=assignment_motif,
+            horodatage=datetime.utcnow(),
+        )
+        self.db.add(history)
+
+        # Recalculate totals on target tour
+        from backend.app.infrastructure.persistence.repositories import PostgresTourRepository
+        tour_repo = PostgresTourRepository(self.db)
+        if target_tour_id:
+            t = tour_repo.get_by_id(target_tour_id)
+            if t:
+                parcels_in_tour = self.db.query(ParcelORM).filter(ParcelORM.tournee_id == target_tour_id, ParcelORM.actif == 1).all()
+                t.parcels = [self.repo._to_domain(po) for po in parcels_in_tour]
+                t.calculate_theoretical_total()
+                tour_repo.save(t)
+
+        self.db.commit()
+        return self._to_response_dto(saved)

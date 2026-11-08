@@ -32,6 +32,13 @@ class UpdateParcelAxisDTO(BaseModel):
     axis: str
 
 
+class ReassignParcelDTO(BaseModel):
+    courier_id: int
+    tour_id: Optional[int] = None
+    tour_date: Optional[str] = None  # YYYY-MM-DD
+    reason: Optional[str] = None
+
+
 class UpdateParcelStatusDTO(BaseModel):
     status: str
     courier_id: Optional[int] = None

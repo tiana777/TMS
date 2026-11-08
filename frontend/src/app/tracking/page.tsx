@@ -28,6 +28,7 @@ import {
   fetchCouriers,
   fetchParcels,
   updateParcelStatus,
+  reassignParcel,
   startTour,
   UpdateParcelStatusPayload,
 } from "../../lib/api";
@@ -103,9 +104,24 @@ export default function TrackingPage() {
   const [feedbackMessage, setFeedbackMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Modals state
-  const [activeModal, setActiveModal] = useState<"DELIVER" | "RESCHEDULE" | "CANCEL" | "OUTSOURCE" | null>(null);
+  const [activeModal, setActiveModal] = useState<"DELIVER" | "RESCHEDULE" | "CANCEL" | "OUTSOURCE" | "REASSIGN" | null>(null);
   const [targetParcel, setTargetParcel] = useState<Parcel | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  // Role & Reassignment states
+  const [currentUserRole, setCurrentUserRole] = useState<string>("SUPERVISEUR");
+  const [reassignTargetCourierId, setReassignTargetCourierId] = useState<number | "">("");
+  const [reassignReason, setReassignReason] = useState<string>("Panne de moto du livreur initial");
+
+  useEffect(() => {
+    const updateRole = () => {
+      const saved = localStorage.getItem("tms_user_role") || "SUPERVISEUR";
+      setCurrentUserRole(saved);
+    };
+    updateRole();
+    window.addEventListener("tms_role_change", updateRole);
+    return () => window.removeEventListener("tms_role_change", updateRole);
+  }, []);
 
   // Form states for modals
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("ESPECES");
@@ -232,12 +248,47 @@ export default function TrackingPage() {
     }
   };
 
+  const handleOpenReassignModal = (parcel: Parcel) => {
+    if (parcel.status === "EN_COURS" && currentUserRole !== "SUPER_ADMIN") {
+      setFeedbackMessage({
+        type: "error",
+        text: "🔒 Action restreinte : Seul le Super Admin est habilité à réassigner d'urgence un colis déjà en cours de livraison.",
+      });
+      return;
+    }
+    setTargetParcel(parcel);
+    const otherCourier = couriers.find((c) => c.id !== parcel.courier_id);
+    setReassignTargetCourierId(otherCourier ? otherCourier.id : "");
+    setActiveModal("REASSIGN");
+  };
+
   // Submit Pointage
   const submitPointage = async () => {
     if (!targetParcel || !activeModal) return;
 
     try {
       setIsSubmitting(true);
+
+      if (activeModal === "REASSIGN") {
+        if (!reassignTargetCourierId) {
+          throw new Error("Veuillez choisir un coursier cible pour la réassignation.");
+        }
+        const targetCourier = couriers.find((c) => c.id === Number(reassignTargetCourierId));
+        await reassignParcel(targetParcel.id, Number(reassignTargetCourierId), {
+          tourDate: selectedDate,
+          reason: targetParcel.status === "EN_COURS" ? reassignReason : undefined,
+        });
+
+        setFeedbackMessage({
+          type: "success",
+          text: `Colis BDR-${targetParcel.tracking_number} réassigné avec succès à ${targetCourier?.name || "Livreur"} !`,
+        });
+
+        await loadData();
+        closeModal();
+        return;
+      }
+
       const payload: UpdateParcelStatusPayload = { status: "EN_COURS" };
 
       if (activeModal === "DELIVER") {
@@ -705,6 +756,28 @@ export default function TrackingPage() {
                             Gare
                           </button>
                         )}
+
+                        <button
+                          data-cy={`btn-reassign-${parcel.id}`}
+                          onClick={() => handleOpenReassignModal(parcel)}
+                          className={`px-3 py-2 border font-bold text-xs rounded-xl transition flex items-center gap-1.5 ${
+                            parcel.status === "EN_COURS"
+                              ? currentUserRole === "SUPER_ADMIN"
+                                ? "bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300"
+                                : "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60"
+                              : "bg-blue-50 hover:bg-blue-100 text-blue-800 border-blue-300"
+                          }`}
+                          title={
+                            parcel.status === "EN_COURS"
+                              ? currentUserRole === "SUPER_ADMIN"
+                                ? "👑 Réassignation d'urgence (Super Admin)"
+                                : "🔒 Réservé au Super Admin pour les colis en cours"
+                              : "Réassigner à un autre coursier"
+                          }
+                        >
+                          <Truck className="w-3.5 h-3.5 text-blue-600" />
+                          {parcel.status === "EN_COURS" && currentUserRole === "SUPER_ADMIN" ? "👑 Urgence" : "Réassigner"}
+                        </button>
                       </>
                     ) : (
                       <span className="text-xs font-bold text-slate-400 italic px-2 py-1">
@@ -1052,6 +1125,102 @@ export default function TrackingPage() {
               >
                 <Building2 className="w-4 h-4" />
                 Valider la Sous-Traitance
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL 5: RÉASSIGNATION ================= */}
+      {activeModal === "REASSIGN" && targetParcel && (
+        <div
+          data-cy="modal-reassign"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in"
+        >
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-blue-100 text-blue-700 rounded-xl">
+                <Truck className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-black text-lg text-slate-800">
+                  {targetParcel.status === "EN_COURS"
+                    ? "👑 Réassignation d'Urgence Terrain (Super Admin)"
+                    : "Réassignation de Colis"}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Colis BDR-{targetParcel.tracking_number} • {targetParcel.recipient_name}
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-1 text-xs">
+              <p className="text-slate-600">
+                <strong>Destinataire :</strong> {targetParcel.recipient_name} (
+                {targetParcel.recipient_phone_formatted || targetParcel.recipient_phone})
+              </p>
+              <p className="text-slate-600 truncate">
+                <strong>Adresse :</strong> {targetParcel.delivery_address}
+              </p>
+              <p className="text-slate-600">
+                <strong>Statut actuel :</strong>{" "}
+                <span className="font-bold text-blue-700">{targetParcel.status}</span>
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 block uppercase tracking-wider">
+                Nouveau Coursier / Navette d'Affectation
+              </label>
+              <select
+                data-cy="reassign-courier-select"
+                value={reassignTargetCourierId}
+                onChange={(e) => setReassignTargetCourierId(Number(e.target.value))}
+                className="w-full px-3 py-2.5 text-xs font-bold border border-slate-300 rounded-xl focus:outline-none focus:border-blue-500 bg-white"
+              >
+                <option value="">-- Choisir un coursier --</option>
+                {couriers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.vehicle_type})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {targetParcel.status === "EN_COURS" && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-amber-700 flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  Motif Circonstancié d'Urgence (Obligatoire)
+                </label>
+                <input
+                  data-cy="reassign-reason-input"
+                  type="text"
+                  value={reassignReason}
+                  onChange={(e) => setReassignReason(e.target.value)}
+                  placeholder="Ex: Panne de moto, accident, renfort quai..."
+                  className="w-full px-3 py-2 text-xs border border-amber-300 rounded-xl focus:outline-none focus:border-amber-500"
+                />
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={closeModal}
+                className="px-4 py-2 font-bold text-xs text-slate-600 hover:bg-slate-100 rounded-xl transition"
+              >
+                Annuler
+              </button>
+              <button
+                data-cy="btn-confirm-reassign"
+                type="button"
+                onClick={submitPointage}
+                disabled={isSubmitting || !reassignTargetCourierId}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-lg transition flex items-center gap-1.5"
+              >
+                <Truck className="w-4 h-4" />
+                Confirmer la Réassignation
               </button>
             </div>
           </div>
