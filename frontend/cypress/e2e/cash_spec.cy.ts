@@ -10,7 +10,7 @@ describe("Écran 07 : Caisse Centrale & Écran 08 : Décharge de Tournée - Test
       recipient_phone: "0341234567",
       recipient_phone_formatted: "034 12 345 67",
       delivery_address: "Itaosy Cité",
-      axis: "AXE_RN1",
+      axis: "AXE_ITAOSY",
       flux_type: "COD",
       merchandise_amount: 50000,
       delivery_fee: 5000,
@@ -30,7 +30,7 @@ describe("Écran 07 : Caisse Centrale & Écran 08 : Décharge de Tournée - Test
       recipient_phone: "0325544332",
       recipient_phone_formatted: "032 55 443 32",
       delivery_address: "Analamahitsy",
-      axis: "AXE_RN3",
+      axis: "AXE_SABOTSY_NAMEHANA",
       flux_type: "COD",
       merchandise_amount: 30000,
       delivery_fee: 4000,
@@ -50,7 +50,7 @@ describe("Écran 07 : Caisse Centrale & Écran 08 : Décharge de Tournée - Test
       recipient_phone: "0331122334",
       recipient_phone_formatted: "033 11 223 34",
       delivery_address: "Antsakaviro",
-      axis: "AXE_CENTRE",
+      axis: "AXE_CENTRE_1",
       flux_type: "SIMPLE",
       merchandise_amount: 0,
       delivery_fee: 5000,
@@ -172,7 +172,7 @@ describe("Écran 07 : Caisse Centrale & Écran 08 : Décharge de Tournée - Test
     cy.wait(["@getParcels", "@getTours", "@getCouriers"]);
 
     // Cliquer sur le bouton Valider Caisse pour le colis 501
-    cy.get('[data-cy="btn-validate-cash-501"]').should("be.visible").click();
+    cy.get('[data-cy="btn-validate-cash-501"]').scrollIntoView().should("be.visible").click();
     cy.wait("@closeParcel501").its("request.body").should((body) => {
       expect(body.status).to.equal("CLOTURE_CAISSE");
     });

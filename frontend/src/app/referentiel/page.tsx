@@ -19,16 +19,18 @@ import {
   Shield,
   Layers,
 } from "lucide-react";
-import { AxisInfo, Partner, ZoneDetail } from "@/types";
+import { AxisInfo, Courier, Partner, ZoneDetail } from "@/types";
 import {
   addZoneToAxis,
   createAxis,
   createPartner,
   deleteAxis,
   fetchAxes,
+  fetchCouriers,
   fetchPartners,
   removeZoneFromAxis,
   updateAxis,
+  updateCourierAxis,
 } from "@/lib/api";
 
 type UserRole = "RECEPTIONNISTE" | "SUPERVISEUR" | "SUPER_ADMIN";
@@ -36,8 +38,9 @@ type UserRole = "RECEPTIONNISTE" | "SUPERVISEUR" | "SUPER_ADMIN";
 export default function ReferentielPage() {
   const [axes, setAxes] = useState<AxisInfo[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
+  const [couriers, setCouriers] = useState<Courier[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<"AXES" | "PARTNERS">("AXES");
+  const [activeTab, setActiveTab] = useState<"AXES" | "PARTNERS" | "COURIERS">("AXES");
   const [axisFilter, setAxisFilter] = useState<"ALL" | "URBAIN" | "PROVINCE">("ALL");
 
   // User role (RBAC)
@@ -96,13 +99,39 @@ export default function ReferentielPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const [axList, partList] = await Promise.all([fetchAxes(), fetchPartners()]);
+      const [axList, partList, courList] = await Promise.all([
+        fetchAxes(),
+        fetchPartners(),
+        fetchCouriers(),
+      ]);
       setAxes(axList);
       setPartners(partList);
+      setCouriers(courList);
     } catch (e) {
       console.error("Erreur chargement référentiel", e);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleCourierAxisChange(courierId: number, newAxis: string) {
+    try {
+      await updateCourierAxis(courierId, newAxis === "NONE" ? null : newAxis);
+      setCouriers((prev) =>
+        prev.map((c) =>
+          c.id === courierId ? { ...c, assigned_axis: newAxis === "NONE" ? null : newAxis } : c
+        )
+      );
+      setFeedbackMessage({
+        type: "success",
+        text: `L'axe du coursier a été mis à jour avec succès !`,
+      });
+      setTimeout(() => setFeedbackMessage(null), 4000);
+    } catch (err: any) {
+      setFeedbackMessage({
+        type: "error",
+        text: err.message || "Erreur lors de la mise à jour de l'axe du coursier.",
+      });
     }
   }
 
@@ -415,6 +444,22 @@ export default function ReferentielPage() {
             {partners.length} partenaires
           </span>
         </button>
+
+        <button
+          onClick={() => setActiveTab("COURIERS")}
+          data-cy="tab-couriers"
+          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+            activeTab === "COURIERS"
+              ? "bg-white text-emerald-700 shadow-xs border border-slate-200/60"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
+          }`}
+        >
+          <Truck className="w-3.5 h-3.5 text-emerald-600" />
+          <span>Livreurs & Affectation des Axes</span>
+          <span className="ml-1 px-1.5 py-0.2 text-[10px] font-semibold rounded bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+            {couriers.length} livreurs
+          </span>
+        </button>
       </div>
 
       {/* ========================================================================= */}
@@ -687,6 +732,94 @@ export default function ReferentielPage() {
                   <tr>
                     <td colSpan={5} className="py-8 text-center text-slate-400">
                       Aucun partenaire trouvé.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 3: LIVREURS & AFFECTATION DES AXES RADIAUX (CDC ÉCRAN 03 & 10)         */}
+      {/* ========================================================================= */}
+      {activeTab === "COURIERS" && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+          <div className="p-3 border-b border-slate-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 bg-emerald-50 text-emerald-700 rounded-lg">
+                <Truck className="w-4 h-4" />
+              </span>
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">
+                  Flotte des Livreurs & Rattachement par Axe Logistique
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Affectez chaque livreur titulaire à son corridor de distribution (Axe Centre, RN1, RN2, etc.)
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-slate-50/80 text-slate-500 font-semibold border-b border-slate-200/60 uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th className="py-2.5 px-3">Livreur / Coursier</th>
+                  <th className="py-2.5 px-3">Contact Téléphonique</th>
+                  <th className="py-2.5 px-3">Véhicule & Capacité</th>
+                  <th className="py-2.5 px-3">Axe Logistique Attribué</th>
+                  <th className="py-2.5 px-3">Statut</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {couriers.map((c) => (
+                  <tr key={c.id} className="hover:bg-slate-50/60 transition">
+                    <td className="py-2.5 px-3 font-bold text-slate-900">
+                      {c.name}
+                    </td>
+                    <td className="py-2.5 px-3 font-mono text-slate-600">
+                      {c.phone_formatted || c.phone}
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-600">
+                      <span className="font-medium text-slate-900">{c.vehicle_type}</span>
+                      <span className="ml-2 text-slate-400 font-mono">({c.max_parcels || 15} colis max)</span>
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <select
+                        value={c.assigned_axis || "NONE"}
+                        disabled={!canManage}
+                        onChange={(e) => handleCourierAxisChange(c.id, e.target.value)}
+                        className={`text-xs font-semibold px-2.5 py-1 rounded-lg border outline-none ${
+                          c.assigned_axis
+                            ? "bg-blue-50 border-blue-200 text-blue-800"
+                            : "bg-slate-50 border-slate-200 text-slate-500"
+                        }`}
+                      >
+                        <option value="NONE">-- Non assigné (Tous les axes) --</option>
+                        {axes.map((a) => (
+                          <option key={a.id} value={a.code}>
+                            {a.libelle}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${
+                          c.active ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+                        }`}
+                      >
+                        {c.active ? "Actif" : "Inactif"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {couriers.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-slate-400">
+                      Aucun livreur trouvé.
                     </td>
                   </tr>
                 )}

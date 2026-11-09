@@ -106,7 +106,13 @@ class ParcelUseCases:
         except ValueError:
             sender_type_enum = SenderType.CYBERMARCHAND
 
-        # 5. Domain entity creation
+        # 5. Domain entity creation with auto-calculated delivery fee if not specified
+        final_fee = (
+            dto.delivery_fee
+            if (dto.delivery_fee is not None and dto.delivery_fee > 0)
+            else AxisAutoDetector.detect_fee(dto.delivery_address)
+        )
+
         parcel = Parcel(
             tracking_number=tracking_number,
             reception_date=reception_date,
@@ -123,7 +129,7 @@ class ParcelUseCases:
             is_manual_axis=is_manual_axis,
             flux_type=FluxType(dto.flux_type),
             merchandise_amount=Money(dto.merchandise_amount),
-            delivery_fee=Money(dto.delivery_fee),
+            delivery_fee=Money(final_fee),
             observation=dto.observation,
         )
 

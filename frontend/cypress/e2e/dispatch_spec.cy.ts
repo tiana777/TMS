@@ -54,8 +54,8 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
           operator: "TELMA",
           delivery_address: "Itaosy Cité près Pharmacie",
           designation: "Robe de soirée en soie",
-          axis: "AXE_RN1",
-          axis_label: "AXE RN1 OUEST (Tsiazotafo ➔ Fenoarivo)",
+          axis: "AXE_ITAOSY",
+          axis_label: "Axe Itaosy (67Ha / Itaosy / Bemasoandro)",
           flux_type: "COD",
           merchandise_amount: 45000,
           delivery_fee: 5000,
@@ -79,8 +79,8 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
           operator: "ORANGE",
           delivery_address: "Zone Galaxy Andraharo Lot 4",
           designation: "Dossier audit & contrats",
-          axis: "AXE_RN4",
-          axis_label: "AXE RN4 / DIGUE (Tsiazotafo ➔ Ivato)",
+          axis: "AXE_IVATO",
+          axis_label: "Axe Ivato (RN4 Digue & Aéroport)",
           flux_type: "SIMPLE",
           merchandise_amount: 0,
           delivery_fee: 6000,
@@ -145,7 +145,7 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
               operator: "TELMA",
               delivery_address: "Itaosy Cité près Pharmacie",
               designation: "Robe de soirée en soie",
-              axis: "AXE_RN1",
+              axis: "AXE_ITAOSY",
               flux_type: "COD",
               total_to_collect: 50000,
               status: "ASSIGNE",
@@ -158,7 +158,7 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
               operator: "ORANGE",
               delivery_address: "Zone Galaxy Andraharo Lot 4",
               designation: "Dossier audit & contrats",
-              axis: "AXE_RN4",
+              axis: "AXE_IVATO",
               flux_type: "SIMPLE",
               total_to_collect: 6000,
               status: "ASSIGNE",
@@ -193,7 +193,7 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
             operator: "TELMA",
             delivery_address: "Itaosy Cité près Pharmacie",
             designation: "Robe de soirée en soie",
-            axis: "AXE_RN1",
+            axis: "AXE_ITAOSY",
             flux_type: "COD",
             total_to_collect: 50000,
             status: "ASSIGNE",
@@ -206,7 +206,7 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
             operator: "ORANGE",
             delivery_address: "Zone Galaxy Andraharo Lot 4",
             designation: "Dossier audit & contrats",
-            axis: "AXE_RN4",
+            axis: "AXE_IVATO",
             flux_type: "SIMPLE",
             total_to_collect: 6000,
             status: "ASSIGNE",
@@ -248,9 +248,9 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
     cy.contains("Rasoa Nirina").should("be.visible");
     cy.contains("50 000 Ar").should("be.visible");
 
-    // 4. Test Axis filter pills - RN1
-    cy.get('[data-cy="axis-filter-AXE_RN1"]').click();
-    cy.wait(1200); // Observer le filtrage RN1
+    // 4. Test Axis filter pills - Itaosy
+    cy.get('[data-cy="axis-filter-AXE_ITAOSY"]').click();
+    cy.wait(1200); // Observer le filtrage Itaosy
     cy.get('[data-cy="stock-parcels-table"]').within(() => {
       cy.contains("0001").should("be.visible");
       cy.contains("0002").should("not.exist");
@@ -369,9 +369,9 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
     cy.visit("/dispatch");
     cy.wait(800);
 
-    // Initial check: parcel 201 has RN1 Ouest
+    // Initial check: parcel 201 has Itaosy
     cy.get('[data-cy="parcel-row-201"]').should("be.visible").within(() => {
-      cy.contains("RN1 Ouest").should("be.visible");
+      cy.contains("Itaosy").should("be.visible");
       // Click the edit axis button
       cy.get('[data-cy="edit-axis-btn-201"]').click();
     });
@@ -394,7 +394,7 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
     // Verify parcel row updated with Provinces and Choix Manuel badge
     cy.get('[data-cy="parcel-row-201"]').within(() => {
       cy.contains("Provinces").should("be.visible");
-      cy.contains("Modifié manuellement").should("be.visible");
+      cy.contains("Manuel").should("be.visible");
       cy.contains("PROVINCE").should("be.visible");
     });
   });

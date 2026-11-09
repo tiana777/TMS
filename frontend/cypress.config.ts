@@ -6,7 +6,7 @@ export default defineConfig({
     viewportWidth: 1280,
     viewportHeight: 800,
     video: false,
-    screenshotOnRunFailure: false,
+    screenshotOnRunFailure: true,
     supportFile: false,
     setupNodeEvents(on, config) {
       on("before:browser:launch", (browser, launchOptions) => {

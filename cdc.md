@@ -272,6 +272,51 @@ La modification de l'axe maintient la stricte cohérence du type de flux logisti
 *   Dès qu'un axe est sélectionné ou ajusté manuellement, le système consigne l'indicateur `is_manual_axis = True`.
 *   Un badge distinctif **« Choix Manuel »** est affiché sur l'étiquette, la feuille de route et l'ensemble des écrans pour certifier l'arbitrage humain de l'opérateur.
 
+#### 5. Modale d'Enrichissement Dynamique du Référentiel (Rattachement de Nouveaux Lieux)
+*   Si une adresse, un repère ou un quartier n'est pas encore répertorié dans les 9 corridors urbains officiels (provoquant l'affectation par défaut sous `isAxisFallback = True`), l'opérateur dispose directement sur l'Écran Inbound d'une action dédiée **« Nouveau quartier ? Rattacher à un axe »** (`btn-open-add-zone-${idx}`).
+*   Une modale interactive **« Rattacher un Nouveau Quartier à l'Axe »** (`modal-add-zone-to-axis`) s'ouvre, pré-remplie avec le nom du quartier :
+    *   **Nom du Quartier / Lieu :** Saisie ou ajustement du toponyme officiel.
+    *   **Axe de Destination :** Sélection du corridor de rattachement parmi les 9 axes réels ou l'axe Province.
+    *   **Tarif Applicable (CDC 5.3) :** Attribution du palier tarifaire contractuel (3 000 Ar Intra-CUA, 4 000 Ar 1ère Couronne ou 5 000 Ar Grande Couronne).
+*   À la validation (`btn-submit-add-new-zone`), le quartier est immédiatement persisté dans le référentiel des axes (`/master/axes/{id}/zones`), le colis en cours d'enregistrement reçoit l'axe et le tarif choisis (`isAxisFallback = False`), et le moteur d'auto-détection mémorise ce nouveau lieu pour toutes les saisies futures.
+
+### 5.3 GRILLE TARIFAIRE OFFICIELLE PAR ZONE & CALCUL AUTOMATIQUE DU PRIX
+
+> [!NOTE]
+> **Règle d'Automatisation Tarifaire :** À la saisie ou sélection de l'adresse de destination (sur l'Écran Inbound 01 ou lors de l'import de fichier Écran 02), le système analyse le quartier/lieu et **affecte automatiquement le tarif de livraison contractuel (`delivery_fee`)** selon la grille officielle tri-partite (3 000 Ar, 4 000 Ar ou 5 000 Ar).
+
+#### 1. Zones Intra-Urbaines à 3 000 Ar (Commune Urbaine d'Antananarivo - 6 Arrondissements)
+Couvre l'intégralité des 6 arrondissements de la CUA (Centre & Hyper-Centre) :
+
+| Arrondissement | Quartiers & Lieux-dits Rattachés (3 000 Ar) |
+| :--- | :--- |
+| **1er Arrondissement** | Ambalavao-Isotry, Ambatonakanga-Ambohitsorohitra, Ambatovinaky, Ambodifilao-Soarano II S, Ampandrana-Ankadivato, Amparibe-Avaratr’Imahamasina, Ampasamadinika-Amboasarikely, Anatihazo Isotry, Andavamamba, Andohatapenaka, Andranomanalina, Ankasina, Antanimalalaka-Analakely, Antohomadinika, Avaratetezana-Bekiraro, Ambodin’Isotry, Ampefiloha, 67ha, Faravohitra, Isoraka, Tsaralalana, Manarintsoa, Ambondrona-Tsiazotafo |
+| **2ème Arrondissement** | Ambohipo, Androndra, Morarano Ambohitsoa, Tsiadana, Ambohitsoa, Ambanidia, Mandroseza, Antanimora Ampasanimalo, Ambatoroka, Ambohimiandra, Miandrarivo, Manakambahiny, Mahazoarivo, Andafiavaratra, Manjakamiadana, Ampamantanana, Andohanimandroseza, Antsahabe, Volosarika, Ambohipotsy, Ankazotokana |
+| **3ème Arrondissement** | Ambatomitsangana, Antsakaviro, Ambodivona, Ankadifotsy, Antanimena, Ambohitrakely, Ampahibe, Ampandrana, Besarety, Ankorondrano, Andravoahangy, Ankazomanga, Andraharo, Antaninandro, Avaradoha, Behoririka, Betongolo, Mahavoky, Mandialaza, Soavinandriana, Tsaramasay |
+| **4ème Arrondissement** | Ambanin’Ampamarinana, Ouest Ambohijanahary, Ouest Mananjara, Angarangarana, Ankadilalana, Ankaditoho, Marohoho, Anosibe, Anosipatrana, Anosizato Est, Fiadanana, Ilanivato Ampasika, Mahamasina, Mananjara-Fort-Voyron, Mandrangobato, Namontana, Soanierana, Tsarafaritra, Tsimialonjafy |
+| **5ème Arrondissement** | Ambatobe Ambany, Ambatokaranana, Ambatomainty, Ambatomaro, Amboditsiry, Ambodivoanjo, Ankadindramamy, Ambohimirary, Amboniloha, Ampanotokana, Analamahintsy cité, Analamahintsy Tanàna, Andraisoro, Androhibe, Anjanahary, Ivandry, Manjakaray, Morarano Alarobia, Nanisana, Soavimasoandro, Tsarahonenana |
+| **6ème Arrondissement** | Antsararay, Ambodihady, Ambodimita, Ambodivona, Ambodivonkely, Ambohimanandray, Ambohimandroso, Ambohimitsinjo, Ankeniheny, Andraharo, Ankazomanga, Anosisoa, Anosivavaka, Antanety, Antanjombe |
+
+#### 2. Zones Péri-Urbaines Proches à 4 000 Ar
+Secteurs limitrophes et première couronne d'Antananarivo :
+
+| District / Commune | Quartiers Rattachés (4 000 Ar) |
+| :--- | :--- |
+| **Avaradrano** | Ankadindratombo, Alasora Commune, Rond point Bypass Alasora, By pass Côté Alasora, Ambohidrazaka, Ankadikely Ilafy, Ilafy, Ambohitrarahaba, Antanandrano, Ambatobe Ambony, Ambolokandrina |
+| **Atsimondrano** | Tanjombato, Andoharanofotsy, Mandrimena, Forello, Itaosy Andranonahoatra, Itaosy Cité, Anosizato Andrefana, Ampitatafika Avaravohitra, Ampitatafika Tetezana, Ankaraobato, Bemasoandro |
+| **Ambohidratrimo** | Ambohibao, Ambatolampy, Talatamaty, Antanetibe Talatamaty, Ambohidroa, Andranomena |
+| **Ambohimangakely** | Ambohimangakely Ankadilalana, Ambohimangakely eo CMT, Ambohimangakely, Antsobolo |
+
+#### 3. Zones Péri-Urbaines Éloignées / Grande Couronne à 5 000 Ar
+Secteurs périphériques distants, accès difficile et extrémités des corridors :
+
+| District / Commune | Quartiers Rattachés (5 000 Ar) |
+| :--- | :--- |
+| **Avaradrano** | Sabotsy Namehana, Ambohimanambola Tetezana, Alasora Alatsinainy, Alasora Mahatsinjo, Alasora Ambohitanety |
+| **Atsimondrano** | Iavoloha Galana, Iavoloha Elgeco Plus, Imerimanjaka Bypass, Ambohijanaka, Itaosy Sinibeandrano, Itaosy Ambohidrapeto, Soavina |
+| **Ambohidratrimo** | Ivato Aéroport, Ambohidratrimo, Mandrosoa Ivato, Ivato Horizon |
+| **Ambohimangakely** | Ambodivoara, Rond point Bypass |
+
 ---
 
 ## 6. LOGIQUE MÉTIER DÉTAILLÉE : EXPÉDITIONS EN PROVINCE & GARES ROUTIÈRES

@@ -79,92 +79,10 @@ def seed_master_data():
             session.commit()
             print("Users seeded.")
 
-        # 2. Seed the 8 Logistic Axes & Zones
-        if not session.query(AxisORM).first():
-            print("Seeding 8 Logistic Axes and zones...")
-            axes_data = [
-                (
-                    "AXE_CENTRE",
-                    "AXE CENTRE-VILLE (Tsiazotafo & Hyper-Centre)",
-                    [
-                        "Analakely", "Antaninarenina", "Isoraka", "Tsaralalàna",
-                        "Behoririka", "Mahamasina", "Faravohitra", "Ambohijatovo",
-                        "Antsahabe", "Tsiazotafo"
-                    ]
-                ),
-                (
-                    "AXE_RN1",
-                    "AXE RN1 OUEST (Tsiazotafo ➔ Itaosy / Ampitatafika)",
-                    [
-                        "67Ha", "Ampefiloha", "Anosizato", "Ambodin'isotry",
-                        "Itaosy", "Cité Seimad", "Ampitatafika", "Fenoarivo"
-                    ]
-                ),
-                (
-                    "AXE_RN2",
-                    "AXE RN2 EST (Tsiazotafo ➔ Ambohimangakely)",
-                    [
-                        "Besarety", "Mahavoky", "Avaradoha", "Ampasapito",
-                        "Nanisana", "Ankadindramamy", "Mahazo", "Ambohimahitsy",
-                        "Ambohimangakely"
-                    ]
-                ),
-                (
-                    "AXE_RN3",
-                    "AXE RN3 NORD (Tsiazotafo ➔ Sabotsy Namehana)",
-                    [
-                        "Andravoahangy", "Amboditsiry", "Analamahitsy", "Ilafy",
-                        "Sabotsy Namehana", "Manjakaray", "Anjanahary"
-                    ]
-                ),
-                (
-                    "AXE_RN4",
-                    "AXE RN4 / DIGUE (Tsiazotafo ➔ Ivato Aéroport)",
-                    [
-                        "Antanimena", "Ankorondrano", "Andraharo Zone Galaxy",
-                        "Alarobia", "Ambohimanarina", "Ambohibao", "Talatamaty",
-                        "Mandrosoa", "Ivato"
-                    ]
-                ),
-                (
-                    "AXE_RN7",
-                    "AXE RN7 SUD (Tsiazotafo ➔ Iavoloha / Andoharanofotsy)",
-                    [
-                        "Ankadimbahoaka", "Tanjombato", "Andoharanofotsy",
-                        "Iavoloha", "Ambohimanambola"
-                    ]
-                ),
-                (
-                    "AXE_SUD_EST",
-                    "AXE SUD-EST (Tsiazotafo ➔ Ankatso / Alasora)",
-                    [
-                        "Ambanidia", "Mandroseza", "Ankatso", "Tsiadana",
-                        "Ambatoroka", "Befelatanana", "Alasora", "By-Pass"
-                    ]
-                ),
-                (
-                    "AXE_PROVINCE",
-                    "AXE PROVINCES & GARES ROUTIÈRES (Coopératives Régionales)",
-                    [
-                        "Toamasina", "Mahajanga", "Antsirabe", "Fianarantsoa",
-                        "Toliara", "Diego", "Moramanga", "Sambava", "Nosy Be",
-                        "Fort-Dauphin"
-                    ]
-                ),
-            ]
-
-            for code, libelle, zones_list in axes_data:
-                type_axe = "PROVINCE" if "PROVINCE" in code else "URBAIN"
-                axis = AxisORM(code=code, libelle=libelle, type_axe=type_axe, actif=1)
-                session.add(axis)
-                session.flush()
-
-                for z in zones_list:
-                    zone = ZoneORM(axe_id=axis.id, nom=z)
-                    session.add(zone)
-
-            session.commit()
-            print("Axes and zones seeded.")
+        # 2. Seed the 9 Real Logistic Axes & Zones from Excel
+        from backend.app.infrastructure.database.seed_real_urban_axes import apply_real_axes_migration
+        apply_real_axes_migration()
+        print("Real operational axes and zones seeded.")
 
         # 3. Seed Partners (Gares & Cooperatives)
         if not session.query(PartnerORM).first():
@@ -235,6 +153,7 @@ def seed_master_data():
                     telephone="0341234567",
                     type_vehicule="Scooter 110cc",
                     caution_garantie=150000.0,
+                    assigned_axis="AXE_CENTRE_1",
                     actif=1,
                 ),
                 CourierORM(
@@ -242,13 +161,15 @@ def seed_master_data():
                     telephone="0321122334",
                     type_vehicule="Scooter 125cc",
                     caution_garantie=150000.0,
+                    assigned_axis="AXE_ITAOSY",
                     actif=1,
                 ),
                 CourierORM(
-                    nom="Randria Paul (Livreur)",
+                    nom="Randria Paul (Navette Gares)",
                     telephone="0334455667",
-                    type_vehicule="Moto 125cc",
+                    type_vehicule="Fourgonnette Navette Transit",
                     caution_garantie=150000.0,
+                    assigned_axis="AXE_PROVINCE",
                     actif=1,
                 ),
             ]

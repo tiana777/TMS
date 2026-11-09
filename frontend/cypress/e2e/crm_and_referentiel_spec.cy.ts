@@ -24,8 +24,8 @@ describe("Écran 09 : CRM Expéditeurs & Écran 10 : Référentiel Logistique - 
   const mockAxes = [
     {
       id: 1,
-      code: "AXE_RN1",
-      libelle: "AXE RN1 OUEST (Tsiazotafo ➔ Arivonimamo)",
+      code: "AXE_ITAOSY",
+      libelle: "Axe Itaosy (67Ha, Itaosy & Ouest)",
       zones: ["Analakely", "Ampefiloha", "Anosibe", "Itaosy"],
     },
     {
@@ -68,7 +68,7 @@ describe("Écran 09 : CRM Expéditeurs & Écran 10 : Référentiel Logistique - 
           vendor_id: 1,
           recipient_name: "Client Test",
           delivery_address: "Analakely",
-          axis: "AXE_CENTRE",
+          axis: "AXE_CENTRE_1",
           status: "LIVRE_ENCAISSE",
           merchandise_amount: 30000,
           delivery_fee: 4000,
@@ -138,20 +138,21 @@ describe("Écran 09 : CRM Expéditeurs & Écran 10 : Référentiel Logistique - 
 
   it("3. Écran 10 : Visualise le Référentiel Logistique (Axes & Gares/Coopératives)", () => {
     cy.visit("/referentiel");
-    cy.contains("Écran 10 : Administration du Référentiel Logistique").should("be.visible");
+    cy.contains("10. Référentiel Logistique").should("be.visible");
 
     // Tab 1 : Axes & Quartiers
-    cy.contains("AXE RN1 OUEST").should("be.visible");
+    cy.contains("AXE_ITAOSY").should("be.visible");
     cy.contains("Analakely").should("be.visible");
     // ⏸️ PAUSE DE 3 SECONDES : Observer la cartographie des axes urbains
     cy.wait(3000);
 
     // Add Zone to Axis 1
-    cy.contains("Ajouter un Quartier").first().click();
-    cy.contains("Ajouter un Quartier à l'Axe").should("be.visible");
-    cy.get("input[placeholder*='Analamahitsy']").type("Ampitatafika");
-    cy.contains("button", "Rattacher ce Quartier").click();
+    cy.get('[data-cy="btn-manage-zones-1"]').click();
+    cy.contains("Quartiers Rattachés").should("be.visible");
+    cy.get('[data-cy="input-new-zone-name"]').type("Ampitatafika");
+    cy.get('[data-cy="btn-submit-add-zone"]').click();
     cy.wait("@addZone");
+    cy.contains("button", "Fermer").click();
 
     // Tab 2 : Partners
     cy.contains("Gares Routières & Coopératives").click();

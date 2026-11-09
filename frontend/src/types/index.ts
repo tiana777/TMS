@@ -18,6 +18,15 @@ export type ParcelStatus =
   | "CLOTURE_CAISSE";
 
 export type LogisticAxis =
+  | "AXE_CENTRE_1"
+  | "AXE_CENTRE_2"
+  | "AXE_ITAOSY"
+  | "AXE_AMPITATAFIKA"
+  | "AXE_AMBOHIMANGAKELY"
+  | "AXE_SABOTSY_NAMEHANA"
+  | "AXE_IVATO"
+  | "AXE_IAVOLOHA"
+  | "AXE_ALASORA"
   | "AXE_CENTRE"
   | "AXE_RN1"
   | "AXE_RN2"
@@ -123,6 +132,7 @@ export interface Courier {
   security_deposit: number;
   security_deposit_formatted: string;
   max_parcels?: number;
+  assigned_axis?: LogisticAxis | string | null;
   active: boolean;
 }
 

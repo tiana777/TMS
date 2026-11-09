@@ -1,6 +1,6 @@
 """Courier REST Router."""
 
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from backend.app.application.dtos.other_dtos import (
@@ -8,6 +8,7 @@ from backend.app.application.dtos.other_dtos import (
     CreateCourierDTO,
     ScorecardResponseDTO,
     UpdateCourierCapacityDTO,
+    UpdateCourierAxisDTO,
 )
 from backend.app.application.use_cases.tour_use_cases import CourierUseCases
 from backend.app.domain.exceptions import DomainException
@@ -20,11 +21,12 @@ router = APIRouter(prefix="/couriers", tags=["Livreurs & Performance"])
 
 @router.get("", response_model=List[CourierResponseDTO])
 def list_couriers(
+    axis: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: UserORM = Depends(get_current_user),
 ):
     use_cases = CourierUseCases(db)
-    return use_cases.list_couriers()
+    return use_cases.list_couriers(axis=axis)
 
 
 @router.post("", response_model=CourierResponseDTO, status_code=status.HTTP_201_CREATED)
@@ -63,6 +65,20 @@ def update_courier_capacity(
     try:
         use_cases = CourierUseCases(db)
         return use_cases.update_courier_capacity(courier_id, dto.max_parcels)
+    except DomainException as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.patch("/{courier_id}/axis", response_model=CourierResponseDTO)
+def update_courier_axis(
+    courier_id: int,
+    dto: UpdateCourierAxisDTO,
+    db: Session = Depends(get_db),
+    current_user: UserORM = Depends(get_current_user),
+):
+    try:
+        use_cases = CourierUseCases(db)
+        return use_cases.update_courier_axis(courier_id, dto.assigned_axis)
     except DomainException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

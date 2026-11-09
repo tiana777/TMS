@@ -71,6 +71,7 @@ class CourierType:
     security_deposit: int
     security_deposit_formatted: str
     max_parcels: int = 15
+    assigned_axis: Optional[str] = None
     active: bool
 
 

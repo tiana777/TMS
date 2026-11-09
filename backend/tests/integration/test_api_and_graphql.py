@@ -53,7 +53,7 @@ class TestRESTandGraphQLAPI:
         token = login_res.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        # 1. Create parcel (auto-detects AXE_RN1 from Itaosy)
+        # 1. Create parcel (auto-detects AXE_ITAOSY from Itaosy)
         payload = {
             "vendor_id": 1,
             "recipient_name": "Madame Rasoa",
@@ -67,7 +67,7 @@ class TestRESTandGraphQLAPI:
         assert res.status_code == 201
         parcel = res.json()
         assert parcel["id"] is not None
-        assert parcel["axis"] == "AXE_RN1"
+        assert parcel["axis"] == "AXE_ITAOSY"
         assert parcel["operator"] == "TELMA"
         assert parcel["total_to_collect"] == 55000
         assert parcel["total_to_collect_formatted"] == "55 000 Ar"
@@ -254,7 +254,7 @@ class TestRESTandGraphQLAPI:
         axes = data["data"]["axes"]
         assert len(axes) >= 8
         codes = [a["code"] for a in axes]
-        assert "AXE_CENTRE" in codes
+        assert "AXE_CENTRE_1" in codes
         assert "AXE_PROVINCE" in codes
 
         # 2. Query couriers
@@ -521,6 +521,59 @@ class TestRESTandGraphQLAPI:
             headers=headers,
         )
         assert add_res.status_code == 201
+
+    def test_courier_assigned_axis_filtering_and_update(self):
+        login_res = client.post(
+            "/api/v1/auth/login",
+            json={"username": "admin", "password": "admin123"},
+        )
+        assert login_res.status_code == 200
+        headers = {"Authorization": f"Bearer {login_res.json()['access_token']}"}
+
+        # 1. Create a courier assigned to AXE_CENTRE
+        import uuid
+        c_name = f"Courier Centre {uuid.uuid4().hex[:6]}"
+        c_res = client.post(
+            "/api/v1/couriers",
+            json={
+                "name": c_name,
+                "phone": "0341122334",
+                "vehicle_type": "Scooter 110cc",
+                "security_deposit": 100000,
+                "max_parcels": 15,
+                "assigned_axis": "AXE_CENTRE",
+            },
+            headers=headers,
+        )
+        assert c_res.status_code == 201
+        courier_data = c_res.json()
+        assert courier_data["assigned_axis"] == "AXE_CENTRE"
+        courier_id = courier_data["id"]
+
+        # 2. Filter couriers by AXE_CENTRE -> Must contain this courier
+        list_centre = client.get("/api/v1/couriers?axis=AXE_CENTRE", headers=headers)
+        assert list_centre.status_code == 200
+        ids_centre = [c["id"] for c in list_centre.json()]
+        assert courier_id in ids_centre
+
+        # 3. Filter couriers by AXE_RN1 -> Must NOT contain this courier
+        list_rn1 = client.get("/api/v1/couriers?axis=AXE_RN1", headers=headers)
+        assert list_rn1.status_code == 200
+        ids_rn1 = [c["id"] for c in list_rn1.json()]
+        assert courier_id not in ids_rn1
+
+        # 4. Update courier axis to AXE_RN1
+        patch_res = client.patch(
+            f"/api/v1/couriers/{courier_id}/axis",
+            json={"assigned_axis": "AXE_RN1"},
+            headers=headers,
+        )
+        assert patch_res.status_code == 200
+        assert patch_res.json()["assigned_axis"] == "AXE_RN1"
+
+        # 5. Filter again -> Now present in RN1 and not in CENTRE
+        list_rn1_after = client.get("/api/v1/couriers?axis=AXE_RN1", headers=headers)
+        assert courier_id in [c["id"] for c in list_rn1_after.json()]
 
     def test_caisse_centrale_bulk_close_and_tour_closure_reconciliation(self):
         # 1. Login as admin

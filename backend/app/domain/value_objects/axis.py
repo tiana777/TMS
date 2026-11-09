@@ -5,6 +5,18 @@ from enum import Enum
 
 class LogisticAxis(str, Enum):
     """The official logistic radial corridors radiating from Tsiazotafo Central Hub."""
+    # 9 Real Urban Delivery Axes from Operations Excel
+    AXE_CENTRE_1 = "AXE_CENTRE_1"
+    AXE_CENTRE_2 = "AXE_CENTRE_2"
+    AXE_ITAOSY = "AXE_ITAOSY"
+    AXE_AMPITATAFIKA = "AXE_AMPITATAFIKA"
+    AXE_AMBOHIMANGAKELY = "AXE_AMBOHIMANGAKELY"
+    AXE_SABOTSY_NAMEHANA = "AXE_SABOTSY_NAMEHANA"
+    AXE_IVATO = "AXE_IVATO"
+    AXE_IAVOLOHA = "AXE_IAVOLOHA"
+    AXE_ALASORA = "AXE_ALASORA"
+
+    # Legacy / Compatibility codes
     AXE_CENTRE = "AXE_CENTRE"
     AXE_RN1 = "AXE_RN1"
     AXE_RN2 = "AXE_RN2"
@@ -12,6 +24,8 @@ class LogisticAxis(str, Enum):
     AXE_RN4 = "AXE_RN4"
     AXE_RN7 = "AXE_RN7"
     AXE_SUD_EST = "AXE_SUD_EST"
+
+    # Province / National Corridors
     AXE_PROVINCE = "AXE_PROVINCE"
     AXE_PROV_RN2_EST = "AXE_PROV_RN2_EST"
     AXE_PROV_RN4_OUEST = "AXE_PROV_RN4_OUEST"
@@ -24,6 +38,15 @@ class LogisticAxis(str, Enum):
     @property
     def label(self) -> str:
         labels = {
+            LogisticAxis.AXE_CENTRE_1: "Axe Centre Ville 1 (Hyper-Centre & Analakely)",
+            LogisticAxis.AXE_CENTRE_2: "Axe Centre Ville 2 (Péri-Centre & Antanimena)",
+            LogisticAxis.AXE_ITAOSY: "Axe Itaosy (67Ha, Itaosy & Ouest)",
+            LogisticAxis.AXE_AMPITATAFIKA: "Axe Ampitatafika (Ampefiloha, Fenoarivo & Sud-Ouest)",
+            LogisticAxis.AXE_AMBOHIMANGAKELY: "Axe Ambohimangakely (RN2 Est & By-pass)",
+            LogisticAxis.AXE_SABOTSY_NAMEHANA: "Axe Sabotsy Namehana (RN3 Nord & Avaradrano)",
+            LogisticAxis.AXE_IVATO: "Axe Ivato (RN4 Digue & Aéroport)",
+            LogisticAxis.AXE_IAVOLOHA: "Axe Iavoloha (RN7 Sud & Atsimondrano)",
+            LogisticAxis.AXE_ALASORA: "Axe Alasora (Sud-Est & By-pass Alasora)",
             LogisticAxis.AXE_CENTRE: "AXE CENTRE-VILLE (Tsiazotafo & Hyper-Centre)",
             LogisticAxis.AXE_RN1: "AXE RN1 OUEST (Tsiazotafo ➔ Itaosy / Ampitatafika)",
             LogisticAxis.AXE_RN2: "AXE RN2 EST (Tsiazotafo ➔ Ambohimangakely)",
@@ -45,6 +68,15 @@ class LogisticAxis(str, Enum):
     @property
     def vehicle_type(self) -> str:
         vehicles = {
+            LogisticAxis.AXE_CENTRE_1: "Scooter 110cc",
+            LogisticAxis.AXE_CENTRE_2: "Scooter 110cc",
+            LogisticAxis.AXE_ITAOSY: "Scooter 125cc",
+            LogisticAxis.AXE_AMPITATAFIKA: "Scooter 125cc",
+            LogisticAxis.AXE_AMBOHIMANGAKELY: "Scooter 125cc",
+            LogisticAxis.AXE_SABOTSY_NAMEHANA: "Moto Trail 150cc",
+            LogisticAxis.AXE_IVATO: "Moto Cross 150cc",
+            LogisticAxis.AXE_IAVOLOHA: "Scooter 150cc",
+            LogisticAxis.AXE_ALASORA: "Moto Roadster",
             LogisticAxis.AXE_CENTRE: "Scooter 110cc",
             LogisticAxis.AXE_RN1: "Scooter 125cc",
             LogisticAxis.AXE_RN2: "Scooter 125cc",

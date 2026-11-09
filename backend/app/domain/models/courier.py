@@ -17,6 +17,7 @@ class Courier:
     id: Optional[int] = None
     security_deposit: Money = field(default_factory=Money.zero)
     max_parcels: int = 15
+    assigned_axis: Optional[str] = None
     active: bool = True
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -33,6 +34,9 @@ class Courier:
         if limit <= 0:
             raise BusinessRuleViolationException("La capacité maximale de colis doit être strictement positive.")
         self.max_parcels = limit
+
+    def set_assigned_axis(self, axis: Optional[str]) -> None:
+        self.assigned_axis = axis
 
     def deactivate(self) -> None:
         self.active = False

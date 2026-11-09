@@ -42,6 +42,7 @@ class CourierORM(Base):
     type_vehicule = Column(String(50), nullable=False)
     caution_garantie = Column(Float, default=0.0, nullable=False)
     capacite_max_colis = Column(Integer, default=15, nullable=False)
+    assigned_axis = Column(String(50), nullable=True, index=True)
     actif = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -94,6 +95,7 @@ class ZoneORM(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     axe_id = Column(Integer, ForeignKey("axes.id"), nullable=False, index=True)
     nom = Column(String(100), unique=True, nullable=False, index=True)
+    tarif_livraison = Column(Integer, default=3000, nullable=False)
 
     axe = relationship("AxisORM", back_populates="zones")
 

@@ -41,19 +41,22 @@ import {
   startTour,
   overrideParcelAxis,
   updateCourierCapacity,
+  updateCourierAxis,
 } from "@/lib/api";
 import { AxisInfo, Courier, LogisticAxis, Parcel, Tour } from "@/types";
 
 const AXIS_OPTIONS: { code: LogisticAxis | "ALL"; label: string; short: string }[] = [
   { code: "ALL", label: "Tous les Axes", short: "Tous" },
-  { code: "AXE_CENTRE", label: "AXE CENTRE (Tsiazotafo & Centre)", short: "Centre" },
-  { code: "AXE_RN1", label: "AXE RN1 OUEST (Itaosy / Fenoarivo)", short: "RN1 Ouest" },
-  { code: "AXE_RN2", label: "AXE RN2 EST (Ambohimangakely)", short: "RN2 Est" },
-  { code: "AXE_RN3", label: "AXE RN3 NORD (Sabotsy Namehana)", short: "RN3 Nord" },
-  { code: "AXE_RN4", label: "AXE RN4 / DIGUE (Ivato Aéroport)", short: "RN4 Digue" },
-  { code: "AXE_RN7", label: "AXE RN7 SUD (Tanjombato / Iavoloha)", short: "RN7 Sud" },
-  { code: "AXE_SUD_EST", label: "AXE SUD-EST (Ankatso / Alasora)", short: "Sud-Est" },
-  { code: "AXE_PROVINCE", label: "AXE PROVINCES & GARES ROUTIÈRES", short: "Provinces" },
+  { code: "AXE_CENTRE_1", label: "Axe Centre Ville 1 (Hyper-Centre / Analakely)", short: "Centre 1" },
+  { code: "AXE_CENTRE_2", label: "Axe Centre Ville 2 (Péri-Centre / Antanimena)", short: "Centre 2" },
+  { code: "AXE_ITAOSY", label: "Axe Itaosy (67Ha / Itaosy / Bemasoandro)", short: "Itaosy" },
+  { code: "AXE_AMPITATAFIKA", label: "Axe Ampitatafika (Ampefiloha / Fenoarivo)", short: "Ampitatafika" },
+  { code: "AXE_AMBOHIMANGAKELY", label: "Axe Ambohimangakely (Besarety / RN2)", short: "Ambohimangakely" },
+  { code: "AXE_SABOTSY_NAMEHANA", label: "Axe Sabotsy Namehana (Ankadikely / RN3)", short: "Sabotsy" },
+  { code: "AXE_IVATO", label: "Axe Ivato (Andraharo / RN4 Aéroport)", short: "Ivato" },
+  { code: "AXE_IAVOLOHA", label: "Axe Iavoloha (Tanjombato / RN7 Sud)", short: "Iavoloha" },
+  { code: "AXE_ALASORA", label: "Axe Alasora (Mandroseza / By-pass)", short: "Alasora" },
+  { code: "AXE_PROVINCE", label: "Axe Provinces & Gares Routières", short: "Provinces" },
 ];
 
 const GARE_FILTERS = [
@@ -103,7 +106,7 @@ export default function DispatchPage() {
 
   // Axis modification state (CDC Section 5.2)
   const [editingAxisParcel, setEditingAxisParcel] = useState<Parcel | null>(null);
-  const [targetAxis, setTargetAxis] = useState<LogisticAxis>("AXE_CENTRE");
+  const [targetAxis, setTargetAxis] = useState<LogisticAxis>("AXE_CENTRE_1");
   const [isSavingAxis, setIsSavingAxis] = useState<boolean>(false);
   const [axisFeedback, setAxisFeedback] = useState<string | null>(null);
 
@@ -281,12 +284,43 @@ export default function DispatchPage() {
 
   // Strictly Urban parcels on this page (CDC Section 4.1 & Écran 03A)
   // Parcels manually overridden in this screen also remain visible to display the manual choice badge
-  const urbanStockParcels = stockParcels.filter((p) => p.axis !== "AXE_PROVINCE" || p.is_manual_axis);
-  const totalProvinceStock = stockParcels.filter((p) => p.axis === "AXE_PROVINCE").length;
+  const isProvinceAxis = (axis?: string) => Boolean(axis && (axis === "AXE_PROVINCE" || axis.includes("PROV")));
+  const urbanStockParcels = stockParcels.filter((p) => !isProvinceAxis(p.axis) || p.is_manual_axis);
+  const totalProvinceStock = stockParcels.filter((p) => isProvinceAxis(p.axis)).length;
+
+  // Couriers filtered strictly according to selected radial axis (CDC Écran 03A)
+  const availableCouriers = couriers.filter((c) => {
+    if (selectedAxis === "ALL") return true;
+    return c.assigned_axis === selectedAxis;
+  });
 
   const selectedCourier = couriers.find((c) => c.id === Number(assignedCourierId));
   const courierCapacity = selectedCourier ? (selectedCourier.max_parcels || 15) : 15;
   const isOverCapacity = selectedParcelIds.length > courierCapacity;
+
+  // Reset selected parcels ONLY when selected axis corridor changes
+  useEffect(() => {
+    setSelectedParcelIds([]);
+  }, [selectedAxis]);
+
+  // Synchronize assigned courier with available couriers for the selected axis
+  useEffect(() => {
+    if (couriers.length === 0) return;
+    if (selectedAxis === "ALL") {
+      if (assignedCourierId === "" || !couriers.some((c) => c.id === Number(assignedCourierId))) {
+        setAssignedCourierId(couriers[0].id);
+      }
+    } else {
+      const matching = couriers.filter((c) => c.assigned_axis === selectedAxis);
+      if (matching.length > 0) {
+        if (!matching.some((c) => c.id === Number(assignedCourierId))) {
+          setAssignedCourierId(matching[0].id);
+        }
+      } else {
+        setAssignedCourierId("");
+      }
+    }
+  }, [selectedAxis, couriers]);
 
   useEffect(() => {
     if (selectedCourier) {
@@ -314,7 +348,13 @@ export default function DispatchPage() {
   // Filtered parcels for Écran 03A: urban by default, or specific axis including province if explicitly selected
   const sourceParcels = selectedAxis === "AXE_PROVINCE" ? stockParcels : urbanStockParcels;
   const filteredParcels = sourceParcels.filter((p) => {
-    if (selectedAxis !== "ALL" && p.axis !== selectedAxis) return false;
+    if (selectedAxis !== "ALL") {
+      if (selectedAxis === "AXE_PROVINCE") {
+        if (!isProvinceAxis(p.axis)) return false;
+      } else if (p.axis !== selectedAxis) {
+        return false;
+      }
+    }
     if (selectedAxis === "AXE_PROVINCE" && selectedGare !== "ALL") {
       if (!p.delivery_address?.toLowerCase().includes(selectedGare.toLowerCase())) {
         return false;
@@ -608,6 +648,8 @@ export default function DispatchPage() {
                 const count =
                   ax.code === "ALL"
                     ? stockParcels.length
+                    : ax.code === "AXE_PROVINCE"
+                    ? stockParcels.filter((p) => isProvinceAxis(p.axis)).length
                     : stockParcels.filter((p) => p.axis === ax.code).length;
                 const isSelected = selectedAxis === ax.code;
 
@@ -693,17 +735,61 @@ export default function DispatchPage() {
                 <span className="text-xs text-slate-500 font-medium">Affecter à :</span>
                 <select
                   value={assignedCourierId}
-                  onChange={(e) => setAssignedCourierId(Number(e.target.value))}
+                  onChange={(e) => setAssignedCourierId(e.target.value ? Number(e.target.value) : "")}
                   data-cy="select-courier"
-                  className="bg-white border border-slate-300 text-slate-900 text-xs font-medium px-2.5 py-1.5 rounded-lg focus:border-blue-500 focus:outline-none"
+                  disabled={availableCouriers.length === 0}
+                  className={`border text-xs font-medium px-2.5 py-1.5 rounded-lg focus:border-blue-500 focus:outline-none ${
+                    availableCouriers.length === 0
+                      ? "bg-amber-50 border-amber-300 text-amber-800"
+                      : "bg-white border-slate-300 text-slate-900"
+                  }`}
                 >
-                  {couriers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.vehicle_type} - {c.phone_formatted})
+                  {availableCouriers.length === 0 ? (
+                    <option value="" disabled>
+                      Aucun livreur rattaché à {AXIS_OPTIONS.find((a) => a.code === selectedAxis)?.short || selectedAxis}
                     </option>
-                  ))}
+                  ) : (
+                    availableCouriers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.vehicle_type} - {c.phone_formatted}){selectedAxis === "ALL" && c.assigned_axis ? ` [${AXIS_OPTIONS.find((a) => a.code === c.assigned_axis)?.short || c.assigned_axis}]` : ""}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
+
+              {/* Quick assign courier to axis if none available */}
+              {availableCouriers.length === 0 && selectedAxis !== "ALL" && (
+                <div className="flex items-center gap-1.5 text-xs bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span className="text-amber-800 text-[11px] font-medium">Aucun livreur pour cet axe :</span>
+                  <select
+                    onChange={async (e) => {
+                      if (e.target.value) {
+                        const cid = Number(e.target.value);
+                        try {
+                          await updateCourierAxis(cid, selectedAxis);
+                          setCouriers((prev) =>
+                            prev.map((c) => (c.id === cid ? { ...c, assigned_axis: selectedAxis } : c))
+                          );
+                          setAssignedCourierId(cid);
+                        } catch (err: any) {
+                          alert(err.message || "Erreur lors du rattachement du livreur.");
+                        }
+                      }
+                    }}
+                    defaultValue=""
+                    className="text-[11px] bg-white border border-amber-300 rounded px-1.5 py-0.5 text-slate-800 font-medium cursor-pointer"
+                  >
+                    <option value="" disabled>+ Assigner un coursier existant...</option>
+                    {couriers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({AXIS_OPTIONS.find((a) => a.code === c.assigned_axis)?.short || c.assigned_axis || "Non assigné"})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Courier Capacity Indicator & Configurator */}
               {selectedCourier && (
@@ -1400,14 +1486,16 @@ export default function DispatchPage() {
                 onChange={(e) => setTargetAxis(e.target.value as LogisticAxis)}
                 className="w-full bg-white border border-slate-300 text-slate-800 font-medium text-xs rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
               >
-                <optgroup label="🛵 Réseau Urbain (Grand Tanà)">
-                  <option value="AXE_CENTRE">1. AXE_CENTRE (Tsiazotafo & Hyper-Centre)</option>
-                  <option value="AXE_RN1">2. AXE_RN1 (Itaosy / Ampitatafika / Ouest)</option>
-                  <option value="AXE_RN2">3. AXE_RN2 (Ambohimangakely / Est)</option>
-                  <option value="AXE_RN3">4. AXE_RN3 (Sabotsy Namehana / Nord)</option>
-                  <option value="AXE_RN4">5. AXE_RN4 (Ivato Aéroport / Digue)</option>
-                  <option value="AXE_RN7">6. AXE_RN7 (Tanjombato / Iavoloha / Sud)</option>
-                  <option value="AXE_SUD_EST">7. AXE_SUD_EST (Ankatso / Alasora)</option>
+                <optgroup label="🛵 Réseau Urbain (Grand Tanà - 9 Axes Réels)">
+                  <option value="AXE_CENTRE_1">1. Axe Centre Ville 1 (Hyper-Centre & Analakely)</option>
+                  <option value="AXE_CENTRE_2">2. Axe Centre Ville 2 (Péri-Centre & Antanimena)</option>
+                  <option value="AXE_ITAOSY">3. Axe Itaosy (67Ha, Itaosy & Ouest)</option>
+                  <option value="AXE_AMPITATAFIKA">4. Axe Ampitatafika (Ampefiloha & Fenoarivo)</option>
+                  <option value="AXE_AMBOHIMANGAKELY">5. Axe Ambohimangakely (Besarety & RN2)</option>
+                  <option value="AXE_SABOTSY_NAMEHANA">6. Axe Sabotsy Namehana (Ankadikely & RN3)</option>
+                  <option value="AXE_IVATO">7. Axe Ivato (RN4 Digue & Aéroport)</option>
+                  <option value="AXE_IAVOLOHA">8. Axe Iavoloha (RN7 Sud & Tanjombato)</option>
+                  <option value="AXE_ALASORA">9. Axe Alasora (Mandroseza & By-pass)</option>
                 </optgroup>
                 <optgroup label="🚐 Expéditions Nationales (Province & Gares)">
                   <option value="AXE_PROVINCE">8. AXE_PROVINCE (Toutes Gares Routières)</option>

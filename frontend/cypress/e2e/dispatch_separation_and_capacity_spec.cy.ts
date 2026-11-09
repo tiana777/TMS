@@ -53,8 +53,8 @@ describe("Dispatching - Séparation Ville vs Province & Capacité Paramétrable 
     operator: "TELMA",
     delivery_address: "Analakely près Pavillon",
     designation: "Robe de Soie Bleue",
-    axis: "AXE_CENTRE",
-    axis_label: "AXE CENTRE",
+    axis: "AXE_CENTRE_1",
+    axis_label: "Axe Centre Ville 1 (Hyper-Centre & Analakely)",
     flux_type: "COD",
     merchandise_amount: 40000,
     delivery_fee: 5000,
@@ -79,8 +79,8 @@ describe("Dispatching - Séparation Ville vs Province & Capacité Paramétrable 
     operator: "ORANGE",
     delivery_address: "Itaosy Cité",
     designation: "Écouteurs Sans Fil",
-    axis: "AXE_RN1",
-    axis_label: "AXE RN1 OUEST",
+    axis: "AXE_ITAOSY",
+    axis_label: "Axe Itaosy (67Ha, Itaosy & Ouest)",
     flux_type: "COD",
     merchandise_amount: 35000,
     delivery_fee: 5000,
@@ -99,14 +99,14 @@ describe("Dispatching - Séparation Ville vs Province & Capacité Paramétrable 
     vendor_id: 2,
     sender_name: "PharmaCare Tanà",
     sender_type: "ENTREPRISE",
-    recipient_name: "Dr. Hery (Urbain RN7)",
+    recipient_name: "Dr. Hery (Urbain Iavoloha)",
     recipient_phone: "0331122334",
     recipient_phone_formatted: "033 11 223 34",
     operator: "AIRTEL",
     delivery_address: "Tanjombato Rond-point",
     designation: "Produits Parapharmacie",
-    axis: "AXE_RN7",
-    axis_label: "AXE RN7 SUD",
+    axis: "AXE_IAVOLOHA",
+    axis_label: "Axe Iavoloha (RN7 Sud & Atsimondrano)",
     flux_type: "SIMPLE",
     merchandise_amount: 0,
     delivery_fee: 6000,
@@ -182,7 +182,7 @@ describe("Dispatching - Séparation Ville vs Province & Capacité Paramétrable 
       cy.contains("URB-002").should("be.visible");
       cy.contains("Rakoto Jean (Urbain RN1)").should("be.visible");
       cy.contains("URB-003").should("be.visible");
-      cy.contains("Dr. Hery (Urbain RN7)").should("be.visible");
+      cy.contains("Dr. Hery (Urbain Iavoloha)").should("be.visible");
 
       // Le colis province PRV-001 DOIT ÊTRE STRICTEMENT EXCLU de la distribution urbaine
       cy.contains("PRV-001").should("not.exist");

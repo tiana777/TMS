@@ -69,10 +69,10 @@ export default function ImportPage() {
       const rawPhone = parts[1] || "";
       const address = parts[2] || "Antananarivo";
       const rawMerch = parts[3] ? parseInt(parts[3].replace(/[^\d]/g, ""), 10) || 0 : 0;
-      const rawFee = parts[4] ? parseInt(parts[4].replace(/[^\d]/g, ""), 10) || 5000 : 5000;
-
       const phoneDetect = detectMalagasyPhone(rawPhone);
       const axisDetect = detectAxisClient(address);
+      const parsedFee = parts[4] ? parseInt(parts[4].replace(/[^\d]/g, ""), 10) : 0;
+      const rawFee = parsedFee && parsedFee > 0 ? parsedFee : axisDetect.fee;
       const fluxType: FluxType = axisDetect.axis === "AXE_PROVINCE" ? "PROVINCE" : "COD";
 
       let hasErrors = false;

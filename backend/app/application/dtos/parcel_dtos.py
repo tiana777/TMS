@@ -16,7 +16,7 @@ class CreateParcelDTO(BaseModel):
     designation: Optional[str] = None
     flux_type: str = "COD"  # COD, SIMPLE, RETOUR, PROVINCE
     merchandise_amount: int = 0
-    delivery_fee: int = 5000
+    delivery_fee: Optional[int] = None
     tracking_number: Optional[str] = None
     reception_date: Optional[str] = None  # YYYY-MM-DD
     axis: Optional[str] = None  # If None, auto-detected!

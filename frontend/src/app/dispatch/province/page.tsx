@@ -92,7 +92,13 @@ export default function DispatchProvincePage() {
   const [isSavingAxis, setIsSavingAxis] = useState<boolean>(false);
   const [axisFeedback, setAxisFeedback] = useState<string | null>(null);
 
-  const selectedCourier = couriers.find((c) => c.id === Number(assignedCourierId));
+  // Filter couriers assigned to Province / Navettes (CDC Écran 03B)
+  const provinceCouriers = couriers.filter(
+    (c) => !c.assigned_axis || c.assigned_axis === "AXE_PROVINCE" || c.assigned_axis.startsWith("AXE_PROV")
+  );
+  const availableCouriers = provinceCouriers.length > 0 ? provinceCouriers : couriers;
+
+  const selectedCourier = availableCouriers.find((c) => c.id === Number(assignedCourierId)) || couriers.find((c) => c.id === Number(assignedCourierId));
   const courierCapacity = selectedCourier?.max_parcels || 15;
   const isOverCapacity = selectedParcelIds.length > courierCapacity;
 
@@ -106,8 +112,12 @@ export default function DispatchProvincePage() {
     try {
       const couriersList = await fetchCouriers();
       setCouriers(couriersList);
-      if (couriersList.length > 0 && assignedCourierId === "") {
-        setAssignedCourierId(couriersList[0].id);
+      const provList = couriersList.filter(
+        (c: Courier) => !c.assigned_axis || c.assigned_axis === "AXE_PROVINCE" || c.assigned_axis.startsWith("AXE_PROV")
+      );
+      const targetList = provList.length > 0 ? provList : couriersList;
+      if (targetList.length > 0 && assignedCourierId === "") {
+        setAssignedCourierId(targetList[0].id);
       }
     } catch (e) {
       console.error("Error loading couriers", e);
@@ -548,9 +558,9 @@ export default function DispatchProvincePage() {
                   data-cy="select-courier"
                   className="bg-white border border-slate-300 text-slate-900 text-xs font-medium px-2.5 py-1.5 rounded-lg focus:border-purple-500 focus:outline-none"
                 >
-                  {couriers.map((c) => (
+                  {availableCouriers.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name} ({c.vehicle_type} - {c.phone_formatted})
+                      {c.name} ({c.vehicle_type} - {c.phone_formatted}){c.assigned_axis ? ` [${c.assigned_axis}]` : ""}
                     </option>
                   ))}
                 </select>
@@ -953,14 +963,16 @@ export default function DispatchProvincePage() {
                 onChange={(e) => setTargetAxis(e.target.value as LogisticAxis)}
                 className="w-full bg-white border border-slate-300 text-slate-800 font-medium text-xs rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
               >
-                <optgroup label="🛵 Réseau Urbain (Grand Tanà)">
-                  <option value="AXE_CENTRE">1. AXE_CENTRE (Tsiazotafo & Centre)</option>
-                  <option value="AXE_RN1">2. AXE_RN1 OUEST (Itaosy / Fenoarivo)</option>
-                  <option value="AXE_RN2">3. AXE_RN2 EST (Ambohimangakely)</option>
-                  <option value="AXE_RN3">4. AXE_RN3 NORD (Sabotsy Namehana)</option>
-                  <option value="AXE_RN4">5. AXE_RN4 / DIGUE (Ivato Aéroport)</option>
-                  <option value="AXE_RN7">6. AXE_RN7 SUD (Tanjombato / Iavoloha)</option>
-                  <option value="AXE_SUD_EST">7. AXE_SUD-EST (Ankatso / Alasora)</option>
+                <optgroup label="🛵 Réseau Urbain (Grand Tanà - 9 Axes Réels)">
+                  <option value="AXE_CENTRE_1">1. Axe Centre Ville 1 (Hyper-Centre & Analakely)</option>
+                  <option value="AXE_CENTRE_2">2. Axe Centre Ville 2 (Péri-Centre & Antanimena)</option>
+                  <option value="AXE_ITAOSY">3. Axe Itaosy (67Ha, Itaosy & Ouest)</option>
+                  <option value="AXE_AMPITATAFIKA">4. Axe Ampitatafika (Ampefiloha & Fenoarivo)</option>
+                  <option value="AXE_AMBOHIMANGAKELY">5. Axe Ambohimangakely (Besarety & RN2)</option>
+                  <option value="AXE_SABOTSY_NAMEHANA">6. Axe Sabotsy Namehana (Ankadikely & RN3)</option>
+                  <option value="AXE_IVATO">7. Axe Ivato (RN4 Digue & Aéroport)</option>
+                  <option value="AXE_IAVOLOHA">8. Axe Iavoloha (RN7 Sud & Tanjombato)</option>
+                  <option value="AXE_ALASORA">9. Axe Alasora (Mandroseza & By-pass)</option>
                 </optgroup>
                 <optgroup label="🚐 Expéditions Nationales (Province & Gares)">
                   <option value="AXE_PROVINCE">8. AXE_PROVINCE (Toutes Gares Routières)</option>

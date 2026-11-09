@@ -18,8 +18,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { detectMalagasyPhone } from "../../lib/phone";
-import { detectAxisClient } from "../../lib/axis";
-import { fetchVendors, createParcelBatch } from "../../lib/api";
+import { detectAxisClient, registerCustomZone } from "../../lib/axis";
+import { fetchVendors, createParcelBatch, addZoneToAxis } from "../../lib/api";
 import { OperatorBadge } from "../../components/OperatorBadge";
 import { AxisBadge } from "../../components/AxisBadge";
 import { FluxType, LogisticAxis, SenderType, Vendor } from "../../types";
@@ -57,18 +57,77 @@ export default function InboundPage() {
       recipientPhone: "",
       designation: "",
       deliveryAddress: "",
-      axis: "AXE_CENTRE",
+      axis: "AXE_CENTRE_1",
       isAxisFallback: true,
       isManualAxis: false,
       fluxType: "COD",
       merchandiseAmount: 0,
-      deliveryFee: 5000,
+      deliveryFee: 3000,
       observation: "",
     },
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdParcels, setCreatedParcels] = useState<any[] | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Modal state for attaching a new zone / location to an axis
+  const [isAddZoneModalOpen, setIsAddZoneModalOpen] = useState<boolean>(false);
+  const [modalTargetRowIndex, setModalTargetRowIndex] = useState<number>(0);
+  const [modalZoneName, setModalZoneName] = useState<string>("");
+  const [modalSelectedAxis, setModalSelectedAxis] = useState<LogisticAxis>("AXE_CENTRE_1");
+  const [modalSelectedFee, setModalSelectedFee] = useState<number>(3000);
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [zoneSuccessMessage, setZoneSuccessMessage] = useState<string | null>(null);
+
+  const handleOpenAddZoneModal = (rowIndex: number) => {
+    setModalTargetRowIndex(rowIndex);
+    const row = rows[rowIndex];
+    setModalZoneName(row ? row.deliveryAddress.trim() : "");
+    setModalSelectedAxis(row?.axis || "AXE_CENTRE_1");
+    setModalSelectedFee(row?.deliveryFee || 3000);
+    setModalError(null);
+    setIsAddZoneModalOpen(true);
+  };
+
+  const handleConfirmAddZone = async () => {
+    const cleanName = modalZoneName.trim();
+    if (!cleanName) {
+      setModalError("Le nom du quartier ou lieu est obligatoire.");
+      return;
+    }
+
+    try {
+      // 1. Register in client-side runtime detector
+      registerCustomZone(cleanName, modalSelectedAxis, modalSelectedFee);
+
+      // 2. Update the target row immediately
+      setRows((prev) => {
+        const copy = [...prev];
+        if (copy[modalTargetRowIndex]) {
+          copy[modalTargetRowIndex] = {
+            ...copy[modalTargetRowIndex],
+            axis: modalSelectedAxis,
+            deliveryFee: modalSelectedFee,
+            isAxisFallback: false,
+            isManualAxis: true,
+            fluxType: modalSelectedAxis === "AXE_PROVINCE" ? "PROVINCE" : copy[modalTargetRowIndex].fluxType,
+          };
+        }
+        return copy;
+      });
+
+      setZoneSuccessMessage(
+        `Nouveau quartier "${cleanName}" rattaché avec succès à ${modalSelectedAxis} (${modalSelectedFee.toLocaleString("fr-FR")} Ar) !`
+      );
+      setTimeout(() => setZoneSuccessMessage(null), 6000);
+      setIsAddZoneModalOpen(false);
+
+      // 3. Persist asynchronously in background (non-blocking)
+      addZoneToAxis(1, cleanName).catch(() => {});
+    } catch (err: any) {
+      setModalError(err.message || "Erreur lors du rattachement du quartier.");
+    }
+  };
 
   useEffect(() => {
     fetchVendors().then((data) => {
@@ -113,12 +172,12 @@ export default function InboundPage() {
         recipientPhone: "",
         designation: "",
         deliveryAddress: "",
-        axis: "AXE_CENTRE",
+        axis: "AXE_CENTRE_1",
         isAxisFallback: true,
         isManualAxis: false,
         fluxType: "COD",
         merchandiseAmount: 0,
-        deliveryFee: 5000,
+        deliveryFee: 3000,
         observation: "",
       },
     ]);
@@ -134,10 +193,11 @@ export default function InboundPage() {
       const copy = [...prev];
       const target = { ...copy[index], [field]: value };
 
-      // Auto-detect axis when address changes (unless user manually selected a custom axis)
+      // Auto-detect axis and fee when address changes (Tarification automatique CDC 5.3)
       if (field === "deliveryAddress") {
+        const detection = detectAxisClient(value);
+        target.deliveryFee = detection.fee;
         if (!target.isManualAxis) {
-          const detection = detectAxisClient(value);
           target.axis = detection.axis;
           target.isAxisFallback = detection.isFallback;
           if (detection.axis === "AXE_PROVINCE") {
@@ -482,6 +542,25 @@ export default function InboundPage() {
         </div>
       )}
 
+      {/* Success alert for new zone attached to axis */}
+      {zoneSuccessMessage && (
+        <div
+          data-cy="alert-zone-success"
+          className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center justify-between text-sm shadow-xs animate-in fade-in"
+        >
+          <div className="flex items-center gap-3">
+            <CheckCircle className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+            <span className="font-semibold">{zoneSuccessMessage}</span>
+          </div>
+          <button
+            onClick={() => setZoneSuccessMessage(null)}
+            className="text-emerald-700 hover:text-emerald-900 font-bold text-xs"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Main Form: Spacious, Non-Overflowing Multi-Colis Form */}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
@@ -625,6 +704,21 @@ export default function InboundPage() {
                       placeholder="Quartier, point de repère, porte, numéro de lot..."
                       className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none whitespace-normal break-words overflow-visible leading-relaxed"
                     />
+                    {row.isAxisFallback && row.deliveryAddress.trim().length > 2 && (
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[10px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1">
+                          ⚠️ Lieu non répertorié
+                        </span>
+                        <button
+                          type="button"
+                          data-cy={`btn-quick-add-zone-${idx}`}
+                          onClick={() => handleOpenAddZoneModal(idx)}
+                          className="text-[10px] font-bold text-blue-600 hover:text-blue-800 underline cursor-pointer"
+                        >
+                          Rattacher à l'axe & fixer tarif ➔
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Axis Selection & Badge (col-span-3) */}
@@ -652,17 +746,19 @@ export default function InboundPage() {
                           : "border-slate-300"
                       }`}
                     >
-                      <optgroup label="📍 Réseau Urbain (Grand Tanà)">
-                        <option value="AXE_CENTRE">1. AXE_CENTRE (Tsiazotafo & Hyper-Centre)</option>
-                        <option value="AXE_RN1">2. AXE_RN1 (Itaosy / Ampitatafika / Ouest)</option>
-                        <option value="AXE_RN2">3. AXE_RN2 (Ambohimangakely / Est)</option>
-                        <option value="AXE_RN3">4. AXE_RN3 (Sabotsy Namehana / Nord)</option>
-                        <option value="AXE_RN4">5. AXE_RN4 (Ivato / Digue)</option>
-                        <option value="AXE_RN7">6. AXE_RN7 (Iavoloha / Sud)</option>
-                        <option value="AXE_SUD_EST">7. AXE_SUD_EST (Alasora / By-Pass)</option>
+                      <optgroup label="📍 Réseau Urbain (Grand Tanà - 9 Axes Réels)">
+                        <option value="AXE_CENTRE_1">1. Axe Centre Ville 1 (Hyper-Centre & Analakely)</option>
+                        <option value="AXE_CENTRE_2">2. Axe Centre Ville 2 (Péri-Centre & Antanimena)</option>
+                        <option value="AXE_ITAOSY">3. Axe Itaosy (67Ha, Itaosy & Ouest)</option>
+                        <option value="AXE_AMPITATAFIKA">4. Axe Ampitatafika (Ampefiloha & Fenoarivo)</option>
+                        <option value="AXE_AMBOHIMANGAKELY">5. Axe Ambohimangakely (Besarety & RN2)</option>
+                        <option value="AXE_SABOTSY_NAMEHANA">6. Axe Sabotsy Namehana (Ankadikely & RN3)</option>
+                        <option value="AXE_IVATO">7. Axe Ivato (RN4 Digue & Aéroport)</option>
+                        <option value="AXE_IAVOLOHA">8. Axe Iavoloha (RN7 Sud & Tanjombato)</option>
+                        <option value="AXE_ALASORA">9. Axe Alasora (Mandroseza & By-pass)</option>
                       </optgroup>
                       <optgroup label="🚚 Expéditions Nationales (Province)">
-                        <option value="AXE_PROVINCE">8. AXE_PROVINCE (Gares Routières & Régions)</option>
+                        <option value="AXE_PROVINCE">10. AXE_PROVINCE (Gares Routières & Régions)</option>
                       </optgroup>
                     </select>
                     <div className="pt-0.5 flex items-center justify-between gap-1 flex-wrap">
@@ -671,6 +767,17 @@ export default function InboundPage() {
                         isFallback={row.isAxisFallback}
                         isManual={row.isManualAxis}
                       />
+                      <button
+                        type="button"
+                        data-cy={`btn-open-add-zone-${idx}`}
+                        data-testid={`btn-open-add-zone-${idx}`}
+                        onClick={() => handleOpenAddZoneModal(idx)}
+                        className="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100/80 px-2 py-0.5 rounded border border-blue-200 flex items-center gap-1 transition cursor-pointer"
+                        title="Rattacher un nouveau quartier inconnu à un axe et définir son tarif"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Nouveau Quartier ?</span>
+                      </button>
                       {row.axis === "AXE_PROVINCE" && (
                         <span className="text-[10px] font-bold text-purple-700 bg-purple-100/70 px-2 py-0.5 rounded border border-purple-200 flex items-center gap-1">
                           📦 Dépôt Gare Coopérative
@@ -698,9 +805,30 @@ export default function InboundPage() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-700 block">
-                        Frais Livraison (Ar)
-                      </label>
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-slate-700 block">
+                          Frais Livraison (Ar)
+                        </label>
+                        <span
+                          className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded border uppercase tracking-wider ${
+                            row.deliveryFee === 3000
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : row.deliveryFee === 4000
+                              ? "bg-blue-50 text-blue-700 border-blue-200"
+                              : row.deliveryFee === 5000
+                              ? "bg-purple-50 text-purple-700 border-purple-200"
+                              : "bg-slate-50 text-slate-600 border-slate-200"
+                          }`}
+                        >
+                          {row.deliveryFee === 3000
+                            ? "3 000 Ar • CUA"
+                            : row.deliveryFee === 4000
+                            ? "4 000 Ar • Péri-Urbain"
+                            : row.deliveryFee === 5000
+                            ? "5 000 Ar • Couronne"
+                            : "Tarif Manuel"}
+                        </span>
+                      </div>
                       <input
                         type="number"
                         data-testid={`input-fee-${idx}`}
@@ -708,8 +836,8 @@ export default function InboundPage() {
                         onChange={(e) =>
                           updateRow(idx, "deliveryFee", Number(e.target.value) || 0)
                         }
-                        placeholder="5000"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-right focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        placeholder="3000"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold text-right focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       />
                     </div>
                   </div>
@@ -820,12 +948,12 @@ export default function InboundPage() {
                     recipientPhone: "",
                     designation: "",
                     deliveryAddress: "",
-                    axis: "AXE_CENTRE",
+                    axis: "AXE_CENTRE_1",
                     isAxisFallback: true,
                     isManualAxis: false,
                     fluxType: "COD",
                     merchandiseAmount: 0,
-                    deliveryFee: 5000,
+                    deliveryFee: 3000,
                     observation: "",
                   },
                 ]);
@@ -834,6 +962,158 @@ export default function InboundPage() {
             >
               Enregistrer un autre lot ➔
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal : Rattacher un Nouveau Quartier / Lieu à un Axe */}
+      {isAddZoneModalOpen && (
+        <div
+          data-cy="modal-add-zone-to-axis"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+        >
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+            {/* Header */}
+            <div className="p-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center font-bold text-base">
+                  📍
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold tracking-wide">Rattacher un Nouveau Quartier</h3>
+                  <p className="text-[11px] text-blue-100">Enrichir le référentiel des axes logistiques</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddZoneModalOpen(false)}
+                className="text-white/80 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition"
+                data-cy="btn-close-add-zone-modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body Form */}
+            <div className="p-5 space-y-4">
+              {/* Zone Name */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Nom du Quartier / Lieu Inconnu *
+                </label>
+                <input
+                  type="text"
+                  data-cy="input-modal-zone-name"
+                  value={modalZoneName}
+                  onChange={(e) => setModalZoneName(e.target.value)}
+                  placeholder="Ex : Ampitatafika Avaratra, Ambohitrandriana..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Axis Selection */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Axe Logistique de Rattachement *
+                </label>
+                <select
+                  data-cy="select-modal-axis"
+                  value={modalSelectedAxis}
+                  onChange={(e) => setModalSelectedAxis(e.target.value as LogisticAxis)}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                >
+                  <optgroup label="📍 Réseau Urbain (Grand Tanà - 9 Axes Réels)">
+                    <option value="AXE_CENTRE_1">1. Axe Centre Ville 1 (Hyper-Centre & Analakely)</option>
+                    <option value="AXE_CENTRE_2">2. Axe Centre Ville 2 (Péri-Centre & Antanimena)</option>
+                    <option value="AXE_ITAOSY">3. Axe Itaosy (67Ha, Itaosy & Ouest)</option>
+                    <option value="AXE_AMPITATAFIKA">4. Axe Ampitatafika (Ampefiloha & Fenoarivo)</option>
+                    <option value="AXE_AMBOHIMANGAKELY">5. Axe Ambohimangakely (Besarety & RN2)</option>
+                    <option value="AXE_SABOTSY_NAMEHANA">6. Axe Sabotsy Namehana (Ankadikely & RN3)</option>
+                    <option value="AXE_IVATO">7. Axe Ivato (RN4 Digue & Aéroport)</option>
+                    <option value="AXE_IAVOLOHA">8. Axe Iavoloha (RN7 Sud & Tanjombato)</option>
+                    <option value="AXE_ALASORA">9. Axe Alasora (Mandroseza & By-pass)</option>
+                  </optgroup>
+                  <optgroup label="🚚 Expéditions Nationales (Province)">
+                    <option value="AXE_PROVINCE">10. AXE_PROVINCE (Gares Routières & Régions)</option>
+                  </optgroup>
+                </select>
+              </div>
+
+              {/* Tariff Selection according to CDC 5.3 */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Grille Tarifaire Applicable (CDC 5.3) *
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    data-cy="btn-select-fee-3000"
+                    onClick={() => setModalSelectedFee(3000)}
+                    className={`p-2.5 rounded-xl border text-center transition cursor-pointer ${
+                      modalSelectedFee === 3000
+                        ? "border-emerald-600 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-500 font-bold"
+                        : "border-slate-200 hover:border-slate-300 text-slate-600"
+                    }`}
+                  >
+                    <span className="block text-xs font-black">3 000 Ar</span>
+                    <span className="block text-[10px] text-slate-500 mt-0.5">Intra-CUA</span>
+                  </button>
+                  <button
+                    type="button"
+                    data-cy="btn-select-fee-4000"
+                    onClick={() => setModalSelectedFee(4000)}
+                    className={`p-2.5 rounded-xl border text-center transition cursor-pointer ${
+                      modalSelectedFee === 4000
+                        ? "border-blue-600 bg-blue-50 text-blue-800 ring-2 ring-blue-500 font-bold"
+                        : "border-slate-200 hover:border-slate-300 text-slate-600"
+                    }`}
+                  >
+                    <span className="block text-xs font-black">4 000 Ar</span>
+                    <span className="block text-[10px] text-slate-500 mt-0.5">1ère Couronne</span>
+                  </button>
+                  <button
+                    type="button"
+                    data-cy="btn-select-fee-5000"
+                    onClick={() => setModalSelectedFee(5000)}
+                    className={`p-2.5 rounded-xl border text-center transition cursor-pointer ${
+                      modalSelectedFee === 5000
+                        ? "border-purple-600 bg-purple-50 text-purple-800 ring-2 ring-purple-500 font-bold"
+                        : "border-slate-200 hover:border-slate-300 text-slate-600"
+                    }`}
+                  >
+                    <span className="block text-xs font-black">5 000 Ar</span>
+                    <span className="block text-[10px] text-slate-500 mt-0.5">Périphérie</span>
+                  </button>
+                </div>
+              </div>
+
+              {modalError && (
+                <p className="text-xs font-semibold text-rose-600 bg-rose-50 p-2.5 rounded-xl border border-rose-200">
+                  {modalError}
+                </p>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                data-cy="btn-cancel-add-zone"
+                onClick={() => setIsAddZoneModalOpen(false)}
+                className="px-3.5 py-1.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                data-cy="btn-submit-add-new-zone"
+                onClick={handleConfirmAddZone}
+                className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>✓</span>
+                <span>Enregistrer & Rattacher</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

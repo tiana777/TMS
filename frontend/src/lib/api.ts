@@ -57,14 +57,15 @@ export async function fetchAxes() {
   }
 }
 
-export async function fetchCouriers() {
+export async function fetchCouriers(axis?: string) {
   try {
-    const res = await fetch(`${API_BASE_URL}/couriers`);
+    const url = axis && axis !== "ALL" ? `${API_BASE_URL}/couriers?axis=${axis}` : `${API_BASE_URL}/couriers`;
+    const res = await fetch(url);
     if (!res.ok) throw new Error("Erreur chargement livreurs");
     return await res.json();
   } catch (e) {
     console.warn("API offline, using fallback couriers", e);
-    return [
+    const fallbacks = [
       {
         id: 1,
         name: "RAKOTO Jean",
@@ -74,6 +75,7 @@ export async function fetchCouriers() {
         security_deposit: 150000,
         security_deposit_formatted: "150 000 Ar",
         max_parcels: 15,
+        assigned_axis: "AXE_CENTRE_1",
         active: true,
       },
       {
@@ -85,6 +87,7 @@ export async function fetchCouriers() {
         security_deposit: 150000,
         security_deposit_formatted: "150 000 Ar",
         max_parcels: 15,
+        assigned_axis: "AXE_ITAOSY",
         active: true,
       },
       {
@@ -96,6 +99,7 @@ export async function fetchCouriers() {
         security_deposit: 150000,
         security_deposit_formatted: "150 000 Ar",
         max_parcels: 15,
+        assigned_axis: "AXE_IVATO",
         active: true,
       },
       {
@@ -107,10 +111,29 @@ export async function fetchCouriers() {
         security_deposit: 150000,
         security_deposit_formatted: "150 000 Ar",
         max_parcels: 15,
+        assigned_axis: "AXE_AMBOHIMANGAKELY",
         active: true,
       },
     ];
+    if (axis && axis !== "ALL") {
+      return fallbacks.filter((c) => c.assigned_axis === axis);
+    }
+    return fallbacks;
   }
+}
+
+export async function updateCourierAxis(courierId: number, axis: string | null) {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/couriers/${courierId}/axis`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ assigned_axis: axis }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de la mise à jour de l'axe du livreur.");
+  }
+  return await res.json();
 }
 
 export async function updateCourierCapacity(courierId: number, maxParcels: number) {
@@ -163,13 +186,13 @@ export async function fetchParcels(filters?: {
         operator: "TELMA",
         delivery_address: "Itaosy Cité près Pharmacie",
         designation: "Robe de soirée en soie",
-        axis: "AXE_RN1",
-        axis_label: "AXE RN1 OUEST (Tsiazotafo ➔ Fenoarivo)",
+        axis: "AXE_ITAOSY",
+        axis_label: "Axe Itaosy (67Ha, Itaosy & Ouest)",
         flux_type: "COD",
         merchandise_amount: 45000,
-        delivery_fee: 5000,
-        total_to_collect: 50000,
-        total_to_collect_formatted: "50 000 Ar",
+        delivery_fee: 4000,
+        total_to_collect: 49000,
+        total_to_collect_formatted: "49 000 Ar",
         partner_fee: 0,
         status: "EN_DEPOT",
         status_label: "En Dépôt (Stock Hub)",
@@ -191,8 +214,8 @@ export async function fetchParcels(filters?: {
         operator: "ORANGE",
         delivery_address: "Zone Galaxy Andraharo Lot 4",
         designation: "Dossier audit certifié & contrats",
-        axis: "AXE_RN4",
-        axis_label: "AXE RN4 / DIGUE (Tsiazotafo ➔ Ivato Aéroport)",
+        axis: "AXE_IVATO",
+        axis_label: "Axe Ivato (RN4 Digue & Aéroport)",
         flux_type: "SIMPLE",
         merchandise_amount: 0,
         delivery_fee: 6000,

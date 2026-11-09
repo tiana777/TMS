@@ -413,6 +413,7 @@ class CourierUseCases:
             security_deposit=c.security_deposit.amount,
             security_deposit_formatted=c.security_deposit.formatted,
             max_parcels=c.max_parcels,
+            assigned_axis=c.assigned_axis,
             active=c.active,
         )
 
@@ -423,6 +424,7 @@ class CourierUseCases:
             vehicle_type=dto.vehicle_type,
             security_deposit=Money(dto.security_deposit),
             max_parcels=dto.max_parcels or 15,
+            assigned_axis=dto.assigned_axis,
         )
         saved = self.repo.save(c)
         return self._to_courier_dto(saved)
@@ -435,8 +437,19 @@ class CourierUseCases:
         saved = self.repo.save(c)
         return self._to_courier_dto(saved)
 
-    def list_couriers(self) -> List[CourierResponseDTO]:
-        return [self._to_courier_dto(c) for c in self.repo.list_all()]
+    def update_courier_axis(self, courier_id: int, axis: Optional[str]) -> CourierResponseDTO:
+        c = self.repo.get_by_id(courier_id)
+        if not c:
+            raise NotFoundException(f"Livreur introuvable (ID: {courier_id})")
+        c.set_assigned_axis(axis)
+        saved = self.repo.save(c)
+        return self._to_courier_dto(saved)
+
+    def list_couriers(self, axis: Optional[str] = None) -> List[CourierResponseDTO]:
+        couriers = self.repo.list_all()
+        if axis and axis != "ALL":
+            couriers = [c for c in couriers if c.assigned_axis == axis]
+        return [self._to_courier_dto(c) for c in couriers]
 
     def compute_scorecard(self, livreur_id: int, period: str) -> ScorecardResponseDTO:
         # Load stats for courier in period (YYYY-MM)

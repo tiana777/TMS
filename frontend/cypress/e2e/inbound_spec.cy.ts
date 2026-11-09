@@ -14,7 +14,7 @@ describe("Module Inbound & Import - Simulation Automatique Cypress", () => {
           recipient_phone_formatted: "034 12 345 67",
           operator: "TELMA",
           delivery_address: "Itaosy Cité Seimad",
-          axis: "AXE_RN1",
+          axis: "AXE_ITAOSY",
           flux_type: "COD",
           total_to_collect: 50000,
           total_to_collect_formatted: "50 000 Ar",
@@ -82,27 +82,29 @@ describe("Module Inbound & Import - Simulation Automatique Cypress", () => {
     // Fill Designation of merchandise (user requirement: designation marchandise / colis)
     cy.get('[data-testid="input-designation-0"]').type("Chaussures & Vêtements Mode");
 
-    // Type address and verify axis auto-detection to AXE_RN1
+    // Type address and verify axis auto-detection to AXE_ITAOSY and auto fee 4 000 Ar
     cy.get('[data-testid="input-address-0"]').type("Itaosy Cité Seimad");
     cy.wait(500);
-    cy.get('[data-testid="badge-axis-axe_rn1"]').should("be.visible");
+    cy.get('[data-testid="badge-axis-axe_itaosy"]').should("be.visible");
+    cy.get('[data-testid="input-fee-0"]').should("have.value", "4000");
+    cy.contains("4 000 Ar • Péri-Urbain").should("be.visible");
 
-    // ⏸️ PAUSE DE 3 SECONDES : Observer la détection automatique Opérateur Telma et Axe RN1
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la détection automatique Opérateur Telma, Axe Itaosy et Tarif 4 000 Ar
     cy.wait(3000);
 
     // Verify manual axis override (CDC Section 5.2 : adaptation aux nouveaux lieux)
-    cy.get('[data-testid="select-axis-0"]').select("AXE_RN7");
+    cy.get('[data-testid="select-axis-0"]').select("AXE_IAVOLOHA");
     cy.wait(400);
-    cy.get('[data-testid="badge-axis-axe_rn7"]').should("be.visible");
-    cy.get('[data-testid="badge-axis-manual"]').should("be.visible").and("contain", "Modifié manuellement");
+    cy.get('[data-testid="badge-axis-axe_iavoloha"]').should("be.visible");
+    cy.get('[data-testid="badge-axis-manual"]').should("be.visible").and("contain", "Manuel");
 
-    // ⏸️ PAUSE DE 3 SECONDES : Observer la surcharge manuelle Axe RN7
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la surcharge manuelle Axe Iavoloha
     cy.wait(3000);
 
-    // Re-select AXE_RN1
-    cy.get('[data-testid="select-axis-0"]').select("AXE_RN1");
+    // Re-select AXE_ITAOSY
+    cy.get('[data-testid="select-axis-0"]').select("AXE_ITAOSY");
     cy.wait(400);
-    cy.get('[data-testid="badge-axis-axe_rn1"]').should("be.visible");
+    cy.get('[data-testid="badge-axis-axe_itaosy"]').should("be.visible");
 
     // Fill amounts
     cy.get('[data-testid="input-merch-0"]').type("{selectall}45000");
@@ -179,6 +181,130 @@ describe("Module Inbound & Import - Simulation Automatique Cypress", () => {
     cy.get('[data-testid="confirm-import-btn"]').should("be.visible");
 
     // ⏸️ PAUSE DE 3 SECONDES : Observer la prévisualisation de l'import CSV avec anomalies
+    cy.wait(3000);
+  });
+
+  it("3. Auto-saisie automatique des Frais de Livraison (3 000, 4 000, 5 000 Ar) avec vitesse lente d'observation", () => {
+    cy.visit("/inbound");
+    cy.wait(1000);
+
+    // Initialisation expéditeur
+    cy.get('[data-testid="sender-name-input"]').clear().type("Boutique Mode Tanà");
+    cy.get('[data-testid="sender-phone-input"]').clear().type("0345566778");
+    cy.wait(500);
+
+    // Destinataire ligne 1
+    cy.get('[data-testid="input-name-0"]').type("Rabe Jean");
+    cy.get('[data-testid="input-phone-0"]').type("0341122334");
+    cy.get('[data-testid="input-designation-0"]').type("Colis Test Tarification");
+
+    // ==========================================
+    // PALIER 1 : ZONES INTRA-URBAINES À 3 000 AR (CUA 1er au 6ème Arrondissement)
+    // ==========================================
+    cy.get('[data-testid="input-address-0"]').clear().type("Analakely, Box 14 Pavillon");
+    cy.wait(500);
+    cy.get('[data-testid="input-fee-0"]').should("have.value", "3000");
+    cy.contains("3 000 Ar • CUA").should("be.visible");
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la saisie automatique du tarif CUA à 3 000 Ar
+    cy.wait(3000);
+
+    // Quartier 67ha (Zone CUA - 3 000 Ar)
+    cy.get('[data-testid="input-address-0"]').clear().type("67ha Sud, près du bureau postal");
+    cy.wait(500);
+    cy.get('[data-testid="input-fee-0"]').should("have.value", "3000");
+    cy.contains("3 000 Ar • CUA").should("be.visible");
+    // ⏸️ PAUSE DE 3 SECONDES : Observer 67ha auto-saisi à 3 000 Ar
+    cy.wait(3000);
+
+    // Cas d'arbitrage fin : Ambatobe Ambany (3 000 Ar)
+    cy.get('[data-testid="input-address-0"]').clear().type("Ambatobe Ambany, en contrebas");
+    cy.wait(500);
+    cy.get('[data-testid="input-fee-0"]').should("have.value", "3000");
+    cy.contains("3 000 Ar • CUA").should("be.visible");
+    // ⏸️ PAUSE DE 3 SECONDES : Observer Ambatobe Ambany résolu à 3 000 Ar
+    cy.wait(3000);
+
+    // ==========================================
+    // PALIER 2 : ZONES PÉRI-URBAINES À 4 000 AR (1ère Couronne)
+    // ==========================================
+    // Secteur Itaosy Cité (4 000 Ar)
+    cy.get('[data-testid="input-address-0"]').clear().type("Itaosy Cité Seimad, Lot 45");
+    cy.wait(500);
+    cy.get('[data-testid="input-fee-0"]').should("have.value", "4000");
+    cy.contains("4 000 Ar • Péri-Urbain").should("be.visible");
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le passage automatique du tarif à 4 000 Ar (Itaosy Cité)
+    cy.wait(3000);
+
+    // Secteur Tanjombato (4 000 Ar)
+    cy.get('[data-testid="input-address-0"]').clear().type("Tanjombato, près du pont");
+    cy.wait(500);
+    cy.get('[data-testid="input-fee-0"]').should("have.value", "4000");
+    cy.contains("4 000 Ar • Péri-Urbain").should("be.visible");
+    // ⏸️ PAUSE DE 3 SECONDES : Observer Tanjombato auto-saisi à 4 000 Ar
+    cy.wait(3000);
+
+    // Secteur Alasora Commune / Bypass Alasora (4 000 Ar)
+    cy.get('[data-testid="input-address-0"]').clear().type("Rond point Bypass Alasora");
+    cy.wait(500);
+    cy.get('[data-testid="input-fee-0"]').should("have.value", "4000");
+    cy.contains("4 000 Ar • Péri-Urbain").should("be.visible");
+    // ⏸️ PAUSE DE 3 SECONDES : Observer Bypass Alasora résolu à 4 000 Ar
+    cy.wait(3000);
+
+    // Secteur Ambohibao (4 000 Ar)
+    cy.get('[data-testid="input-address-0"]').clear().type("Ambohibao Antehiroka");
+    cy.wait(500);
+    cy.get('[data-testid="input-fee-0"]').should("have.value", "4000");
+    cy.contains("4 000 Ar • Péri-Urbain").should("be.visible");
+    // ⏸️ PAUSE DE 3 SECONDES : Observer Ambohibao auto-saisi à 4 000 Ar
+    cy.wait(3000);
+
+    // ==========================================
+    // PALIER 3 : ZONES GRANDE COURONNE À 5 000 AR (Périphérie)
+    // ==========================================
+    // Secteur Ivato Aéroport (5 000 Ar)
+    cy.get('[data-testid="input-address-0"]').clear().type("Ivato Aéroport, Terminal Fret");
+    cy.wait(500);
+    cy.get('[data-testid="input-fee-0"]').should("have.value", "5000");
+    cy.contains("5 000 Ar • Couronne").should("be.visible");
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le passage automatique du tarif à 5 000 Ar (Ivato Aéroport)
+    cy.wait(3000);
+
+    // Secteur Sabotsy Namehana (5 000 Ar)
+    cy.get('[data-testid="input-address-0"]').clear().type("Sabotsy Namehana, Marché communal");
+    cy.wait(500);
+    cy.get('[data-testid="input-fee-0"]').should("have.value", "5000");
+    cy.contains("5 000 Ar • Couronne").should("be.visible");
+    // ⏸️ PAUSE DE 3 SECONDES : Observer Sabotsy Namehana auto-saisi à 5 000 Ar
+    cy.wait(3000);
+
+    // Secteur Iavoloha Galana (5 000 Ar)
+    cy.get('[data-testid="input-address-0"]').clear().type("Iavoloha Galana RN7");
+    cy.wait(500);
+    cy.get('[data-testid="input-fee-0"]').should("have.value", "5000");
+    cy.contains("5 000 Ar • Couronne").should("be.visible");
+    // ⏸️ PAUSE DE 3 SECONDES : Observer Iavoloha Galana auto-saisi à 5 000 Ar
+    cy.wait(3000);
+
+    // Secteur Ambodivoara (5 000 Ar)
+    cy.get('[data-testid="input-address-0"]').clear().type("Ambodivoara Ambohimangakely");
+    cy.wait(500);
+    cy.get('[data-testid="input-fee-0"]').should("have.value", "5000");
+    cy.contains("5 000 Ar • Couronne").should("be.visible");
+    // ⏸️ PAUSE DE 3 SECONDES : Observer Ambodivoara auto-saisi à 5 000 Ar
+    cy.wait(3000);
+
+    // ==========================================
+    // IMPACT TEMPS RÉEL SUR LE TOTAL DU BORDEREAU
+    // ==========================================
+    cy.get('[data-testid="input-merch-0"]').type("{selectall}45000");
+    cy.wait(500);
+    // Total : 45 000 Ar marchandise + 5 000 Ar frais de livraison = 50 000 Ar
+    cy.get('[data-testid="total-to-collect"]').should(($el) => {
+      const text = $el.text().replace(/\s+/g, " ").trim();
+      expect(text).to.contain("50 000 Ar");
+    });
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le recalcul automatique du Total à Encaisser (50 000 Ar)
     cy.wait(3000);
   });
 });

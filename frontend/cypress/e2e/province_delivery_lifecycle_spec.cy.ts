@@ -216,7 +216,7 @@ describe("Livraison Province E2E - Cycle Complet Inbound Gare Chauffeur COD Cais
     cy.intercept("GET", "**/api/v1/master/axes*", {
       statusCode: 200,
       body: [
-        { id: 1, code: "AXE_CENTRE", libelle: "Axe Centre", zones: [] },
+        { id: 1, code: "AXE_CENTRE_1", libelle: "Axe Centre Ville 1", zones: [] },
         { id: 8, code: "AXE_PROVINCE", libelle: "Axe Province", zones: [] },
       ],
     }).as("getMasterAxes");

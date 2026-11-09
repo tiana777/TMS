@@ -209,8 +209,8 @@ describe("TMS EXPRESS - Cycle Complet du Système avec Pauses de 3 Secondes (12 
       operator: "TELMA",
       delivery_address: "Itaosy Cité Seimad",
       designation: "Robe de Soie Bleue",
-      axis: "AXE_RN1",
-      axis_label: "AXE RN1 OUEST (Tsiazotafo ➔ Fenoarivo)",
+      axis: "AXE_ITAOSY",
+      axis_label: "Axe Itaosy (67Ha, Itaosy & Ouest)",
       flux_type: "COD",
       merchandise_amount: 45000,
       delivery_fee: 5000,
@@ -250,8 +250,8 @@ describe("TMS EXPRESS - Cycle Complet du Système avec Pauses de 3 Secondes (12 
   ];
 
   const mockAxes = [
-    { id: 1, code: "AXE_CENTRE", libelle: "AXE CENTRE (Analakely, Antaninarenina)", zones: ["Analakely", "Ambohijatovo"] },
-    { id: 2, code: "AXE_RN1", libelle: "AXE RN1 OUEST (Itaosy, Fenoarivo)", zones: ["Itaosy", "Ampefiloha", "Anosibe"] },
+    { id: 1, code: "AXE_CENTRE_1", libelle: "Axe Centre Ville 1 (Hyper-Centre & Analakely)", zones: ["Analakely", "Ambohijatovo"] },
+    { id: 2, code: "AXE_ITAOSY", libelle: "Axe Itaosy (67Ha, Itaosy & Ouest)", zones: ["67ha", "Itaosy Cité", "Bemasoandro"] },
     { id: 8, code: "AXE_PROVINCE", libelle: "AXE PROVINCES & GARES ROUTIÈRES", zones: ["Gare Ambodivona", "Gare Fasan'ny Karana", "Gare Andohatapenaka"] },
   ];
 
@@ -371,7 +371,7 @@ describe("TMS EXPRESS - Cycle Complet du Système avec Pauses de 3 Secondes (12 
       },
     }).as("getScorecard");
 
-    cy.intercept("GET", "**/api/v1/couriers/leaderboard*", {
+    cy.intercept("GET", "**/api/v1/couriers/scorecards/leaderboard*", {
       statusCode: 200,
       body: [
         {
@@ -425,16 +425,16 @@ describe("TMS EXPRESS - Cycle Complet du Système avec Pauses de 3 Secondes (12 
 
     // Saisie de l'expéditeur Cybermarchand
     cy.get('[data-testid="sender-name-input"]').should("be.visible").slowType("Chic & Glam Tana", 40, 500);
-    cy.get('[data-testid="sender-phone-input"]').should("be.visible").slowType("0345566778", 40, 500);
+    cy.get('[data-testid="sender-phone-input"]').should("be.visible").slowType("{selectall}0345566778", 40, 500);
 
-    // Ligne 1 : Colis Urbain COD (Itaosy / AXE_RN1)
+    // Ligne 1 : Colis Urbain COD (Itaosy / AXE_ITAOSY)
     cy.get('[data-testid="input-name-0"]').slowType("Rasoa Nirina", 40, 400);
     cy.get('[data-testid="input-phone-0"]').slowType("0341234567", 40, 400);
     cy.get('[data-testid="badge-operator-telma"]').should("be.visible");
 
     cy.get('[data-testid="input-designation-0"]').slowType("Robe de Soie Bleue", 35, 400);
     cy.get('[data-testid="input-address-0"]').slowType("Itaosy Cité Seimad", 35, 400);
-    cy.get('[data-testid="badge-axis-axe_rn1"]').should("be.visible");
+    cy.get('[data-testid="badge-axis-axe_itaosy"]').should("be.visible");
 
     cy.get('[data-testid="input-merch-0"]').slowType("{selectall}45000", 30, 400);
     cy.get('[data-testid="input-fee-0"]').slowType("{selectall}5000", 30, 400);
@@ -540,17 +540,20 @@ describe("TMS EXPRESS - Cycle Complet du Système avec Pauses de 3 Secondes (12 
     showStepBanner(5, "Écran 04 : Feuilles de Route", "Format ticket thermique 80 mm et partage direct WhatsApp");
     cy.visit("/dispatch");
 
-    // Ouvrir le détail de la tournée
-    cy.contains("button", "Feuille de Route").first().slowClick(800);
+    // Ouvrir l'onglet Feuilles de Route (Écran 04)
+    cy.get('[data-cy="tab-roadmaps"]').slowClick(800);
 
     cy.contains("RAKOTO Jean").should("be.visible");
-    cy.contains("034 11 222 33").should("be.visible");
+
+    // Ouvrir le ticket thermique 80 mm
+    cy.get('[data-cy="open-thermal-btn"]').first().slowClick(800);
+    cy.get("#thermal-ticket-receipt").should("be.visible");
 
     // ⏸️ PAUSE DE 3 SECONDES : Observer le ticket thermique 80 mm prêt à l'impression
     cy.wait(3000);
 
     // Fermer la modal
-    cy.contains("button", "Fermer").click();
+    cy.get('[data-cy="close-thermal-btn"]').click();
   });
 
   // ==========================================================================
@@ -572,18 +575,37 @@ describe("TMS EXPRESS - Cycle Complet du Système avec Pauses de 3 Secondes (12 
   // ==========================================================================
   it("07. Écran 05 : Pointage Terrain & Encaissement COD Mobile Money (MVola)", () => {
     showStepBanner(7, "Écran 05 : Pointage Terrain", "Démarrage tournée, remise au destinataire et encaissement");
+
+    // Intercepter les colis avec tour_id: 1 pour affichage direct sous la tournée sélectionnée
+    cy.intercept("GET", "**/api/v1/parcels*", {
+      statusCode: 200,
+      body: [
+        {
+          ...mockParcels[0],
+          status: "ASSIGNE",
+          tour_id: 1,
+          courier_id: 1,
+        },
+      ],
+    }).as("getTrackingParcels");
+
     cy.visit("/tracking");
+    cy.wait(["@getTrackingParcels", "@getTours", "@getCouriers"]);
 
     cy.contains("Pointage Terrain").should("be.visible");
 
+    // Sélectionner la tournée 1
+    cy.get('[data-cy="tour-selector"]').select("1");
+
     // Démarrage de tournée
-    cy.contains("button", "Démarrer Tournée").first().slowClick(800);
+    cy.get('[data-cy="btn-start-tour"]').should("be.visible").slowClick(800);
+    cy.wait("@startTour");
 
     // ⏸️ PAUSE DE 3 SECONDES : Observer le statut passé à EN COURS DE LIVRAISON
     cy.wait(3000);
 
     // Ouvrir encaissement / livraison
-    cy.contains("button", "Encaisser").first().slowClick(800);
+    cy.get('[data-cy="btn-deliver-101"]').slowClick(800);
 
     // ⏸️ PAUSE DE 3 SECONDES : Observer la modale d'encaissement Mobile Money
     cy.wait(3000);
@@ -605,7 +627,7 @@ describe("TMS EXPRESS - Cycle Complet du Système avec Pauses de 3 Secondes (12 
     cy.wait(3000);
 
     // Tab Décharge de Tournée
-    cy.contains("button", "Décharge de Tournée").slowClick(700);
+    cy.get('[data-cy="tab-decharge"]').slowClick(700);
     cy.contains("RAKOTO Jean").should("be.visible");
 
     // ⏸️ PAUSE DE 3 SECONDES : Observer la fiche de décharge financière avec formule d'écart
@@ -617,6 +639,20 @@ describe("TMS EXPRESS - Cycle Complet du Système avec Pauses de 3 Secondes (12 
   // ==========================================================================
   it("09. Écran 09 : CRM Donneurs d'Ordre & Bordereau Officiel de Reversement", () => {
     showStepBanner(9, "Écran 09 : CRM Expéditeurs", "Calcul du solde net (CDC §13.3) et bordereau officiel de reversement");
+    
+    // Injecter un colis encaissé pour débloquer le calcul du reversement net
+    cy.intercept("GET", "**/api/v1/parcels*", {
+      statusCode: 200,
+      body: [
+        {
+          ...mockParcels[0],
+          status: "LIVRE_ENCAISSE",
+          merchandise_amount: 45000,
+          delivery_fee: 5000,
+        },
+      ],
+    }).as("getCrmParcels");
+
     cy.visit("/crm");
 
     cy.contains("Écran 09 : CRM Donneurs d'Ordre").should("be.visible");
@@ -651,7 +687,7 @@ describe("TMS EXPRESS - Cycle Complet du Système avec Pauses de 3 Secondes (12 
     cy.visit("/referentiel");
 
     cy.contains("10. Référentiel Logistique").should("be.visible");
-    cy.contains("AXE RN1 OUEST").should("be.visible");
+    cy.contains("AXE_ITAOSY").should("be.visible");
 
     // ⏸️ PAUSE DE 3 SECONDES : Observer la cartographie des corridors urbains
     cy.wait(3000);
@@ -673,8 +709,10 @@ describe("TMS EXPRESS - Cycle Complet du Système avec Pauses de 3 Secondes (12 
     cy.visit("/scorecards");
 
     cy.contains("Écran 11 : Suivi de Performance & Scorecard Livreurs").should("be.visible");
-    cy.contains("RAKOTO Jean").should("be.visible");
-    cy.contains("OR").should("be.visible");
+    cy.get("table").within(() => {
+      cy.contains("RAKOTO Jean").should("be.visible");
+      cy.contains("OR").should("be.visible");
+    });
 
     // ⏸️ PAUSE DE 3 SECONDES : Observer le palier OR et la prime calculée (150 000 Ar)
     cy.wait(3000);
@@ -688,8 +726,10 @@ describe("TMS EXPRESS - Cycle Complet du Système avec Pauses de 3 Secondes (12 
     cy.visit("/disputes");
 
     cy.contains("Écran 12 : Registre des Litiges").should("be.visible");
-    cy.contains("LIT-2026-0001").should("be.visible");
-    cy.contains("DEFICIT_COD").should("be.visible");
+    cy.get("table").within(() => {
+      cy.contains("LIT-2026-0001").should("be.visible");
+      cy.contains("EN_COURS").scrollIntoView().should("be.visible");
+    });
 
     // ⏸️ PAUSE DE 3 SECONDES : Observer le dossier de litige et le solde restant dû
     cy.wait(3000);

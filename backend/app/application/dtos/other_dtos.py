@@ -11,10 +11,15 @@ class CreateCourierDTO(BaseModel):
     vehicle_type: str
     security_deposit: int = 0
     max_parcels: int = 15
+    assigned_axis: Optional[str] = None
 
 
 class UpdateCourierCapacityDTO(BaseModel):
     max_parcels: int
+
+
+class UpdateCourierAxisDTO(BaseModel):
+    assigned_axis: Optional[str] = None
 
 
 class CourierResponseDTO(BaseModel):
@@ -26,6 +31,7 @@ class CourierResponseDTO(BaseModel):
     security_deposit: int
     security_deposit_formatted: str
     max_parcels: int = 15
+    assigned_axis: Optional[str] = None
     active: bool
 
 
