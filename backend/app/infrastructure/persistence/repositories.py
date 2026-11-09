@@ -268,6 +268,14 @@ class PostgresCourierRepository(ICourierRepository):
         orms = q.order_by(CourierORM.nom.asc()).all()
         return [self._to_domain(o) for o in orms]
 
+    def delete(self, courier_id: int) -> bool:
+        orm = self.session.query(CourierORM).filter(CourierORM.id == courier_id).first()
+        if not orm:
+            return False
+        orm.actif = 0
+        self.session.commit()
+        return True
+
 
 class PostgresTourRepository(ITourRepository):
     def __init__(self, session: Session):

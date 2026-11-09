@@ -13,6 +13,7 @@ from backend.app.application.dtos.other_dtos import (
     ScorecardResponseDTO,
     TourDetailResponseDTO,
     TourResponseDTO,
+    UpdateCourierProfileDTO,
 )
 from backend.app.domain.exceptions import BusinessRuleViolationException
 from backend.app.domain.models.courier import Courier
@@ -404,6 +405,25 @@ class CourierUseCases:
         self.repo = PostgresCourierRepository(db)
 
     def _to_courier_dto(self, c: Courier) -> CourierResponseDTO:
+        from datetime import date
+        today_str = date.today().isoformat()
+
+        today_parcels = self.db.query(ParcelORM).filter(
+            ParcelORM.livreur_id == c.id,
+            ParcelORM.date_reception == today_str,
+            ParcelORM.actif == 1,
+        ).count()
+
+        active_tour = self.db.query(TourORM).filter(
+            TourORM.livreur_id == c.id,
+            TourORM.statut == "EN_COURS",
+        ).first()
+
+        disputes_count = self.db.query(CourierDebtORM).filter(
+            CourierDebtORM.livreur_id == c.id,
+            CourierDebtORM.statut_dette.in_(["OUVERTE", "EN_COURS"]),
+        ).count()
+
         return CourierResponseDTO(
             id=c.id,
             name=c.name,
@@ -415,6 +435,9 @@ class CourierUseCases:
             max_parcels=c.max_parcels,
             assigned_axis=c.assigned_axis,
             active=c.active,
+            today_parcels_count=today_parcels,
+            active_tour_id=active_tour.id if active_tour else None,
+            disputes_count=disputes_count,
         )
 
     def create_courier(self, dto: CreateCourierDTO) -> CourierResponseDTO:
@@ -428,6 +451,78 @@ class CourierUseCases:
         )
         saved = self.repo.save(c)
         return self._to_courier_dto(saved)
+
+    def update_courier_profile(self, courier_id: int, dto: UpdateCourierProfileDTO, is_admin: bool) -> CourierResponseDTO:
+        c = self.repo.get_by_id(courier_id)
+        if not c:
+            raise NotFoundException(f"Livreur introuvable (ID: {courier_id})")
+
+        if not is_admin:
+            # Superviseur is restricted to operational updates only
+            sensitive_fields_modified = (
+                dto.name is not None
+                or dto.phone is not None
+                or dto.vehicle_type is not None
+                or dto.security_deposit is not None
+                or dto.active is not None
+            )
+            if sensitive_fields_modified:
+                raise BusinessRuleViolationException(
+                    "Le rôle SUPERVISEUR ne peut modifier que l'axe et la capacité maximale quotidienne. "
+                    "La modification des données contractuelles et financières est strictement réservée au SUPER_ADMIN."
+                )
+
+        if dto.name is not None:
+            c.name = dto.name.strip()
+        if dto.phone is not None:
+            c.phone = PhoneNumber(dto.phone)
+        if dto.vehicle_type is not None:
+            c.vehicle_type = dto.vehicle_type.strip()
+        if dto.security_deposit is not None:
+            c.security_deposit = Money(dto.security_deposit)
+        if dto.max_parcels is not None:
+            c.set_max_parcels(dto.max_parcels)
+        if dto.assigned_axis is not None:
+            c.set_assigned_axis(dto.assigned_axis if dto.assigned_axis != "NONE" else None)
+        if dto.active is not None:
+            c.active = dto.active
+
+        saved = self.repo.save(c)
+        return self._to_courier_dto(saved)
+
+    def toggle_courier_active(self, courier_id: int, is_admin: bool) -> CourierResponseDTO:
+        if not is_admin:
+            raise BusinessRuleViolationException("Seul le Super Admin (Direction) peut activer ou désactiver un livreur.")
+        c = self.repo.get_by_id(courier_id)
+        if not c:
+            raise NotFoundException(f"Livreur introuvable (ID: {courier_id})")
+        if c.active:
+            # Check for active tour
+            active_tour = self.db.query(TourORM).filter(
+                TourORM.livreur_id == courier_id,
+                TourORM.statut == "EN_COURS",
+            ).first()
+            if active_tour:
+                raise BusinessRuleViolationException("Impossible de désactiver un livreur ayant une tournée en cours de livraison.")
+            c.deactivate()
+        else:
+            c.activate()
+        saved = self.repo.save(c)
+        return self._to_courier_dto(saved)
+
+    def delete_courier(self, courier_id: int, is_admin: bool) -> bool:
+        if not is_admin:
+            raise BusinessRuleViolationException("Seul le Super Admin (Direction) peut archiver ou supprimer un livreur.")
+        c = self.repo.get_by_id(courier_id)
+        if not c:
+            raise NotFoundException(f"Livreur introuvable (ID: {courier_id})")
+        active_tour = self.db.query(TourORM).filter(
+            TourORM.livreur_id == courier_id,
+            TourORM.statut == "EN_COURS",
+        ).first()
+        if active_tour:
+            raise BusinessRuleViolationException("Impossible d'archiver un livreur ayant une tournée active en cours.")
+        return self.repo.delete(courier_id)
 
     def update_courier_capacity(self, courier_id: int, max_parcels: int) -> CourierResponseDTO:
         c = self.repo.get_by_id(courier_id)
@@ -445,8 +540,8 @@ class CourierUseCases:
         saved = self.repo.save(c)
         return self._to_courier_dto(saved)
 
-    def list_couriers(self, axis: Optional[str] = None) -> List[CourierResponseDTO]:
-        couriers = self.repo.list_all()
+    def list_couriers(self, axis: Optional[str] = None, include_inactive: bool = False) -> List[CourierResponseDTO]:
+        couriers = self.repo.list_all(active_only=not include_inactive)
         if axis and axis != "ALL":
             couriers = [c for c in couriers if c.assigned_axis == axis]
         return [self._to_courier_dto(c) for c in couriers]

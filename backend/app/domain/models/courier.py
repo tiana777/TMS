@@ -40,3 +40,35 @@ class Courier:
 
     def deactivate(self) -> None:
         self.active = False
+
+    def activate(self) -> None:
+        self.active = True
+
+    def update_profile(
+        self,
+        name: Optional[str] = None,
+        phone: Optional[PhoneNumber] = None,
+        vehicle_type: Optional[str] = None,
+        security_deposit: Optional[Money] = None,
+        max_parcels: Optional[int] = None,
+        assigned_axis: Optional[str] = None,
+        active: Optional[bool] = None,
+    ) -> None:
+        if name is not None:
+            if not name.strip():
+                raise BusinessRuleViolationException("Le nom du coursier est obligatoire.")
+            self.name = name.strip()
+        if phone is not None:
+            self.phone = phone
+        if vehicle_type is not None:
+            if not vehicle_type.strip():
+                raise BusinessRuleViolationException("Le type de véhicule est obligatoire.")
+            self.vehicle_type = vehicle_type.strip()
+        if security_deposit is not None:
+            self.security_deposit = security_deposit
+        if max_parcels is not None:
+            self.set_max_parcels(max_parcels)
+        if assigned_axis is not None:
+            self.assigned_axis = assigned_axis if assigned_axis != "NONE" else None
+        if active is not None:
+            self.active = active

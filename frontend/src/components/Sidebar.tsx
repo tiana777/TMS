@@ -15,6 +15,7 @@ import {
   Settings,
   Users,
   MapPin,
+  Bike,
 } from "lucide-react";
 
 const navigation = [
@@ -23,6 +24,7 @@ const navigation = [
   { name: "02. Import Fichiers", href: "/import", icon: FileSpreadsheet },
   { name: "03A. Dispatch Ville (Urbain)", href: "/dispatch", icon: Truck },
   { name: "03B. Dispatch Province (Gares)", href: "/dispatch/province", icon: MapPin },
+  { name: "04. Flotte & Livreurs", href: "/couriers", icon: Bike },
   { name: "05. Pointage Terrain", href: "/tracking", icon: CheckCircle2 },
   { name: "07. Caisse & Clôture", href: "/cash", icon: Wallet },
   { name: "09. CRM Expéditeurs", href: "/crm", icon: Users },

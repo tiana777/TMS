@@ -22,6 +22,16 @@ class UpdateCourierAxisDTO(BaseModel):
     assigned_axis: Optional[str] = None
 
 
+class UpdateCourierProfileDTO(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    vehicle_type: Optional[str] = None
+    security_deposit: Optional[int] = None
+    max_parcels: Optional[int] = None
+    assigned_axis: Optional[str] = None
+    active: Optional[bool] = None
+
+
 class CourierResponseDTO(BaseModel):
     id: int
     name: str
@@ -33,6 +43,9 @@ class CourierResponseDTO(BaseModel):
     max_parcels: int = 15
     assigned_axis: Optional[str] = None
     active: bool
+    today_parcels_count: int = 0
+    active_tour_id: Optional[int] = None
+    disputes_count: int = 0
 
 
 class CreateTourDTO(BaseModel):

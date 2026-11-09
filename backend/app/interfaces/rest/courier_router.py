@@ -9,6 +9,7 @@ from backend.app.application.dtos.other_dtos import (
     ScorecardResponseDTO,
     UpdateCourierCapacityDTO,
     UpdateCourierAxisDTO,
+    UpdateCourierProfileDTO,
 )
 from backend.app.application.use_cases.tour_use_cases import CourierUseCases
 from backend.app.domain.exceptions import DomainException
@@ -22,11 +23,12 @@ router = APIRouter(prefix="/couriers", tags=["Livreurs & Performance"])
 @router.get("", response_model=List[CourierResponseDTO])
 def list_couriers(
     axis: Optional[str] = None,
+    include_inactive: bool = False,
     db: Session = Depends(get_db),
     current_user: UserORM = Depends(get_current_user),
 ):
     use_cases = CourierUseCases(db)
-    return use_cases.list_couriers(axis=axis)
+    return use_cases.list_couriers(axis=axis, include_inactive=include_inactive)
 
 
 @router.post("", response_model=CourierResponseDTO, status_code=status.HTTP_201_CREATED)
@@ -38,6 +40,48 @@ def create_courier(
     try:
         use_cases = CourierUseCases(db)
         return use_cases.create_courier(dto)
+    except DomainException as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.patch("/{courier_id}", response_model=CourierResponseDTO)
+def update_courier_profile(
+    courier_id: int,
+    dto: UpdateCourierProfileDTO,
+    db: Session = Depends(get_db),
+    current_user: UserORM = Depends(get_current_user),
+):
+    try:
+        use_cases = CourierUseCases(db)
+        is_admin = (current_user.role == "SUPER_ADMIN")
+        return use_cases.update_courier_profile(courier_id, dto, is_admin=is_admin)
+    except DomainException as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.patch("/{courier_id}/toggle-status", response_model=CourierResponseDTO)
+def toggle_courier_status(
+    courier_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserORM = Depends(require_roles(["SUPER_ADMIN"])),
+):
+    try:
+        use_cases = CourierUseCases(db)
+        return use_cases.toggle_courier_active(courier_id, is_admin=True)
+    except DomainException as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.delete("/{courier_id}")
+def delete_courier(
+    courier_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserORM = Depends(require_roles(["SUPER_ADMIN"])),
+):
+    try:
+        use_cases = CourierUseCases(db)
+        use_cases.delete_courier(courier_id, is_admin=True)
+        return {"success": True, "message": f"Livreur {courier_id} désactivé / archivé."}
     except DomainException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

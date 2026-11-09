@@ -769,6 +769,59 @@ La relation de confiance avec les cybermarchands expéditeurs repose sur un prin
 
 ---
 
+### 11.5 MODULE ÉCRAN 04 : GESTION DE LA FLOTTE DES LIVREURS & HABILITATIONS DIFFÉRENCIÉES
+
+Le module **04. Gestion de la Flotte & Livreurs (`/couriers`)** centralise l'administration de tous les opérateurs terrain (coursiers deux-roues pour la distribution urbaine du dernier kilomètre et chauffeurs navette pour la desserte des gares routières régionales).
+
+Afin de respecter la séparation stricte des prérogatives de gestion entre le quai et la direction, l'écran applique un contrôle d'accès basé sur les rôles (RBAC) différencié :
+
+```mermaid
+flowchart TD
+    Flotte["FLOTTE DES LIVREURS TMS EXPRESS"]
+    
+    subgraph Droits_Superviseur["👔 SUPERVISEUR LOGISTIQUE (Chef de Quai)"]
+        S1["Consultation & Recherche de la Flotte"]
+        S2["Réaffectation Rapide d'Axe Quotidien"]
+        S3["Ajustement Capacité Max Journalière (5 - 35 colis)"]
+        S4["Suivi Charge en Temps Réel & Tournées Directes"]
+        S5["🔒 VERROUILLÉ : Caution, Contrat, Statut Actif/Inactif, Création"]
+    end
+    
+    subgraph Droits_Admin["👑 SUPER ADMIN (Direction Générale)"]
+        A1["Création & Recrutement de Nouveaux Livreurs"]
+        A2["Paramétrage Caution de Garantie Financière"]
+        A3["Édition Contractuelle Complète (Nom, Téléphone, Véhicule)"]
+        A4["Activation / Désactivation Conservatoire du Statut"]
+        A5["Archivage / Soft Delete (actif = 0)"]
+    end
+    
+    Flotte --> Droits_Superviseur
+    Flotte --> Droits_Admin
+```
+
+#### 11.5.1 Matrice des Habilitations Flotte selon le Rôle Utilisateur
+
+| Action Métier / Donnée du Livreur | Superviseur Logistique | Super Admin (Direction) | Règle Métier & Impact Système |
+| :--- | :---: | :---: | :--- |
+| **Consultation & Filtres Flotte** | **Autorisé** | **Autorisé** | Recherche multi-critères (nom, téléphone, moto, axe assigné, statut). |
+| **Réaffectation d'Axe Logistique** | **Autorisé** | **Autorisé** | Réaffecte instantanément le coursier sur un autre des 8 corridors urbains ou Province pour le dispatching du jour. |
+| **Ajustement Capacité Quotidienne** | **Autorisé** | **Autorisé** | Permet d'adapter le plafond de colis (ex. 10 à 30) selon les pics de flux ou les intempéries météo à Tanà. |
+| **Création d'un Nouveau Livreur** | *Strictement Interdit* (🔒) | **Exclusif** | Exige la validation du numéro de téléphone malgache (032, 033, 034, 037, 038) et l'enregistrement de la caution. |
+| **Gestion Caution de Garantie (Ar)** | *Lecture Seule* (🔒) | **Modification Libre** | Montant garanti bloqué pour couvrir les sinistres ou déficits COD non résolus (Table `livreurs.caution_garantie`). |
+| **Modification Contrat (Nom, Phone, Moto)** | *Interdit* (🔒) | **Exclusif** | Protège l'identité juridique et les coordonnées officielles du livreur contre les modifications fortuites. |
+| **Bascule Actif / Inactif (Statut)** | *Interdit* (🔒) | **Exclusif** | Bloqué si le livreur a une tournée active en cours (`EN_COURS`). |
+| **Archivage / Suppression Livreur** | *Interdit* (🔒) | **Exclusif** | Application du `Soft Delete` (`actif = 0`) préservant l'historique financier et comptable des tournées passées. |
+
+#### 11.5.2 Indicateurs Opérationnels de la Flotte (Cockpit Temps Réel)
+L'écran présente en permanence 5 compteurs consolidés :
+1. **Flotte Totale :** Effectif total immatriculé dans le système.
+2. **Livreurs Actifs :** Effectif opérationnel disponible pour les tournées du jour.
+3. **En Tournée (Direct) :** Nombre de coursiers déployés sur le terrain avec une tournée active (`EN_COURS`).
+4. **Charge / Capacité Globale :** Ratio de colis confiés aujourd'hui rapporté à la capacité maximale déployée ($\sum \text{Colis Assignés} / \sum \text{Capacité Max}$).
+5. **Litiges Actifs :** Nombre de dossiers de créances et déficits de caisse non soldés rattachés à la flotte.
+
+---
+
 ## 12. MODÈLE DE DONNÉES RELATIONNEL (3NF) & BASE DE DONNÉES
 
 ### 12.1 Diagramme Entité-Relation Complété (Norme 3NF)

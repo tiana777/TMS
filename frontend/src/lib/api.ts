@@ -57,10 +57,17 @@ export async function fetchAxes() {
   }
 }
 
-export async function fetchCouriers(axis?: string) {
+export async function fetchCouriers(axis?: string, includeInactive: boolean = false) {
   try {
-    const url = axis && axis !== "ALL" ? `${API_BASE_URL}/couriers?axis=${axis}` : `${API_BASE_URL}/couriers`;
-    const res = await fetch(url);
+    let url = `${API_BASE_URL}/couriers`;
+    const params = new URLSearchParams();
+    if (axis && axis !== "ALL") params.append("axis", axis);
+    if (includeInactive) params.append("include_inactive", "true");
+    const qs = params.toString();
+    if (qs) url += `?${qs}`;
+
+    const headers = getAuthHeaders();
+    const res = await fetch(url, { headers });
     if (!res.ok) throw new Error("Erreur chargement livreurs");
     return await res.json();
   } catch (e) {
@@ -77,6 +84,9 @@ export async function fetchCouriers(axis?: string) {
         max_parcels: 15,
         assigned_axis: "AXE_CENTRE_1",
         active: true,
+        today_parcels_count: 8,
+        active_tour_id: 101,
+        disputes_count: 0,
       },
       {
         id: 2,
@@ -89,6 +99,9 @@ export async function fetchCouriers(axis?: string) {
         max_parcels: 15,
         assigned_axis: "AXE_ITAOSY",
         active: true,
+        today_parcels_count: 14,
+        active_tour_id: null,
+        disputes_count: 1,
       },
       {
         id: 3,
@@ -101,6 +114,9 @@ export async function fetchCouriers(axis?: string) {
         max_parcels: 15,
         assigned_axis: "AXE_IVATO",
         active: true,
+        today_parcels_count: 5,
+        active_tour_id: null,
+        disputes_count: 0,
       },
       {
         id: 4,
@@ -113,6 +129,9 @@ export async function fetchCouriers(axis?: string) {
         max_parcels: 15,
         assigned_axis: "AXE_AMBOHIMANGAKELY",
         active: true,
+        today_parcels_count: 12,
+        active_tour_id: null,
+        disputes_count: 0,
       },
     ];
     if (axis && axis !== "ALL") {
@@ -120,6 +139,78 @@ export async function fetchCouriers(axis?: string) {
     }
     return fallbacks;
   }
+}
+
+export async function createCourier(payload: {
+  name: string;
+  phone: string;
+  vehicle_type: string;
+  security_deposit?: number;
+  max_parcels?: number;
+  assigned_axis?: string | null;
+}) {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/couriers`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de la création du livreur.");
+  }
+  return await res.json();
+}
+
+export async function updateCourierProfile(
+  courierId: number,
+  payload: {
+    name?: string;
+    phone?: string;
+    vehicle_type?: string;
+    security_deposit?: number;
+    max_parcels?: number;
+    assigned_axis?: string | null;
+    active?: boolean;
+  }
+) {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/couriers/${courierId}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de la mise à jour du profil du livreur.");
+  }
+  return await res.json();
+}
+
+export async function toggleCourierStatus(courierId: number) {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/couriers/${courierId}/toggle-status`, {
+    method: "PATCH",
+    headers,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de la modification du statut du livreur.");
+  }
+  return await res.json();
+}
+
+export async function deleteCourier(courierId: number) {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/couriers/${courierId}`, {
+    method: "DELETE",
+    headers,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de l'archivage du livreur.");
+  }
+  return await res.json();
 }
 
 export async function updateCourierAxis(courierId: number, axis: string | null) {

@@ -134,6 +134,9 @@ export interface Courier {
   max_parcels?: number;
   assigned_axis?: LogisticAxis | string | null;
   active: boolean;
+  today_parcels_count?: number;
+  active_tour_id?: number | null;
+  disputes_count?: number;
 }
 
 export interface Tour {
