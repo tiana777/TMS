@@ -87,11 +87,17 @@ describe("Module Inbound & Import - Simulation Automatique Cypress", () => {
     cy.wait(500);
     cy.get('[data-testid="badge-axis-axe_rn1"]').should("be.visible");
 
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la détection automatique Opérateur Telma et Axe RN1
+    cy.wait(3000);
+
     // Verify manual axis override (CDC Section 5.2 : adaptation aux nouveaux lieux)
     cy.get('[data-testid="select-axis-0"]').select("AXE_RN7");
     cy.wait(400);
     cy.get('[data-testid="badge-axis-axe_rn7"]').should("be.visible");
     cy.get('[data-testid="badge-axis-manual"]').should("be.visible").and("contain", "Modifié manuellement");
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la surcharge manuelle Axe RN7
+    cy.wait(3000);
 
     // Re-select AXE_RN1
     cy.get('[data-testid="select-axis-0"]').select("AXE_RN1");
@@ -138,6 +144,9 @@ describe("Module Inbound & Import - Simulation Automatique Cypress", () => {
       expect(text).to.contain("180 000 Ar");
     });
 
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la grille Inbound avec les 2 lignes (Urbain + Province)
+    cy.wait(3000);
+
     // 4. Submit the batch
     cy.get('[data-testid="submit-batch-btn"]').click();
     cy.wait("@createBatch");
@@ -147,6 +156,9 @@ describe("Module Inbound & Import - Simulation Automatique Cypress", () => {
     cy.get('[data-testid="success-modal"]').should("be.visible");
     cy.contains("BDR-0001").should("be.visible");
     cy.contains("BDR-0002").should("be.visible");
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le modal de succès avec les bordereaux générés
+    cy.wait(3000);
   });
 
   it("devrait charger et prévisualiser un fichier d'importation avec anomalies", () => {
@@ -165,5 +177,8 @@ describe("Module Inbound & Import - Simulation Automatique Cypress", () => {
 
     // Button to confirm import
     cy.get('[data-testid="confirm-import-btn"]').should("be.visible");
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la prévisualisation de l'import CSV avec anomalies
+    cy.wait(3000);
   });
 });

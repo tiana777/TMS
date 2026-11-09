@@ -127,6 +127,8 @@ describe("Écran 12 : Registre des Litiges & Plans de Recouvrement - Tests E2E C
       cy.contains("SOLDEE").scrollIntoView().should("be.visible");
       cy.contains("OUVERTE").scrollIntoView().should("be.visible");
     });
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le registre des contentieux et les statuts
+    cy.wait(3000);
   });
 
   it("2. Ouvre un nouveau litige via le formulaire modal", () => {
@@ -138,6 +140,8 @@ describe("Écran 12 : Registre des Litiges & Plans de Recouvrement - Tests E2E C
       cy.get("select").eq(1).select("FAUX_BILLET");
       cy.get("input[placeholder='ex: 35000']").type("20000");
       cy.get("textarea").type("Faux billet de 20 000 Ar accepté à Analakely");
+      // ⏸️ PAUSE DE 3 SECONDES : Observer le formulaire de litige rempli
+      cy.wait(3000);
       cy.contains("button", "Créer le Dossier de Litige").click();
     });
     cy.wait("@createDispute");
@@ -152,6 +156,9 @@ describe("Écran 12 : Registre des Litiges & Plans de Recouvrement - Tests E2E C
     cy.contains("Option B : Retenue Paie").click();
     cy.contains("Plafond Légal Malgache : 30% Max du Salaire Net").should("be.visible");
 
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la modalité Option B (plafond 30% Code du Travail)
+    cy.wait(3000);
+
     // Submit repayment
     cy.contains("button", "Valider le Remboursement").click();
     cy.wait("@repayDebt");
@@ -163,6 +170,8 @@ describe("Écran 12 : Registre des Litiges & Plans de Recouvrement - Tests E2E C
     cy.contains("Exonération pour Force Majeure").should("be.visible");
 
     cy.get("input[placeholder*='PV-COMMISSARIAT']").type("PV-COMMISSARIAT-CENTRAL-2026/0998");
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la saisie du PV officiel de police
+    cy.wait(3000);
     cy.contains("button", "Annuler la Dette (Force Majeure)").click();
     cy.wait("@forceMajeure");
   });

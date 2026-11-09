@@ -104,6 +104,8 @@ describe("Écran 11 : Suivi de Performance & Scorecard Livreurs - Tests E2E Cypr
       cy.contains("OR").should("be.visible");
       cy.contains("ARGENT").should("be.visible");
     });
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le classement général de la flotte
+    cy.wait(3000);
   });
 
   it("2. Affiche la fiche individuelle de notation détaillée lors de la sélection", () => {
@@ -119,6 +121,8 @@ describe("Écran 11 : Suivi de Performance & Scorecard Livreurs - Tests E2E Cypr
     // Verify Prime Or badge
     cy.contains("PALIER OR").should("be.visible");
     cy.contains("Prime d'Excellence Débloquée : +150 000 Ar").should("be.visible");
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la scorecard individuelle avec les 4 piliers et la prime
+    cy.wait(3000);
   });
 
   it("3. Filtre par palier incitatif et recherche", () => {
@@ -139,5 +143,7 @@ describe("Écran 11 : Suivi de Performance & Scorecard Livreurs - Tests E2E Cypr
       cy.contains("ANDRY Nirina").should("be.visible");
       cy.contains("RAKOTO Jean").should("not.exist");
     });
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le filtrage interactif
+    cy.wait(3000);
   });
 });

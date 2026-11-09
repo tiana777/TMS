@@ -286,7 +286,8 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
 
     // Check success notification banner appears
     cy.get('[data-cy="assign-success-banner"]').should("be.visible").and("contain", "assigné(s) avec succès");
-    cy.wait(1500); // Laisser le bandeau visible
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la confirmation de dispatching
+    cy.wait(3000);
   });
 
   it("devrait afficher Écran 04, prévisualiser le ticket thermique 80 mm et générer la synthèse WhatsApp", () => {
@@ -310,11 +311,11 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
       cy.contains("TELMA").should("be.visible");
       cy.contains("Signature Dest.").should("be.visible");
     });
-    cy.wait(1200);
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la feuille de route
+    cy.wait(3000);
 
     // 1. Test Thermal Ticket 80 mm Modal
     cy.get('[data-cy="open-thermal-btn"]').click();
-    cy.wait(1200); // Observer l'ouverture du ticket thermique 80mm
     cy.get("#thermal-ticket-receipt").should("be.visible");
     cy.get("#thermal-ticket-receipt").within(() => {
       cy.contains("TMS EXPRESS", { matchCase: false }).should("be.visible");
@@ -325,7 +326,8 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
       cy.contains("0001").should("be.visible");
       cy.contains("Signature Livreur", { matchCase: false }).scrollIntoView().should("be.visible");
     });
-    cy.wait(1500); // Laisser le ticket visible
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le ticket thermique 80 mm prêt à l'impression
+    cy.wait(3000);
     cy.get('[data-cy="print-thermal-btn"]').should("be.visible");
 
     // Close Thermal Ticket
@@ -335,15 +337,14 @@ describe("Module Dispatching, Tournées & Feuilles de Route (Écrans 03 & 04) - 
 
     // 2. Test WhatsApp Modal
     cy.get('[data-cy="open-whatsapp-btn"]').click();
-    cy.wait(1000); // Observer l'ouverture de la modal WhatsApp
     cy.contains("Synthèse WhatsApp Tournée").should("be.visible");
     cy.contains("TMS EXPRESS - FEUILLE DE ROUTE").should("be.visible");
     cy.contains("RAKOTO Jean").should("be.visible");
-    cy.wait(1000);
     cy.get('[data-cy="copy-whatsapp-btn"]').should("be.visible").click();
     cy.contains("Texte Copié !").should("be.visible");
     cy.get('[data-cy="open-whatsapp-link"]').should("be.visible").and("have.attr", "href");
-    cy.wait(1800); // Observer le badge Copié et le bouton vert WhatsApp
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la synthèse WhatsApp prête au partage
+    cy.wait(3000);
   });
 
   it("devrait permettre la sélection et la modification manuelle de l'axe logistique d'un colis (CDC 5.2)", () => {

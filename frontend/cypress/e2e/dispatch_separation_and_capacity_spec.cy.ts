@@ -188,6 +188,9 @@ describe("Dispatching - Séparation Ville vs Province & Capacité Paramétrable 
       cy.contains("PRV-001").should("not.exist");
       cy.contains("M. Razafy (Province Tamatave)").should("not.exist");
     });
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la séparation stricte Urbain (exclusion province)
+    cy.wait(3000);
   });
 
   it("2. Séparation Stricte : /dispatch/province n'affiche QUE les colis Province et exclut les colis urbains", () => {
@@ -220,6 +223,9 @@ describe("Dispatching - Séparation Ville vs Province & Capacité Paramétrable 
       cy.contains("URB-002").should("not.exist");
       cy.contains("URB-003").should("not.exist");
     });
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la séparation stricte Gares Routières Province
+    cy.wait(3000);
   });
 
   it("3. Plafond de Capacité Colis par Livreur : blocage strict en cas de dépassement (2 max)", () => {
@@ -257,11 +263,17 @@ describe("Dispatching - Séparation Ville vs Province & Capacité Paramétrable 
       .should("be.disabled")
       .and("contain", "Capacité dépassée");
 
+    // ⏸️ PAUSE DE 3 SECONDES : Observer l'alerte rouge de blocage de capacité
+    cy.wait(3000);
+
     // 4. Décocher le 3ème colis -> retour à 2/2 -> déblocage immédiat
     cy.get('[data-cy="parcel-row-103"]').find('input[type="checkbox"]').uncheck();
     cy.get('[data-cy="courier-capacity-display"]').should("contain", "2 / 2 max");
     cy.get('[data-cy="capacity-warning-banner"]').should("not.exist");
     cy.get('[data-cy="assign-tour-btn"]').should("not.be.disabled");
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le déblocage après retour dans la jauge
+    cy.wait(3000);
   });
 
   it("4. Paramétrage dynamique de la capacité livreur : passage de 2 à 5 colis débloquant l'assignation", () => {
@@ -311,6 +323,9 @@ describe("Dispatching - Séparation Ville vs Province & Capacité Paramétrable 
     cy.get('[data-cy="courier-capacity-display"]').should("contain", "3 / 5 max");
     cy.get('[data-cy="capacity-warning-banner"]').should("not.exist");
 
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la nouvelle capacité de 5 colis
+    cy.wait(3000);
+
     // Le bouton d'assignation devient actif
     cy.get('[data-cy="assign-tour-btn"]').should("not.be.disabled").click();
     cy.wait("@createExpandedTour").its("request.body").should((body) => {
@@ -322,5 +337,8 @@ describe("Dispatching - Séparation Ville vs Province & Capacité Paramétrable 
     cy.get('[data-cy="assign-success-banner"]')
       .should("be.visible")
       .and("contain", "assigné(s) avec succès");
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la confirmation d'assignation
+    cy.wait(3000);
   });
 });

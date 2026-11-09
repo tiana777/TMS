@@ -335,6 +335,9 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
     cy.get('[data-cy="tour-card-2"]').within(() => {
       cy.contains("RAZAFI Paul (Livreur)").should("be.visible");
     });
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le Cockpit avec ses 4 métriques et ses tournées en direct
+    cy.wait(3000);
   });
 
   it("Test 2: Écran 05 Pointage - Démarrage de Tournée et Validation de Livraison (LIVRE_ENCAISSE)", () => {
@@ -354,6 +357,9 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
     cy.get('[data-cy="feedback-banner"]')
       .should("be.visible")
       .and("contain", "Tournée #1 démarrée avec succès");
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le démarrage de la tournée #1
+    cy.wait(3000);
 
     // Cliquer sur le bouton Livré & Encaissé pour le colis 301
     cy.get('[data-cy="btn-deliver-301"]').should("be.visible").click();
@@ -380,6 +386,9 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
       cy.contains("Livré & Encaissé").should("be.visible");
       cy.contains("Encaissé via MVOLA").should("be.visible");
     });
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le statut Livré & Encaissé (MVOLA)
+    cy.wait(3000);
   });
 
   it("Test 3: Écran 05 Pointage - Signalement de Report avec Date et Motif Circonstancié (REPORTE)", () => {
@@ -406,6 +415,9 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
       cy.contains("Reporté").should("be.visible");
       cy.contains("Reporté au 2026-11-10").should("be.visible");
     });
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le colis reporté avec son motif
+    cy.wait(3000);
   });
 
   it("Test 4: Écran 05 Pointage - Signalement de Refus / Annulation (ANNULE_RETOUR)", () => {
@@ -430,6 +442,9 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
       cy.contains("Annulé / Retour").should("be.visible");
       cy.contains("Motif annulation : Refus client : article non conforme").should("be.visible");
     });
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le colis annulé / refusé
+    cy.wait(3000);
   });
 
   it("Test 5: Écran 05 Pointage - Dépôt en Gare Routière Province (SOUS_TRAITE) & Encaissement COD après Réception Coordonnées Chauffeur", () => {
@@ -484,6 +499,9 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
     cy.get('[data-cy="parcel-row-304"]').within(() => {
       cy.contains("Encaissé").should("be.visible");
     });
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la sous-traitance province et l'encaissement
+    cy.wait(3000);
   });
 
   it("Test 6: Écran 05 - Création Dynamique et Persistance d'un Nouveau Motif de Refus (Non codé en dur)", () => {
@@ -515,6 +533,9 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
       expect(body.status).to.equal("ANNULE_RETOUR");
       expect(body.incident_reason).to.equal("Client parti en voyage imprévu à Antsirabe");
     });
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la validation du refus avec motif personnalisé dynamique
+    cy.wait(3000);
   });
 
   it("Test 7: Écran 05 - Vérification Regex Stricte des Numéros Malgaches (CDC 7.1) & Correction en Direct", () => {
@@ -554,6 +575,9 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
       .and("contain", "TELMA");
     cy.get('[data-cy="btn-update-parcel-phone"]').should("not.be.disabled");
 
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la détection Regex du numéro malgache valide Telma
+    cy.wait(3000);
+
     // 4. Appliquer la correction du numéro sur le colis
     cy.get('[data-cy="btn-update-parcel-phone"]').click();
     cy.wait("@updateParcelContact");
@@ -561,6 +585,9 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
     cy.get('[data-cy="phone-update-success"]')
       .should("be.visible")
       .and("contain", "034 99 887 76");
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la mise à jour en direct du contact
+    cy.wait(3000);
   });
 
   it("Test 8: Écran 05 - Encaissement Mobile Money avec Détection de l'Opérateur (Telma/Orange/Airtel)", () => {
@@ -591,6 +618,9 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
       .should("be.visible")
       .and("contain", "034 12 345 67")
       .and("contain", "TELMA");
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer l'analyse Mobile Money de cohérence opérateur
+    cy.wait(3000);
   });
 
   it("Test 9: Écran 05 - Remise physique seule (LIVRÉ) puis encaissement ultérieur (ENCAISSÉ)", () => {
@@ -617,6 +647,9 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
       cy.get('[data-cy="btn-deliver-303"]').should("be.visible").and("contain", "Encaisser");
     });
 
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la scission remise physique puis encaissement
+    cy.wait(3000);
+
     // Cliquer sur le bouton Encaisser
     cy.get('[data-cy="btn-deliver-303"]').click();
     cy.get('[data-cy="modal-deliver"]').should("be.visible");
@@ -634,6 +667,9 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
     cy.get('[data-cy="parcel-row-303"]').within(() => {
       cy.contains("Encaissé").should("be.visible");
     });
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le colis désormais Encaissé
+    cy.wait(3000);
   });
 
   it("Test 10: Écran 05 - Neutralisation du COD en cours de livraison (Paiement anticipé au siège) puis remise physique à 0 Ar", () => {
@@ -667,6 +703,9 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
     // Le bouton "Encaisser" a disparu pour ce colis car plus aucun COD à percevoir
     cy.get('[data-cy="btn-deliver-301"]').should("not.exist");
 
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la neutralisation du COD (0 Ar Déjà Réglé)
+    cy.wait(3000);
+
     // Le livreur clique sur "Livré"
     cy.get('[data-cy="btn-deliver-only-301"]').should("be.visible").click();
     cy.get('[data-cy="modal-mark-delivered"]').should("be.visible");
@@ -683,5 +722,8 @@ describe("Écran 05 : Pointage Terrain & Écran 06 : Cockpit KPIs - Tests E2E Cy
     cy.get('[data-cy="parcel-row-301"]').within(() => {
       cy.contains("Livré & Réglé (0 Ar)").should("be.visible");
     });
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la clôture de livraison physique à 0 Ar
+    cy.wait(3000);
   });
 });

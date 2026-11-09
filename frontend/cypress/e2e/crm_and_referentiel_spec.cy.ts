@@ -111,11 +111,15 @@ describe("Écran 09 : CRM Expéditeurs & Écran 10 : Référentiel Logistique - 
     cy.contains("Écran 09 : CRM Donneurs d'Ordre & Répertoire Expéditeurs").should("be.visible");
     cy.contains("Mod'Tanà Boutique").should("be.visible");
     cy.contains("Cabinet Juridique & Audit Tanà").should("be.visible");
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le répertoire des donneurs d'ordre
+    cy.wait(3000);
 
     // Open Statement Modal
     cy.contains("Relevé de Compte").click();
     cy.contains("Bordereau Officiel de Reversement Financier").should("be.visible");
     cy.contains("NET À REVERSER AU DONNEUR D'ORDRE").should("be.visible");
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le bordereau officiel de reversement
+    cy.wait(3000);
     cy.contains("button", "Fermer").click();
   });
 
@@ -126,6 +130,8 @@ describe("Écran 09 : CRM Expéditeurs & Écran 10 : Référentiel Logistique - 
 
     cy.get("input[placeholder*='Mod\\'Tanà Boutique']").type("SuperStore Madagascar");
     cy.get("input[placeholder='034 XX XXX XX']").type("0340011223");
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le formulaire de création de donneur d'ordre
+    cy.wait(3000);
     cy.contains("button", "Créer le Donneur d'Ordre").click();
     cy.wait("@createVendor");
   });
@@ -137,6 +143,8 @@ describe("Écran 09 : CRM Expéditeurs & Écran 10 : Référentiel Logistique - 
     // Tab 1 : Axes & Quartiers
     cy.contains("AXE RN1 OUEST").should("be.visible");
     cy.contains("Analakely").should("be.visible");
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la cartographie des axes urbains
+    cy.wait(3000);
 
     // Add Zone to Axis 1
     cy.contains("Ajouter un Quartier").first().click();
@@ -149,5 +157,7 @@ describe("Écran 09 : CRM Expéditeurs & Écran 10 : Référentiel Logistique - 
     cy.contains("Gares Routières & Coopératives").click();
     cy.contains("Cotisse Transport").should("be.visible");
     cy.contains("Gare Routière Ambodivona").should("be.visible");
+    // ⏸️ PAUSE DE 3 SECONDES : Observer les gares routières et coopératives
+    cy.wait(3000);
   });
 });

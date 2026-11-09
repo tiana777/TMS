@@ -534,7 +534,7 @@ class TestRESTandGraphQLAPI:
 
         # 2. Create two parcels with COD
         import uuid
-        uid1 = uuid.uuid4().hex[:4]
+        uid1 = uuid.uuid4().hex[:10]
         p1_res = client.post(
             "/api/v1/parcels",
             json={
@@ -554,7 +554,7 @@ class TestRESTandGraphQLAPI:
         assert p1_res.status_code == 201
         p1_id = p1_res.json()["id"]
 
-        uid2 = uuid.uuid4().hex[:4]
+        uid2 = uuid.uuid4().hex[:10]
         p2_res = client.post(
             "/api/v1/parcels",
             json={
@@ -736,7 +736,7 @@ class TestRESTandGraphQLAPI:
 
         # 1. Create a partner cooperative
         import uuid
-        uid = uuid.uuid4().hex[:4]
+        uid = uuid.uuid4().hex[:10]
         partner_res = client.post(
             "/api/v1/master/partners",
             json={
@@ -787,7 +787,7 @@ class TestRESTandGraphQLAPI:
 
         # 1. Create a province parcel with COD
         import uuid
-        uid = uuid.uuid4().hex[:4]
+        uid = uuid.uuid4().hex[:10]
         res = client.post(
             "/api/v1/parcels",
             json={

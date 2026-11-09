@@ -125,6 +125,9 @@ describe("Habilitations RBAC & Réassignation de Colis (Écrans 03, 04, 05) - Te
     cy.window().then((win) => {
       expect(win.localStorage.getItem("tms_user_role")).to.eq("SUPER_ADMIN");
     });
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le changement dynamique de rôle RBAC (Super Admin)
+    cy.wait(3000);
   });
 
   it("2. [Écran 03/04] Réceptionniste peut réassigner un colis ASSIGNE mais est bloqué sur EN_COURS", () => {
@@ -156,6 +159,9 @@ describe("Habilitations RBAC & Réassignation de Colis (Écrans 03, 04, 05) - Te
     cy.get('[data-cy="reassign-modal"]').should("be.visible");
     cy.get('[data-cy="reassign-modal"]').should("contain", "Réassignation de Colis");
 
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la modal de réassignation pour colis ASSIGNE
+    cy.wait(3000);
+
     // Select Courier 2 (ANDRY Nirina)
     cy.get('[data-cy="reassign-courier-select"]').select("2");
     cy.get('[data-cy="btn-confirm-reassign"]').click();
@@ -177,6 +183,9 @@ describe("Habilitations RBAC & Réassignation de Colis (Écrans 03, 04, 05) - Te
 
     // Modal must NOT be opened
     cy.get('[data-cy="reassign-modal"]').should("not.exist");
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer le blocage RBAC Réceptionniste sur colis EN_COURS
+    cy.wait(3000);
   });
 
   it("3. [Écran 03/04] Super Admin peut réassigner d'urgence un colis EN_COURS avec motif obligatoire", () => {
@@ -219,6 +228,9 @@ describe("Habilitations RBAC & Réassignation de Colis (Écrans 03, 04, 05) - Te
       .clear()
       .type("Panne moto coursier RAKOTO Jean - axe RN4");
 
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la saisie du motif obligatoire d'urgence
+    cy.wait(3000);
+
     cy.get('[data-cy="btn-confirm-reassign"]').click();
 
     cy.wait("@emergencyReassign").then((interception) => {
@@ -228,6 +240,9 @@ describe("Habilitations RBAC & Réassignation de Colis (Écrans 03, 04, 05) - Te
     });
 
     cy.get('[data-cy="reassign-modal"]').should("not.exist");
+
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la confirmation de réassignation d'urgence
+    cy.wait(3000);
   });
 
   it("4. [Écran 05 - Pointage Terrain] Contrôle RBAC sur la réassignation de colis en cours", () => {

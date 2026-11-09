@@ -202,6 +202,8 @@ describe("Écran 07 : Caisse Centrale & Écran 08 : Décharge de Tournée - Test
     cy.get('[data-cy="cash-success-banner"]')
       .should("be.visible")
       .and("contain", "2 colis validé(s) avec succès");
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la validation de caisse réussie
+    cy.wait(3000);
   });
 
   it("Test 4: Écran 08 - Décharge de tournée, calcul d'écart parfait et clôture équilibrée", () => {
@@ -228,6 +230,8 @@ describe("Écran 07 : Caisse Centrale & Écran 08 : Décharge de Tournée - Test
     // Alerte Caisse Parfaitement Équilibrée
     cy.get('[data-cy="alert-balance-perfect"]').should("be.visible");
     cy.get('[data-cy="cash-discrepancy-value"]').should("contain", "0 Ar");
+    // ⏸️ PAUSE DE 3 SECONDES : Observer la caisse parfaitement équilibrée (Écart = 0 Ar)
+    cy.wait(3000);
 
     // Valider la clôture
     cy.get('[data-cy="btn-confirm-close-tour"]').click();
@@ -240,6 +244,8 @@ describe("Écran 07 : Caisse Centrale & Écran 08 : Décharge de Tournée - Test
     cy.get('[data-cy="modal-discharge-receipt"]').within(() => {
       cy.contains("Bordereau de Décharge de Tournée").should("be.visible");
       cy.contains("89 000 Ar").should("be.visible");
+      // ⏸️ PAUSE DE 3 SECONDES : Observer le reçu officiel de décharge
+      cy.wait(3000);
       cy.get('[data-cy="btn-close-receipt-modal"]').click();
     });
     cy.get('[data-cy="modal-discharge-receipt"]').should("not.exist");
@@ -265,6 +271,8 @@ describe("Écran 07 : Caisse Centrale & Écran 08 : Décharge de Tournée - Test
       .and("contain", "DEFICIT_COD");
 
     cy.get('[data-cy="cash-discrepancy-value"]').should("contain", "-19 000 Ar");
+    // ⏸️ PAUSE DE 3 SECONDES : Observer l'alerte de déficit et calcul du litige
+    cy.wait(3000);
 
     // Clôture avec litige
     cy.get('[data-cy="btn-confirm-close-tour"]').click();
