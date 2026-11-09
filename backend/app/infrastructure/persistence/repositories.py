@@ -65,6 +65,8 @@ class PostgresParcelRepository(IParcelRepository):
             partner_name=orm.nom_partenaire,
             driver_contact=orm.driver_contact,
             vehicle_plate=orm.vehicle_plate,
+            remittance_id=orm.reversement_id,
+            remittance_status=orm.statut_reversement if getattr(orm, "statut_reversement", None) else "NON_REVERSE",
             observation=orm.observation,
             active=bool(orm.actif),
             created_at=orm.created_at,
@@ -104,6 +106,8 @@ class PostgresParcelRepository(IParcelRepository):
             nom_partenaire=domain.partner_name,
             driver_contact=domain.driver_contact,
             vehicle_plate=domain.vehicle_plate,
+            reversement_id=domain.remittance_id,
+            statut_reversement=domain.remittance_status,
             actif=1 if domain.active else 0,
         )
 
@@ -141,6 +145,8 @@ class PostgresParcelRepository(IParcelRepository):
                 orm.nom_partenaire = parcel.partner_name
                 orm.driver_contact = parcel.driver_contact
                 orm.vehicle_plate = parcel.vehicle_plate
+                orm.reversement_id = parcel.remittance_id
+                orm.statut_reversement = parcel.remittance_status
                 orm.actif = 1 if parcel.active else 0
                 orm.updated_at = datetime.utcnow()
                 self.session.commit()

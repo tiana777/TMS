@@ -29,3 +29,12 @@ class MissingRequiredDataException(DomainException):
 class BusinessRuleViolationException(DomainException):
     """Raised when a business invariant is violated."""
     pass
+
+
+class EntityNotFoundException(DomainException):
+    """Raised when an entity is not found by ID or key."""
+    def __init__(self, entity_name: str, entity_id: any):
+        super().__init__(f"{entity_name} avec l'identifiant {entity_id} est introuvable.")
+        self.entity_name = entity_name
+        self.entity_id = entity_id
+

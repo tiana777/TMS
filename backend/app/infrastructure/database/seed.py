@@ -9,6 +9,7 @@ from backend.app.infrastructure.persistence.models import (
     PartnerORM,
     UserORM,
     VendorORM,
+    VendorPayoutORM,
     ZoneORM,
 )
 
@@ -36,6 +37,8 @@ def seed_master_data():
             """))
             conn.execute(text("ALTER TABLE axes ADD COLUMN IF NOT EXISTS type_axe VARCHAR(30) DEFAULT 'URBAIN';"))
             conn.execute(text("UPDATE axes SET type_axe = 'PROVINCE' WHERE code LIKE '%PROVINCE%' AND (type_axe IS NULL OR type_axe != 'PROVINCE');"))
+            conn.execute(text("ALTER TABLE colis ADD COLUMN IF NOT EXISTS reversement_id INTEGER REFERENCES reversements_vendeurs(id);"))
+            conn.execute(text("ALTER TABLE colis ADD COLUMN IF NOT EXISTS statut_reversement VARCHAR(30) DEFAULT 'NON_REVERSE';"))
             conn.commit()
     except Exception as e:
         print(f"Notice during constraint update: {e}")

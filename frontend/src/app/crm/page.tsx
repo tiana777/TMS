@@ -22,8 +22,15 @@ import {
   Edit2,
   RefreshCw,
 } from "lucide-react";
-import { Parcel, Vendor } from "@/types";
-import { createVendor, fetchParcels, fetchVendors, updateVendor } from "@/lib/api";
+import { Parcel, Vendor, Payout } from "@/types";
+import {
+  createPayout,
+  createVendor,
+  fetchParcels,
+  fetchPayouts,
+  fetchVendors,
+  updateVendor,
+} from "@/lib/api";
 
 export default function CRMVendorsPage() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -37,6 +44,13 @@ export default function CRMVendorsPage() {
   const [isNewVendorModalOpen, setIsNewVendorModalOpen] = useState<boolean>(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [isStatementModalOpen, setIsStatementModalOpen] = useState<boolean>(false);
+
+  // Payout states
+  const [vendorPayouts, setVendorPayouts] = useState<Payout[]>([]);
+  const [payoutMode, setPayoutMode] = useState<string>("MVOLA");
+  const [payoutReference, setPayoutReference] = useState<string>("");
+  const [payoutSubmitting, setPayoutSubmitting] = useState<boolean>(false);
+  const [lastGeneratedPayout, setLastGeneratedPayout] = useState<Payout | null>(null);
 
   // Form states
   const [formName, setFormName] = useState<string>("");
@@ -66,6 +80,50 @@ export default function CRMVendorsPage() {
       console.error("Erreur chargement CRM", e);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadVendorPayouts(vId: number) {
+    try {
+      const payouts = await fetchPayouts(vId);
+      setVendorPayouts(payouts);
+    } catch (e) {
+      console.warn("Erreur chargement reversements", e);
+    }
+  }
+
+  useEffect(() => {
+    if (selectedVendorId) {
+      loadVendorPayouts(selectedVendorId);
+      setLastGeneratedPayout(null);
+    }
+  }, [selectedVendorId]);
+
+  async function handleCreatePayout() {
+    if (!selectedVendor) return;
+    const unreversed = deliveredParcels.filter(
+      (p) => !p.remittance_id || p.remittance_status !== "REVERSE"
+    );
+    if (unreversed.length === 0) {
+      alert("Aucun colis en attente de reversement pour ce donneur d'ordre.");
+      return;
+    }
+    setPayoutSubmitting(true);
+    try {
+      const res = await createPayout({
+        vendor_id: selectedVendor.id,
+        parcel_ids: unreversed.map((p) => p.id),
+        payment_mode: payoutMode,
+        payment_reference: payoutReference.trim() || undefined,
+        notes: `Reversement officiel émis le ${new Date().toLocaleDateString("fr-FR")}`,
+      });
+      setLastGeneratedPayout(res);
+      await loadData();
+      await loadVendorPayouts(selectedVendor.id);
+    } catch (err: any) {
+      alert(err.message || "Erreur lors de la validation du reversement.");
+    } finally {
+      setPayoutSubmitting(false);
     }
   }
 
@@ -169,10 +227,10 @@ export default function CRMVendorsPage() {
   const successRate = totalVolume > 0 ? ((deliveredCount / totalVolume) * 100).toFixed(1) : "0.0";
 
   // Financial reconciliation for vendor
-  // For Cybermarchand: Net à reverser = Total COD perçu - Frais de livraison TMS
+  // For Cybermarchand: Net à reverser = Total COD perçu - Frais de livraison TMS (CDC §13.3)
   const totalCodCollected = deliveredParcels.reduce((sum, p) => sum + (p.merchandise_amount || 0), 0);
   const totalDeliveryFees = deliveredParcels.reduce((sum, p) => sum + (p.delivery_fee || 0), 0);
-  const netDueToVendor = totalCodCollected - (selectedVendor?.modalite_paiement === "COMPTANT" ? 0 : 0);
+  const netDueToVendor = Math.max(0, totalCodCollected - totalDeliveryFees);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -453,6 +511,48 @@ export default function CRMVendorsPage() {
                   </table>
                 </div>
               </div>
+
+              {/* Historique des Reversements Effectués */}
+              {vendorPayouts.length > 0 && (
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-emerald-50/40">
+                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                      <Wallet className="w-4 h-4 text-emerald-600" />
+                      Historique des Reversements Validés ({vendorPayouts.length})
+                    </h3>
+                  </div>
+
+                  <div className="overflow-x-auto max-h-56">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b border-slate-200">
+                        <tr>
+                          <th className="px-4 py-2">Bordereau Référence</th>
+                          <th className="px-4 py-2">Date</th>
+                          <th className="px-4 py-2">Mode & Preuve</th>
+                          <th className="px-4 py-2 text-center">Colis</th>
+                          <th className="px-4 py-2 text-right">Net Versé</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {vendorPayouts.map((pay) => (
+                          <tr key={pay.id} className="hover:bg-slate-50">
+                            <td className="px-4 py-2 font-mono font-bold text-blue-900">{pay.reference_reversement}</td>
+                            <td className="px-4 py-2 text-slate-600">{pay.date_reversement}</td>
+                            <td className="px-4 py-2 text-slate-700">
+                              <span className="font-semibold">{pay.mode_reglement}</span>
+                              {pay.reference_preuve && (
+                                <span className="text-[10px] text-slate-400 block font-mono">{pay.reference_preuve}</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2 text-center font-bold text-slate-800">{pay.nombre_colis}</td>
+                            <td className="px-4 py-2 text-right font-black text-emerald-600">{pay.solde_net_verse_formatted}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-12 text-center text-slate-400">
@@ -786,9 +886,71 @@ export default function CRMVendorsPage() {
                 </div>
                 <div className="flex justify-between font-black text-sm text-slate-900 pt-2 border-t border-slate-200">
                   <span className="text-blue-900">NET À REVERSER AU DONNEUR D'ORDRE :</span>
-                  <span className="text-blue-900 text-base">{totalCodCollected.toLocaleString("fr-FR")} Ar</span>
+                  <span className="text-blue-900 text-base">{netDueToVendor.toLocaleString("fr-FR")} Ar</span>
                 </div>
               </div>
+
+              {/* Super Admin Payment Execution Section */}
+              {lastGeneratedPayout ? (
+                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h5 className="font-bold text-emerald-900 text-xs">
+                      Reversement Validé & Enregistré avec Succès !
+                    </h5>
+                    <p className="text-[11px] text-emerald-700 mt-0.5">
+                      Bordereau Officiel : <strong className="font-mono">{lastGeneratedPayout.reference_reversement}</strong> — Montant : {lastGeneratedPayout.solde_net_verse_formatted} via {lastGeneratedPayout.mode_reglement}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
+                  <h5 className="font-bold text-slate-800 text-xs uppercase tracking-wider">
+                    Ordonnancement du Règlement (Super Admin - CDC §3.4)
+                  </h5>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                        Canal de Reversement
+                      </label>
+                      <select
+                        value={payoutMode}
+                        onChange={(e) => setPayoutMode(e.target.value)}
+                        className="w-full text-xs border border-slate-200 rounded-lg p-2 bg-white outline-none focus:border-blue-500 font-semibold"
+                      >
+                        <option value="MVOLA">Mvola (Telma)</option>
+                        <option value="AIRTEL_MONEY">Airtel Money</option>
+                        <option value="ORANGE_MONEY">Orange Money</option>
+                        <option value="ESPECES">Espèces au Guichet</option>
+                        <option value="VIREMENT">Virement Bancaire</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                        Référence de Preuve / Transaction
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ex: MV-20261109-0821"
+                        value={payoutReference}
+                        onChange={(e) => setPayoutReference(e.target.value)}
+                        className="w-full text-xs border border-slate-200 rounded-lg p-2 bg-white outline-none focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="button"
+                      disabled={payoutSubmitting || deliveredParcels.length === 0}
+                      onClick={handleCreatePayout}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm"
+                    >
+                      <Wallet className="w-3.5 h-3.5" />
+                      <span>{payoutSubmitting ? "Validation..." : "Valider & Émettre le Reversement"}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">

@@ -72,6 +72,8 @@ export interface Parcel {
   partner_reference?: string | null;
   driver_contact?: string | null;
   vehicle_plate?: string | null;
+  remittance_id?: number | null;
+  remittance_status?: string;
   observation?: string | null;
   active: boolean;
 }
@@ -173,4 +175,52 @@ export interface Scorecard {
   bonus_amount: number;
   bonus_formatted: string;
 }
+
+export interface PayoutParcelSummary {
+  id: number;
+  tracking_number: string;
+  recipient_name: string;
+  merchandise_amount: number;
+  delivery_fee: number;
+  status: string;
+  reception_date: string;
+}
+
+export interface Payout {
+  id: number;
+  reference_reversement: string;
+  vendor_id: number;
+  vendor_name: string;
+  vendor_phone?: string | null;
+  vendor_address?: string | null;
+  date_reversement: string;
+  total_marchandise_encaissee: number;
+  total_frais_livraison_deduits: number;
+  total_indemnisation_litiges: number;
+  solde_net_verse: number;
+  solde_net_verse_formatted: string;
+  mode_reglement: string;
+  reference_preuve?: string | null;
+  statut: string;
+  nombre_colis: number;
+  notes?: string | null;
+  created_at: string;
+  colis: PayoutParcelSummary[];
+}
+
+export interface PendingPayoutSummary {
+  vendor_id: number;
+  vendor_name: string;
+  vendor_type: string;
+  vendor_phone?: string | null;
+  vendor_address?: string | null;
+  eligible_parcels_count: number;
+  total_merchandise: number;
+  total_delivery_fees: number;
+  total_indemnisation_litiges: number;
+  net_payable: number;
+  net_payable_formatted: string;
+  eligible_parcels: PayoutParcelSummary[];
+}
+
 

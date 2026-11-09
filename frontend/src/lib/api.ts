@@ -882,3 +882,71 @@ export async function fetchScorecard(courierId: number, period: string) {
   }
 }
 
+export async function fetchPendingPayouts(vendorId?: number) {
+  const headers = getAuthHeaders();
+  const url = vendorId
+    ? `${API_BASE_URL}/payouts/pending?vendor_id=${vendorId}`
+    : `${API_BASE_URL}/payouts/pending`;
+  const res = await fetch(url, { headers });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors du chargement des reversements en attente.");
+  }
+  return await res.json();
+}
+
+export async function fetchPendingPayoutByVendor(vendorId: number) {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/payouts/pending/${vendorId}`, { headers });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors du chargement du reversement.");
+  }
+  return await res.json();
+}
+
+export async function createPayout(payload: {
+  vendor_id: number;
+  parcel_ids: number[];
+  payment_mode?: string;
+  payment_reference?: string;
+  notes?: string;
+  indemnisation_litiges?: number;
+}) {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/payouts`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de la validation du reversement.");
+  }
+  return await res.json();
+}
+
+export async function fetchPayouts(vendorId?: number) {
+  const headers = getAuthHeaders();
+  const url = vendorId
+    ? `${API_BASE_URL}/payouts?vendor_id=${vendorId}`
+    : `${API_BASE_URL}/payouts`;
+  const res = await fetch(url, { headers });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors du chargement de l'historique des reversements.");
+  }
+  return await res.json();
+}
+
+export async function fetchPayoutById(payoutId: number) {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/payouts/${payoutId}`, { headers });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Bordereau de reversement introuvable.");
+  }
+  return await res.json();
+}
+
+

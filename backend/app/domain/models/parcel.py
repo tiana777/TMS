@@ -58,6 +58,8 @@ class Parcel:
     partner_name: Optional[str] = None
     driver_contact: Optional[str] = None
     vehicle_plate: Optional[str] = None
+    remittance_id: Optional[int] = None
+    remittance_status: str = "NON_REVERSE"
     observation: Optional[str] = None
     active: bool = True
     created_at: Optional[datetime] = None

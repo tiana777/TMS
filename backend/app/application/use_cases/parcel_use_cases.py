@@ -76,6 +76,8 @@ class ParcelUseCases:
             partner_reference=p.partner_reference,
             driver_contact=p.driver_contact,
             vehicle_plate=p.vehicle_plate,
+            remittance_id=p.remittance_id,
+            remittance_status=p.remittance_status,
             observation=p.observation,
             active=p.active,
         )

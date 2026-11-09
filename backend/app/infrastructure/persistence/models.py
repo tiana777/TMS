@@ -73,6 +73,7 @@ class VendorORM(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     colis = relationship("ParcelORM", back_populates="vendeur")
+    reversements = relationship("VendorPayoutORM", back_populates="vendeur", cascade="all, delete-orphan")
 
 
 class AxisORM(Base):
@@ -191,12 +192,20 @@ class ParcelORM(Base):
     nom_partenaire = Column(String(100), nullable=True)
     driver_contact = Column(String(100), nullable=True)
     vehicle_plate = Column(String(50), nullable=True)
+    reversement_id = Column(Integer, ForeignKey("reversements_vendeurs.id"), nullable=True, index=True)
+    statut_reversement = Column(
+        String(30),
+        CheckConstraint("statut_reversement IN ('NON_REVERSE', 'REVERSE', 'EXCLU')"),
+        default="NON_REVERSE",
+        nullable=False,
+    )
     actif = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     vendeur = relationship("VendorORM", back_populates="colis")
     tournee = relationship("TourORM", back_populates="colis")
+    reversement = relationship("VendorPayoutORM", back_populates="colis")
     historique_statuts = relationship("ParcelStatusHistoryORM", back_populates="colis", cascade="all, delete-orphan")
     encaissements = relationship("CashCollectionORM", back_populates="colis", cascade="all, delete-orphan")
 
@@ -311,3 +320,37 @@ class PerformanceEvaluationORM(Base):
     calcule_a = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     livreur = relationship("CourierORM", back_populates="evaluations")
+
+
+class VendorPayoutORM(Base):
+    __tablename__ = "reversements_vendeurs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    reference_reversement = Column(String(50), unique=True, nullable=False, index=True)
+    vendeur_id = Column(Integer, ForeignKey("vendeurs.id"), nullable=False, index=True)
+    date_reversement = Column(String(10), nullable=False, index=True)  # YYYY-MM-DD
+    total_marchandise_encaissee = Column(Float, default=0.0, nullable=False)
+    total_frais_livraison_deduits = Column(Float, default=0.0, nullable=False)
+    total_indemnisation_litiges = Column(Float, default=0.0, nullable=False)
+    solde_net_verse = Column(Float, nullable=False)
+    mode_reglement = Column(
+        String(30),
+        CheckConstraint("mode_reglement IN ('MVOLA', 'AIRTEL_MONEY', 'ORANGE_MONEY', 'ESPECES', 'VIREMENT')"),
+        default="MVOLA",
+        nullable=False,
+    )
+    reference_preuve = Column(String(100), nullable=True)
+    statut = Column(
+        String(30),
+        CheckConstraint("statut IN ('EN_ATTENTE', 'VALIDE', 'ANNULE')"),
+        default="VALIDE",
+        nullable=False,
+    )
+    nombre_colis = Column(Integer, default=0, nullable=False)
+    notes = Column(Text, nullable=True)
+    utilisateur_id = Column(Integer, ForeignKey("utilisateurs.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    vendeur = relationship("VendorORM", back_populates="reversements")
+    colis = relationship("ParcelORM", back_populates="reversement")
+

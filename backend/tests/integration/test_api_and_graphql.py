@@ -1,6 +1,7 @@
 """Integration tests for FastAPI REST API & Strawberry GraphQL endpoints."""
 
 import pytest
+import uuid
 from fastapi.testclient import TestClient
 from backend.app.infrastructure.database.seed import seed_master_data
 from backend.app.main import app
@@ -349,8 +350,12 @@ class TestRESTandGraphQLAPI:
         p2_id = p2_res.json()["id"]
 
         # 2. Assign both parcels to a courier on a unique date
-        import uuid
-        unique_date = f"{2035 + (uuid.uuid4().int % 50):04d}-{uuid.uuid4().int % 12 + 1:02d}-{uuid.uuid4().int % 28 + 1:02d}"
+        from backend.app.infrastructure.database.connection import SessionLocal
+        from backend.app.infrastructure.persistence.models import TourORM
+        _db = SessionLocal()
+        used_dates = {t.date_tournee for t in _db.query(TourORM).filter(TourORM.livreur_id == 3).all()}
+        _db.close()
+        unique_date = next(f"{y:04d}-06-15" for y in range(2100, 2300) if f"{y:04d}-06-15" not in used_dates)
         tour_res = client.post(
             "/api/v1/tours",
             json={
@@ -953,4 +958,103 @@ class TestRESTandGraphQLAPI:
             clean_db.commit()
         finally:
             clean_db.close()
+
+    def test_vendor_payout_and_remittance_workflow(self):
+        """Test vendor payout calculation according to CDC §13.3 and parcel locking."""
+        # 1. Login as Super Admin
+        login_res = client.post("/api/v1/auth/login", json={"username": "admin", "password": "admin123"})
+        assert login_res.status_code == 200
+        headers = {"Authorization": f"Bearer {login_res.json()['access_token']}"}
+
+        # 2. Create 2 parcels for vendor 1
+        uid = uuid.uuid4().hex[:6]
+        p1 = client.post(
+            "/api/v1/parcels",
+            json={
+                "tracking_number": f"PAY1-{uid}",
+                "reception_date": "2026-11-09",
+                "vendor_id": 1,
+                "recipient_name": "Client Payout 1",
+                "recipient_phone": "0341234567",
+                "delivery_address": "Analakely",
+                "axis": "AXE_CENTRE",
+                "flux_type": "COD",
+                "merchandise_amount": 50000,
+                "delivery_fee": 5000,
+            },
+            headers=headers,
+        ).json()
+        p2 = client.post(
+            "/api/v1/parcels",
+            json={
+                "tracking_number": f"PAY2-{uid}",
+                "reception_date": "2026-11-09",
+                "vendor_id": 1,
+                "recipient_name": "Client Payout 2",
+                "recipient_phone": "0331234567",
+                "delivery_address": "Ankadifotsy",
+                "axis": "AXE_CENTRE",
+                "flux_type": "COD",
+                "merchandise_amount": 30000,
+                "delivery_fee": 4000,
+            },
+            headers=headers,
+        ).json()
+
+        # Mark them delivered and cashed (CLOTURE_CAISSE)
+        from backend.app.infrastructure.database.connection import SessionLocal
+        from backend.app.infrastructure.persistence.models import ParcelORM
+        db = SessionLocal()
+        try:
+            for pid in [p1["id"], p2["id"]]:
+                po = db.query(ParcelORM).filter(ParcelORM.id == pid).first()
+                po.statut = "CLOTURE_CAISSE"
+                po.statut_reversement = "NON_REVERSE"
+            db.commit()
+        finally:
+            db.close()
+
+        # 3. Check pending payouts for vendor 1
+        pending_res = client.get("/api/v1/payouts/pending?vendor_id=1", headers=headers)
+        assert pending_res.status_code == 200
+        pending_list = pending_res.json()
+        assert len(pending_list) >= 1
+        v1_pending = next(item for item in pending_list if item["vendor_id"] == 1)
+        assert v1_pending["eligible_parcels_count"] >= 2
+        # Check net payable calculation formula (CDC 13.3)
+        assert v1_pending["net_payable"] >= (50000 - 5000) + (30000 - 4000)
+
+        # 4. Super Admin creates payout for these 2 parcels
+        payout_payload = {
+            "vendor_id": 1,
+            "parcel_ids": [p1["id"], p2["id"]],
+            "payment_mode": "MVOLA",
+            "payment_reference": f"MVOLA-TX-{uid}",
+            "notes": "Règlement automatique des ventes du jour",
+            "indemnisation_litiges": 0,
+        }
+        create_res = client.post("/api/v1/payouts", json=payout_payload, headers=headers)
+        assert create_res.status_code == 201
+        payout_data = create_res.json()
+        assert payout_data["reference_reversement"].startswith("REV-")
+        assert payout_data["total_marchandise_encaissee"] == 80000
+        assert payout_data["total_frais_livraison_deduits"] == 9000
+        assert payout_data["solde_net_verse"] == 71000
+        assert payout_data["nombre_colis"] == 2
+        payout_id = payout_data["id"]
+
+        # 5. Verify parcels are now marked REVERSE
+        p1_check = client.get(f"/api/v1/parcels/{p1['id']}", headers=headers).json()
+        assert p1_check["remittance_status"] == "REVERSE"
+        assert p1_check["remittance_id"] == payout_id
+
+        # 6. Retrieve payout by ID
+        get_res = client.get(f"/api/v1/payouts/{payout_id}", headers=headers)
+        assert get_res.status_code == 200
+        assert get_res.json()["reference_reversement"] == payout_data["reference_reversement"]
+
+        # 7. Attempting to payout the same parcel again should be rejected
+        dup_res = client.post("/api/v1/payouts", json=payout_payload, headers=headers)
+        assert dup_res.status_code == 400
+
 
