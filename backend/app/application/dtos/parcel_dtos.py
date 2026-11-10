@@ -56,6 +56,11 @@ class BulkCloseCashDTO(BaseModel):
     parcel_ids: List[int]
 
 
+class BulkDeleteParcelsDTO(BaseModel):
+    parcel_ids: List[int]
+
+
+
 class UpdateParcelStatusDTO(BaseModel):
     status: str
     courier_id: Optional[int] = None

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from backend.app.application.dtos.parcel_dtos import (
     BulkCloseCashDTO,
+    BulkDeleteParcelsDTO,
     CreateBatchParcelDTO,
     CreateParcelDTO,
     MarkPrepaidDTO,
@@ -182,3 +183,34 @@ def bulk_close_cash(
         return results
     except DomainException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.delete("/{parcel_id}", status_code=status.HTTP_200_OK)
+def delete_parcel(
+    parcel_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserORM = Depends(require_roles(["SUPERVISEUR", "SUPER_ADMIN"])),
+):
+    """Suppression unitaire d'un colis. Réservé aux profils SUPERVISEUR et SUPER_ADMIN."""
+    try:
+        use_cases = ParcelUseCases(db)
+        use_cases.delete_parcel(parcel_id, user_role=current_user.role, user_id=current_user.id)
+        return {"success": True, "message": f"Colis #{parcel_id} supprimé avec succès."}
+    except DomainException as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/bulk-delete", status_code=status.HTTP_200_OK)
+def bulk_delete_parcels(
+    dto: BulkDeleteParcelsDTO,
+    db: Session = Depends(get_db),
+    current_user: UserORM = Depends(require_roles(["SUPERVISEUR", "SUPER_ADMIN"])),
+):
+    """Suppression groupée de colis sélectionnés. Réservé aux profils SUPERVISEUR et SUPER_ADMIN."""
+    try:
+        use_cases = ParcelUseCases(db)
+        result = use_cases.delete_parcels(dto.parcel_ids, user_role=current_user.role, user_id=current_user.id)
+        return result
+    except DomainException as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+

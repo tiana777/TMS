@@ -36,6 +36,8 @@ import {
   reassignParcel,
   markParcelPrepaid,
   startTour,
+  deleteParcel,
+  bulkDeleteParcels,
   UpdateParcelStatusPayload,
 } from "../../lib/api";
 import {
@@ -160,6 +162,77 @@ export default function TrackingPage() {
     window.addEventListener("tms_role_change", updateRole);
     return () => window.removeEventListener("tms_role_change", updateRole);
   }, []);
+
+  // Privilege flag: Superviseur & Super Admin can delete parcels
+  const isPrivileged = currentUserRole === "SUPERVISEUR" || currentUserRole === "SUPER_ADMIN";
+
+  // Bulk selection and delete states for tracking page
+  const [selectedTrackingParcelIds, setSelectedTrackingParcelIds] = useState<number[]>([]);
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
+    isOpen: boolean;
+    parcel?: Parcel;
+    isBulk?: boolean;
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
+  const toggleSelectParcel = (id: number) => {
+    setSelectedTrackingParcelIds((prev) =>
+      prev.includes(id) ? prev.filter((pId) => pId !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAllFiltered = () => {
+    const visibleIds = filteredParcels.map((p) => p.id);
+    const allSelected =
+      visibleIds.length > 0 && visibleIds.every((id) => selectedTrackingParcelIds.includes(id));
+    if (allSelected) {
+      setSelectedTrackingParcelIds((prev) => prev.filter((id) => !visibleIds.includes(id)));
+    } else {
+      setSelectedTrackingParcelIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
+    }
+  };
+
+  const handleConfirmDeleteSingle = async (parcel: Parcel) => {
+    try {
+      setIsDeleting(true);
+      await deleteParcel(parcel.id);
+      setFeedbackMessage({
+        type: "success",
+        text: `Colis BDR-${parcel.tracking_number} supprimé avec succès !`,
+      });
+      setSelectedTrackingParcelIds((prev) => prev.filter((id) => id !== parcel.id));
+      setDeleteConfirmModal(null);
+      await loadData();
+    } catch (err: any) {
+      setFeedbackMessage({
+        type: "error",
+        text: err.message || "Erreur lors de la suppression du colis.",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleConfirmBulkDelete = async () => {
+    try {
+      setIsDeleting(true);
+      const res = await bulkDeleteParcels(selectedTrackingParcelIds);
+      setFeedbackMessage({
+        type: "success",
+        text: `${res.deleted_count} colis supprimé(s) avec succès !`,
+      });
+      setSelectedTrackingParcelIds([]);
+      setDeleteConfirmModal(null);
+      await loadData();
+    } catch (err: any) {
+      setFeedbackMessage({
+        type: "error",
+        text: err.message || "Erreur lors de la suppression groupée des colis.",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Dynamic lists for modal reasons (editable, non-hardcoded & persisted in localStorage)
   const [cancelReasonsList, setCancelReasonsList] = useState<string[]>(DEFAULT_CANCEL_REASONS);
@@ -903,7 +976,7 @@ export default function TrackingPage() {
       {/* Parcels List with Structured Cards & Rapid Pointage Controls */}
       <div className="space-y-3">
         <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Package className="w-4 h-4 text-blue-600" />
             <h3 className="font-bold text-xs sm:text-sm text-slate-800">
               Colis de la tournée ({filteredParcels.length} affichés)
@@ -913,10 +986,42 @@ export default function TrackingPage() {
                 Livreur : {currentTour.courier_name}
               </span>
             )}
+            {isPrivileged && filteredParcels.length > 0 && (
+              <button
+                type="button"
+                onClick={handleSelectAllFiltered}
+                data-cy="btn-select-all-filtered-tracking"
+                className="ml-2 text-xs font-semibold px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer"
+              >
+                {filteredParcels.length > 0 && filteredParcels.every((p) => selectedTrackingParcelIds.includes(p.id))
+                  ? "Désélectionner tout"
+                  : `Tout sélectionner (${filteredParcels.length})`}
+              </button>
+            )}
           </div>
-          <p className="text-[11px] text-slate-500">
-            Actions rapides disponibles pour les colis au statut <span className="font-semibold text-blue-700">Assigné</span> ou <span className="font-semibold text-sky-700">En Cours</span>
-          </p>
+
+          <div className="flex items-center gap-2">
+            {isPrivileged && selectedTrackingParcelIds.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                  {selectedTrackingParcelIds.length} sélectionné(s)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmModal({ isOpen: true, isBulk: true })}
+                  data-cy="btn-bulk-delete-tracking"
+                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                  title="Supprimer définitivement les colis sélectionnés (Superviseur / Super Admin)"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Supprimer ({selectedTrackingParcelIds.length})</span>
+                </button>
+              </div>
+            )}
+            <p className="text-[11px] text-slate-500 hidden sm:block">
+              Actions rapides disponibles pour les colis au statut <span className="font-semibold text-blue-700">Assigné</span> ou <span className="font-semibold text-sky-700">En Cours</span>
+            </p>
+          </div>
         </div>
 
         {filteredParcels.length === 0 ? (
@@ -938,6 +1043,16 @@ export default function TrackingPage() {
                   {/* Top Tier: Identifiers, Status Badges and Montant COD */}
                   <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
                     <div className="flex items-center gap-2 flex-wrap">
+                      {isPrivileged && (
+                        <input
+                          type="checkbox"
+                          data-cy={`select-tracking-parcel-${parcel.id}`}
+                          checked={selectedTrackingParcelIds.includes(parcel.id)}
+                          onChange={() => toggleSelectParcel(parcel.id)}
+                          className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer mr-0.5"
+                          title="Sélectionner pour action groupée"
+                        />
+                      )}
                       <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs">
                         BDR-{parcel.tracking_number}
                       </span>
@@ -1221,6 +1336,18 @@ export default function TrackingPage() {
                         <span className="text-xs font-semibold text-slate-400 italic px-2 py-1">
                           Pointage clôturé
                         </span>
+                      )}
+
+                      {isPrivileged && (
+                        <button
+                          data-cy={`btn-delete-parcel-${parcel.id}`}
+                          onClick={() => setDeleteConfirmModal({ isOpen: true, parcel, isBulk: false })}
+                          className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 hover:border-rose-300 font-bold text-xs rounded-lg transition flex items-center gap-1 shadow-2xs cursor-pointer ml-1"
+                          title="Supprimer définitivement ce colis (Superviseur / Super Admin)"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                          Supprimer
+                        </button>
                       )}
                     </div>
                   </div>
@@ -2371,6 +2498,92 @@ export default function TrackingPage() {
               >
                 <Truck className="w-4 h-4" />
                 Confirmer la Réassignation
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL 6: CONFIRMATION SUPPRESSION COLIS (SUPERVISEUR & SUPER ADMIN) ================= */}
+      {deleteConfirmModal?.isOpen && (
+        <div
+          data-cy="modal-delete-confirm-tracking"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in"
+        >
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-rose-100 text-rose-700 rounded-xl">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-black text-lg text-slate-800">
+                  {deleteConfirmModal.isBulk
+                    ? `Supprimer ${selectedTrackingParcelIds.length} colis ?`
+                    : `Supprimer le colis ?`}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Action réservée aux profils Superviseur et Super Admin
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {deleteConfirmModal.isBulk ? (
+                <div>
+                  <p className="text-xs text-slate-700 leading-relaxed">
+                    Êtes-vous sûr de vouloir supprimer définitivement les{" "}
+                    <strong className="text-rose-700 font-bold">{selectedTrackingParcelIds.length} colis sélectionnés</strong> ?
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    Cette action est <strong>irréversible</strong>. Les colis, leurs encaissements et historiques associés seront définitivement effacés de la base de données.
+                  </p>
+                </div>
+              ) : deleteConfirmModal.parcel ? (
+                <div>
+                  <p className="text-xs text-slate-700 leading-relaxed">
+                    Êtes-vous sûr de vouloir supprimer définitivement le colis{" "}
+                    <strong className="font-mono text-blue-700 font-bold">
+                      BDR-{deleteConfirmModal.parcel.tracking_number}
+                    </strong>{" "}
+                    destiné à <strong>{deleteConfirmModal.parcel.recipient_name}</strong> ?
+                  </p>
+                  <div className="text-[11px] text-slate-600 mt-2 bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+                    <div><strong>Adresse :</strong> {deleteConfirmModal.parcel.delivery_address}</div>
+                    <div><strong>Montant COD :</strong> {deleteConfirmModal.parcel.total_to_collect?.toLocaleString()} Ar</div>
+                    <div><strong>Statut actuel :</strong> <span className="font-bold text-slate-800">{deleteConfirmModal.parcel.status}</span></div>
+                    <div><strong>Axe :</strong> {deleteConfirmModal.parcel.axis}</div>
+                  </div>
+                  <p className="text-[11px] text-rose-600 font-bold mt-2">
+                    ⚠️ Cette suppression est immédiate et irréversible.
+                  </p>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setDeleteConfirmModal(null)}
+                className="px-4 py-2 font-bold text-xs text-slate-600 hover:bg-slate-100 rounded-xl transition disabled:opacity-50"
+              >
+                Annuler
+              </button>
+              <button
+                data-cy="btn-confirm-delete-tracking"
+                type="button"
+                disabled={isDeleting}
+                onClick={() => {
+                  if (deleteConfirmModal.isBulk) {
+                    handleConfirmBulkDelete();
+                  } else if (deleteConfirmModal.parcel) {
+                    handleConfirmDeleteSingle(deleteConfirmModal.parcel);
+                  }
+                }}
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-lg transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                {isDeleting ? "Suppression en cours..." : "Supprimer définitivement"}
               </button>
             </div>
           </div>

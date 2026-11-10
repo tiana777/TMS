@@ -509,3 +509,109 @@ class ParcelUseCases:
 
         self.db.commit()
         return self._to_response_dto(saved)
+
+    def delete_parcel(self, parcel_id: int, user_role: str, user_id: Optional[int] = None) -> bool:
+        """Supprime définitivement un colis et ses enregistrements associés. Réservé SUPERVISEUR et SUPER_ADMIN."""
+        if user_role not in ["SUPERVISEUR", "SUPER_ADMIN"]:
+            raise BusinessRuleViolationException(
+                f"Action non autorisée. Profil requis : SUPERVISEUR ou SUPER_ADMIN (profil actuel : {user_role})."
+            )
+
+        parcel_orm = self.db.query(ParcelORM).filter(ParcelORM.id == parcel_id).first()
+        if not parcel_orm:
+            raise DomainException(f"Colis #{parcel_id} introuvable.")
+
+        from backend.app.infrastructure.persistence.models import (
+            CourierDebtORM,
+            CashCollectionORM,
+        )
+
+        # 1. Détacher les dettes éventuelles
+        self.db.query(CourierDebtORM).filter(CourierDebtORM.colis_id == parcel_id).update({"colis_id": None})
+
+        # 2. Supprimer les encaissements associés
+        self.db.query(CashCollectionORM).filter(CashCollectionORM.colis_id == parcel_id).delete()
+
+        # 3. Supprimer l'historique de statut
+        self.db.query(ParcelStatusHistoryORM).filter(ParcelStatusHistoryORM.colis_id == parcel_id).delete()
+
+        tour_id = parcel_orm.tournee_id
+
+        # 4. Supprimer le colis
+        self.db.delete(parcel_orm)
+
+        # 5. Si le colis était affecté à une tournée, mettre à jour la tournée
+        if tour_id:
+            from backend.app.infrastructure.persistence.repositories import PostgresTourRepository
+            tour_repo = PostgresTourRepository(self.db)
+            t = tour_repo.get_by_id(tour_id)
+            if t:
+                remaining = self.db.query(ParcelORM).filter(
+                    ParcelORM.tournee_id == tour_id,
+                    ParcelORM.actif == 1,
+                    ParcelORM.id != parcel_id,
+                ).all()
+                t.parcels = [self.repo._to_domain(po) for po in remaining]
+                t.calculate_theoretical_total()
+                tour_repo.save(t)
+
+        self.db.commit()
+        return True
+
+    def delete_parcels(self, parcel_ids: List[int], user_role: str, user_id: Optional[int] = None) -> dict:
+        """Supprime par lot une liste de colis. Réservé SUPERVISEUR et SUPER_ADMIN."""
+        if user_role not in ["SUPERVISEUR", "SUPER_ADMIN"]:
+            raise BusinessRuleViolationException(
+                f"Action non autorisée. Profil requis : SUPERVISEUR ou SUPER_ADMIN (profil actuel : {user_role})."
+            )
+
+        if not parcel_ids:
+            return {"success": True, "deleted_count": 0, "deleted_ids": [], "errors": []}
+
+        from backend.app.infrastructure.persistence.models import (
+            CourierDebtORM,
+            CashCollectionORM,
+        )
+        from backend.app.infrastructure.persistence.repositories import PostgresTourRepository
+
+        tour_repo = PostgresTourRepository(self.db)
+        deleted_ids = []
+        errors = []
+        impacted_tour_ids = set()
+
+        for pid in parcel_ids:
+            try:
+                p_orm = self.db.query(ParcelORM).filter(ParcelORM.id == pid).first()
+                if not p_orm:
+                    continue
+                if p_orm.tournee_id:
+                    impacted_tour_ids.add(p_orm.tournee_id)
+
+                self.db.query(CourierDebtORM).filter(CourierDebtORM.colis_id == pid).update({"colis_id": None})
+                self.db.query(CashCollectionORM).filter(CashCollectionORM.colis_id == pid).delete()
+                self.db.query(ParcelStatusHistoryORM).filter(ParcelStatusHistoryORM.colis_id == pid).delete()
+                self.db.delete(p_orm)
+                deleted_ids.append(pid)
+            except Exception as e:
+                errors.append(f"Colis #{pid}: {str(e)}")
+
+        for tid in impacted_tour_ids:
+            t = tour_repo.get_by_id(tid)
+            if t:
+                remaining = self.db.query(ParcelORM).filter(
+                    ParcelORM.tournee_id == tid,
+                    ParcelORM.actif == 1,
+                    ~ParcelORM.id.in_(deleted_ids),
+                ).all()
+                t.parcels = [self.repo._to_domain(po) for po in remaining]
+                t.calculate_theoretical_total()
+                tour_repo.save(t)
+
+        self.db.commit()
+        return {
+            "success": True,
+            "deleted_count": len(deleted_ids),
+            "deleted_ids": deleted_ids,
+            "errors": errors,
+        }
+

@@ -419,6 +419,42 @@ export async function overrideParcelAxis(parcelId: number, axis: string) {
   return await res.json();
 }
 
+export async function deleteParcel(parcelId: number): Promise<{ success: boolean; message: string }> {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/parcels/${parcelId}`, {
+    method: "DELETE",
+    headers,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de la suppression du colis.");
+  }
+
+  return await res.json();
+}
+
+export async function bulkDeleteParcels(parcelIds: number[]): Promise<{
+  success: boolean;
+  deleted_count: number;
+  deleted_ids: number[];
+  errors: string[];
+}> {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/parcels/bulk-delete`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ parcel_ids: parcelIds }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de la suppression groupée des colis.");
+  }
+
+  return await res.json();
+}
+
 export async function closeTour(tourId: number, cashAndMobileRemitted: number) {
   const headers = getAuthHeaders();
 

@@ -236,6 +236,81 @@ class TestRESTandGraphQLAPI:
         assert deliver_res.json()["status"] == "LIVRE"
         assert deliver_res.json()["total_to_collect"] == 0
 
+    def test_parcel_deletion_single_and_bulk_by_role(self):
+        # 1. Login as reception & create 3 parcels
+        login_res = client.post(
+            "/api/v1/auth/login",
+            json={"username": "reception", "password": "recep123"},
+        )
+        recep_token = login_res.json()["access_token"]
+        recep_headers = {"Authorization": f"Bearer {recep_token}"}
+
+        created_ids = []
+        for i in range(3):
+            res = client.post(
+                "/api/v1/parcels",
+                json={
+                    "vendor_id": 1,
+                    "recipient_name": f"Client Test Del {i}",
+                    "recipient_phone": f"034112233{i}",
+                    "delivery_address": "Analakely Centre",
+                    "merchandise_amount": 25000 * (i + 1),
+                    "delivery_fee": 3000,
+                },
+                headers=recep_headers,
+            )
+            assert res.status_code == 201
+            created_ids.append(res.json()["id"])
+
+        # 2. Receptionist attempts to delete: MUST BE 403 FORBIDDEN
+        del_attempt = client.delete(f"/api/v1/parcels/{created_ids[0]}", headers=recep_headers)
+        assert del_attempt.status_code == 403
+
+        bulk_attempt = client.post(
+            "/api/v1/parcels/bulk-delete",
+            json={"parcel_ids": created_ids},
+            headers=recep_headers,
+        )
+        assert bulk_attempt.status_code == 403
+
+        # 3. Login as supervisor: delete 1 parcel succeeds
+        sup_login = client.post(
+            "/api/v1/auth/login",
+            json={"username": "superviseur", "password": "super123"},
+        )
+        sup_token = sup_login.json()["access_token"]
+        sup_headers = {"Authorization": f"Bearer {sup_token}"}
+
+        del_single = client.delete(f"/api/v1/parcels/{created_ids[0]}", headers=sup_headers)
+        assert del_single.status_code == 200
+        assert del_single.json()["success"] is True
+
+        # Verify parcel no longer exists
+        get_res = client.get(f"/api/v1/parcels/{created_ids[0]}", headers=sup_headers)
+        assert get_res.status_code == 404
+
+        # 4. Login as super admin: bulk delete remaining 2 parcels succeeds
+        admin_login = client.post(
+            "/api/v1/auth/login",
+            json={"username": "admin", "password": "admin123"},
+        )
+        admin_token = admin_login.json()["access_token"]
+        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+        bulk_del = client.post(
+            "/api/v1/parcels/bulk-delete",
+            json={"parcel_ids": [created_ids[1], created_ids[2]]},
+            headers=admin_headers,
+        )
+        assert bulk_del.status_code == 200
+        assert bulk_del.json()["deleted_count"] == 2
+        assert created_ids[1] in bulk_del.json()["deleted_ids"]
+        assert created_ids[2] in bulk_del.json()["deleted_ids"]
+
+        # Verify both are 404
+        assert client.get(f"/api/v1/parcels/{created_ids[1]}", headers=admin_headers).status_code == 404
+        assert client.get(f"/api/v1/parcels/{created_ids[2]}", headers=admin_headers).status_code == 404
+
     def test_graphql_queries(self):
         # 1. Query axes
         query = """

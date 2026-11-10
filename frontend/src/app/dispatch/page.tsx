@@ -24,6 +24,7 @@ import {
   Building2,
   User,
   ShoppingBag,
+  Trash2,
 } from "lucide-react";
 import { AxisBadge } from "@/components/AxisBadge";
 import { OperatorBadge } from "@/components/OperatorBadge";
@@ -42,6 +43,8 @@ import {
   overrideParcelAxis,
   updateCourierCapacity,
   updateCourierAxis,
+  deleteParcel,
+  bulkDeleteParcels,
 } from "@/lib/api";
 import { AxisInfo, Courier, LogisticAxis, Parcel, Tour } from "@/types";
 
@@ -113,6 +116,60 @@ export default function DispatchPage() {
   const [targetAxis, setTargetAxis] = useState<LogisticAxis>("AXE_CENTRE_1");
   const [isSavingAxis, setIsSavingAxis] = useState<boolean>(false);
   const [axisFeedback, setAxisFeedback] = useState<string | null>(null);
+
+  // Privilege flag: Superviseur & Super Admin can delete parcels
+  const isPrivileged = currentUserRole === "SUPERVISEUR" || currentUserRole === "SUPER_ADMIN";
+
+  // Deletion modal & handler states
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
+    isOpen: boolean;
+    parcel?: Parcel;
+    isBulk?: boolean;
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [deleteFeedback, setDeleteFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const handleConfirmDeleteSingle = async (parcel: Parcel) => {
+    try {
+      setIsDeleting(true);
+      await deleteParcel(parcel.id);
+      setSelectedParcelIds((prev) => prev.filter((id) => id !== parcel.id));
+      setDeleteFeedback({
+        type: "success",
+        text: `Colis BDR-${parcel.tracking_number} supprimé avec succès !`,
+      });
+      setDeleteConfirmModal(null);
+      await loadStockParcels();
+    } catch (e: any) {
+      setDeleteFeedback({
+        type: "error",
+        text: e.message || "Erreur lors de la suppression du colis.",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleConfirmBulkDelete = async () => {
+    try {
+      setIsDeleting(true);
+      const res = await bulkDeleteParcels(selectedParcelIds);
+      setSelectedParcelIds([]);
+      setDeleteFeedback({
+        type: "success",
+        text: `${res.deleted_count} colis supprimé(s) avec succès !`,
+      });
+      setDeleteConfirmModal(null);
+      await loadStockParcels();
+    } catch (e: any) {
+      setDeleteFeedback({
+        type: "error",
+        text: e.message || "Erreur lors de la suppression groupée des colis.",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const handleOpenEditAxisModal = (parcel: Parcel) => {
     setEditingAxisParcel(parcel);
@@ -609,6 +666,33 @@ export default function DispatchPage() {
         </div>
       )}
 
+      {/* DELETE FEEDBACK TOAST */}
+      {deleteFeedback && (
+        <div
+          data-cy="delete-feedback-banner"
+          className={`p-2.5 border rounded-xl flex items-center justify-between shadow-xs text-xs font-medium ${
+            deleteFeedback.type === "success"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+              : "bg-rose-50 border-rose-200 text-rose-800"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {deleteFeedback.type === "success" ? (
+              <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+            )}
+            <span>{deleteFeedback.text}</span>
+          </div>
+          <button
+            onClick={() => setDeleteFeedback(null)}
+            className="text-slate-500 hover:text-slate-800 text-xs underline"
+          >
+            Fermer
+          </button>
+        </div>
+      )}
+
       {/* ========================================================================= */}
       {/* TAB 1: ÉCRAN 03 - DISPATCHING MATINAL                                     */}
       {/* ========================================================================= */}
@@ -752,6 +836,19 @@ export default function DispatchPage() {
                     </span>
                   )}
                 </div>
+
+                {isPrivileged && selectedParcelIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setDeleteConfirmModal({ isOpen: true, isBulk: true })}
+                    data-cy="btn-bulk-delete-parcels"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-xs font-bold transition shadow-xs cursor-pointer ml-1"
+                    title="Supprimer définitivement les colis sélectionnés (Superviseur / Super Admin)"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Supprimer ({selectedParcelIds.length})</span>
+                  </button>
+                )}
               </div>
 
               {/* Courier picker & Assign Action */}
@@ -894,12 +991,13 @@ export default function DispatchPage() {
                     <th className="py-2.5 px-3">Flux</th>
                     <th className="py-2.5 px-3 text-right">À Encaisser</th>
                     <th className="py-2.5 px-3 text-center">Statut</th>
+                    <th className="py-2.5 px-3 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
                   {paginatedParcels.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="py-12 text-center text-slate-400">
+                      <td colSpan={10} className="py-12 text-center text-slate-400">
                         <Package className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                         <p className="font-semibold text-xs text-slate-600">Aucun colis en attente de dispatch</p>
                         <p className="text-[11px] text-slate-400 mt-0.5">
@@ -991,6 +1089,22 @@ export default function DispatchPage() {
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
                               En Dépôt
                             </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            {isPrivileged && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteConfirmModal({ isOpen: true, parcel: p, isBulk: false });
+                                }}
+                                data-cy={`btn-delete-parcel-${p.id}`}
+                                title="Supprimer définitivement ce colis (Superviseur / Super Admin)"
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition border border-transparent hover:border-rose-200 cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </td>
                         </tr>
                       );
@@ -1624,6 +1738,99 @@ export default function DispatchPage() {
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-xs uppercase tracking-wider rounded-lg transition shadow-xs flex items-center gap-1.5"
               >
                 {isSavingAxis ? "Modification..." : "Valider l'Axe"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmation de Suppression de Colis (Superviseur & Super Admin) */}
+      {deleteConfirmModal?.isOpen && (
+        <div
+          data-cy="modal-delete-confirm"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+        >
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+            <div className="p-4 bg-gradient-to-r from-rose-600 to-red-700 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center font-bold text-base">
+                  ⚠️
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold tracking-wide">
+                    {deleteConfirmModal.isBulk
+                      ? `Confirmer la suppression de ${selectedParcelIds.length} colis`
+                      : `Confirmer la suppression du colis`}
+                  </h3>
+                  <p className="text-[11px] text-rose-100">
+                    Action réservée au Superviseur et Super Admin
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => !isDeleting && setDeleteConfirmModal(null)}
+                className="text-white/80 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3">
+              {deleteConfirmModal.isBulk ? (
+                <div>
+                  <p className="text-xs text-slate-700 leading-relaxed">
+                    Êtes-vous sûr de vouloir supprimer définitivement les{" "}
+                    <strong className="text-rose-700 font-bold">{selectedParcelIds.length} colis sélectionnés</strong> ?
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                    Cette action est <strong>irréversible</strong>. Les colis seront définitivement effacés de la base de données.
+                  </p>
+                </div>
+              ) : deleteConfirmModal.parcel ? (
+                <div>
+                  <p className="text-xs text-slate-700 leading-relaxed">
+                    Êtes-vous sûr de vouloir supprimer définitivement le colis{" "}
+                    <strong className="font-mono text-blue-700">
+                      BDR-{deleteConfirmModal.parcel.tracking_number}
+                    </strong>{" "}
+                    destiné à <strong>{deleteConfirmModal.parcel.recipient_name}</strong> ?
+                  </p>
+                  <div className="text-[11px] text-slate-600 mt-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200 space-y-1">
+                    <div><strong>Adresse :</strong> {deleteConfirmModal.parcel.delivery_address}</div>
+                    <div><strong>Montant :</strong> {deleteConfirmModal.parcel.total_to_collect?.toLocaleString()} Ar</div>
+                    <div><strong>Axe :</strong> {deleteConfirmModal.parcel.axis}</div>
+                  </div>
+                  <p className="text-[11px] text-rose-600 font-semibold mt-2">
+                    ⚠️ Attention : cette action est irréversible.
+                  </p>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setDeleteConfirmModal(null)}
+                className="px-3.5 py-1.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition disabled:opacity-50"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => {
+                  if (deleteConfirmModal.isBulk) {
+                    handleConfirmBulkDelete();
+                  } else if (deleteConfirmModal.parcel) {
+                    handleConfirmDeleteSingle(deleteConfirmModal.parcel);
+                  }
+                }}
+                data-cy="btn-confirm-delete-modal"
+                className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+              >
+                {isDeleting ? "Suppression en cours..." : "Supprimer définitivement"}
               </button>
             </div>
           </div>
