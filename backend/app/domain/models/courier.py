@@ -16,7 +16,7 @@ class Courier:
     vehicle_type: str
     id: Optional[int] = None
     security_deposit: Money = field(default_factory=Money.zero)
-    max_parcels: int = 15
+    max_parcels: int = 30
     assigned_axis: Optional[str] = None
     active: bool = True
     created_at: Optional[datetime] = None
@@ -29,10 +29,14 @@ class Courier:
             raise BusinessRuleViolationException("Le type de véhicule est obligatoire.")
         if self.max_parcels <= 0:
             raise BusinessRuleViolationException("La capacité maximale de colis doit être strictement positive.")
+        if self.max_parcels > 30:
+            raise BusinessRuleViolationException("Surcharge interdite : un livreur ne peut transporter que 30 colis au maximum.")
 
     def set_max_parcels(self, limit: int) -> None:
         if limit <= 0:
             raise BusinessRuleViolationException("La capacité maximale de colis doit être strictement positive.")
+        if limit > 30:
+            raise BusinessRuleViolationException("Surcharge interdite : un livreur ne peut transporter que 30 colis au maximum.")
         self.max_parcels = limit
 
     def set_assigned_axis(self, axis: Optional[str]) -> None:

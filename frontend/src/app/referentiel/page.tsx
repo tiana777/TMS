@@ -784,7 +784,7 @@ export default function ReferentielPage() {
                     </td>
                     <td className="py-2.5 px-3 text-slate-600">
                       <span className="font-medium text-slate-900">{c.vehicle_type}</span>
-                      <span className="ml-2 text-slate-400 font-mono">({c.max_parcels || 15} colis max)</span>
+                      <span className="ml-2 text-slate-400 font-mono">({c.max_parcels || 30} colis max)</span>
                     </td>
                     <td className="py-2.5 px-3">
                       <select

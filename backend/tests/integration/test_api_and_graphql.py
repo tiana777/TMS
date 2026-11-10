@@ -522,6 +522,15 @@ class TestRESTandGraphQLAPI:
         )
         assert add_res.status_code == 201
 
+        # 7. Surcharge limit: setting capacity > 30 must be strictly forbidden (HTTP 400)
+        surcharge_patch = client.patch(
+            f"/api/v1/couriers/{courier_id}/capacity",
+            json={"max_parcels": 35},
+            headers=headers,
+        )
+        assert surcharge_patch.status_code == 400
+        assert "Surcharge interdite" in surcharge_patch.json()["detail"]
+
     def test_courier_assigned_axis_filtering_and_update(self):
         login_res = client.post(
             "/api/v1/auth/login",

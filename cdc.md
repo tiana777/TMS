@@ -528,11 +528,14 @@ L'application web est structurée en **12 modules applicatifs dédiés** :
     3.  **Plafonnement Strict à 10 Lignes Max par Page :** L'affichage du stock de colis en attente est strictement limité à **10 lignes par page** pour préserver la réactivité de l'interface et éviter la surcharge visuelle de l'opérateur.
     4.  **Pagination Ergonomique Complète :** Une barre de pagination sous le tableau fournit le décompte exact (« Affichage de X à Y sur Z colis • 10 lignes max / page ») et l'accès rapide aux pages via boutons dédiés (« « Début », « ‹ Précédent », numéros de page [1] [2]..., « Suivant › », « Fin » »). La sélection d'un nouvel axe ou d'un terme de recherche réinitialise automatiquement la vue à la page 1.
     5.  **Sélection Multi-Pages Intelligente :** La case à cocher d'en-tête sélectionne ou désélectionne les colis visibles sur la page en cours, tandis que le bouton de la barre d'action permet de cocher l'intégralité du lot filtré à travers toutes les pages.
-*   **Plafond de Prise en Charge Paramétrable par Livreur (`capacite_max_colis`) :**
-    1.  **Capacité Individuelle Paramétrable :** Chaque livreur est doté d'une capacité maximale de colis par tournée (`capacite_max_colis`, valeur standard : 15 colis, modifiable dynamiquement par le superviseur ou l'administrateur selon la taille du colis ou du véhicule).
-    2.  **Jauge et Contrôle en Temps Réel :** Lors de la sélection d'un coursier dans l'interface de dispatching, une jauge de capacité s'affiche (`X colis sélectionnés / Y max autorisés`).
-    3.  **Blocage Strict en Cas de Dépassement :** Si le volume sélectionné dépasse la capacité maximale configurée du livreur, une bannière d'alerte rouge s'affiche et le bouton d'assignation de la tournée est **strictement désactivé**. Au niveau du moteur métier backend, la tentative d'assignation lève une exception HTTP 400 (`Capacité maximale dépassée`).
-    4.  **Ajustement Immédiat du Plafond :** Le superviseur peut modifier à tout moment la capacité paramétrée d'un coursier depuis l'interface pour autoriser une charge supérieure si la situation logistique l'exige.
+*   **Pool Mutualisé & Assignation Manuelle des Livreurs (Non Rattachés Directement aux Axes) :**
+    1.  **Flotte Mutualisée et Polyvalente :** Les livreurs ne sont **pas assignés de manière rigide à un axe logistique prédéfini**. Ils constituent un pool opérationnel commun et polyvalent, mobilisable sur n'importe quel corridor urbain ou vers les gares de province.
+    2.  **Sélection Manuelle par Livraison / Tournée :** L'opérateur (Superviseur ou Réceptionniste) sélectionne **manuellement** dans l'interface de dispatching quel coursier disponible associer à chaque lot ou livraison à effectuer.
+*   **Gestion Stricte de la Surcharge & Plafonnement Absolu à 30 Colis (`capacite_max_colis`) :**
+    1.  **Capacité Standard & Seuil Maximal Inviolable :** Chaque livreur dispose d'une capacité paramétrable (`capacite_max_colis`, fixée par défaut à **30 colis**). Par impératif absolu de sécurité routière (stabilité deux-roues en circulation urbaine à Madagascar) et de préservation du fret, **un livreur ne peut en aucun cas transporter plus de 30 colis** par tournée.
+    2.  **Jauge et Contrôle Anti-Surcharge en Temps Réel :** Lors du choix d'un livreur et du cochage des colis, la jauge affiche en temps réel le décompte (`X colis sélectionnés / Y max autorisés (max 30)`).
+    3.  **Blocage Systématique en Cas de Surcharge :** Dès que le nombre de colis sélectionnés dépasse la capacité du coursier ou excède le seuil absolu de 30 colis, une alerte visuelle de surcharge s'affiche en rouge vif et le bouton d'assignation est **immédiatement désactivé**. Au niveau du backend, toute requête dépassant le quota individuel ou la limite de 30 colis est rejetée avec une exception HTTP 400 (`BusinessRuleViolationException : Surcharge détectée`).
+    4.  **Ajustement Opérationnel du Plafond :** Le superviseur peut ajuster le plafond quotidien du livreur (entre 1 et 30 colis maximum) pour tenir compte de la météo ou du gabarit des colis, mais le système interdit tout relèvement au-delà de 30 colis.
 *   **Règles de Réassignation Selon le Rôle & le Statut :**
     *   **Réceptionniste & Superviseur :** Peuvent assigner et réassigner librement tout colis vers un autre coursier ou une autre tournée **tant que le colis n'est pas déjà en cours de livraison (`EN_DEPOT`, `ASSIGNE`, `REPORTE`)**, dans la limite de la capacité paramétrée du livreur cible.
     *   **Verrouillage `EN_COURS` :** Dès qu'une tournée est lancée et que le colis passe au statut **`EN_COURS`** (coursier sur le terrain), la réassignation est **strictement bloquée** pour le Réceptionniste et le Superviseur.
@@ -787,8 +790,8 @@ flowchart TD
     
     subgraph Droits_Superviseur["👔 SUPERVISEUR LOGISTIQUE (Chef de Quai)"]
         S1["Consultation & Recherche de la Flotte"]
-        S2["Réaffectation Rapide d'Axe Quotidien"]
-        S3["Ajustement Capacité Max Journalière (5 - 35 colis)"]
+        S2["Affectation Indicative d'Axe ou Flotte Globale"]
+        S3["Ajustement Capacité Journalière (5 - 30 colis max)"]
         S4["Suivi Charge en Temps Réel & Tournées Directes"]
         S5["🔒 VERROUILLÉ : Caution, Contrat, Statut Actif/Inactif, Création"]
     end
@@ -809,9 +812,9 @@ flowchart TD
 
 | Action Métier / Donnée du Livreur | Superviseur Logistique | Super Admin (Direction) | Règle Métier & Impact Système |
 | :--- | :---: | :---: | :--- |
-| **Consultation & Filtres Flotte** | **Autorisé** | **Autorisé** | Recherche multi-critères (nom, téléphone, moto, axe assigné, statut). |
-| **Réaffectation d'Axe Logistique** | **Autorisé** | **Autorisé** | Réaffecte instantanément le coursier sur un autre des 8 corridors urbains ou Province pour le dispatching du jour. |
-| **Ajustement Capacité Quotidienne** | **Autorisé** | **Autorisé** | Permet d'adapter le plafond de colis (ex. 10 à 30) selon les pics de flux ou les intempéries météo à Tanà. |
+| **Consultation & Filtres Flotte** | **Autorisé** | **Autorisé** | Recherche multi-critères (nom, téléphone, moto, axe indicatif, statut). |
+| **Axe Logistique Assigné (Optionnel)** | **Autorisé** | **Autorisé** | Flotte mutualisée : les livreurs ne sont pas affectés rigidement aux axes. L'axe sert d'orientation indicative modifiable par le superviseur. |
+| **Ajustement Capacité Quotidienne (Anti-Surcharge)** | **Autorisé** | **Autorisé** | Permet d'adapter le plafond de colis (de 5 à 30 max strict) selon les flux ou les conditions météo. Tout dépassement de 30 colis est interdit. |
 | **Création d'un Nouveau Livreur** | *Strictement Interdit* (🔒) | **Exclusif** | Exige la validation du numéro de téléphone malgache (032, 033, 034, 037, 038) et l'enregistrement de la caution. |
 | **Gestion Caution de Garantie (Ar)** | *Lecture Seule* (🔒) | **Modification Libre** | Montant garanti bloqué pour couvrir les sinistres ou déficits COD non résolus (Table `livreurs.caution_garantie`). |
 | **Modification Contrat (Nom, Phone, Moto)** | *Interdit* (🔒) | **Exclusif** | Protège l'identité juridique et les coordonnées officielles du livreur contre les modifications fortuites. |
@@ -864,7 +867,8 @@ erDiagram
         string telephone
         string type_vehicule
         real caution_garantie
-        int capacite_max_colis "Plafond paramétrable de colis par tournée (défaut: 15)"
+        int capacite_max_colis "Plafond paramétrable de colis par tournée (défaut: 30, maximum absolu anti-surcharge: 30)"
+        string assigned_axis "Axe indicatif optionnel (NULL = flotte mutualisée polyvalente)"
         int actif
         datetime created_at
         datetime updated_at

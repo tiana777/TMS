@@ -81,7 +81,7 @@ export default function DispatchPage() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedParcelIds, setSelectedParcelIds] = useState<number[]>([]);
   const [assignedCourierId, setAssignedCourierId] = useState<number | "">("");
-  const [courierCapacityInput, setCourierCapacityInput] = useState<number>(15);
+  const [courierCapacityInput, setCourierCapacityInput] = useState<number>(30);
   const [isUpdatingCapacity, setIsUpdatingCapacity] = useState<boolean>(false);
   const [isAssigning, setIsAssigning] = useState<boolean>(false);
   const [assignSuccessMessage, setAssignSuccessMessage] = useState<string | null>(null);
@@ -292,15 +292,15 @@ export default function DispatchPage() {
   const urbanStockParcels = stockParcels.filter((p) => !isProvinceAxis(p.axis) || p.is_manual_axis);
   const totalProvinceStock = stockParcels.filter((p) => isProvinceAxis(p.axis)).length;
 
-  // Couriers filtered strictly according to selected radial axis (CDC Écran 03A)
-  const availableCouriers = couriers.filter((c) => {
-    if (selectedAxis === "ALL") return true;
-    return c.assigned_axis === selectedAxis;
-  });
+  // Couriers: Mutualized pool across all axes - couriers are NOT assigned to axes directly.
+  // The supervisor manually selects any active courier for any delivery.
+  const availableCouriers = couriers.filter((c) => c.active !== false);
 
   const selectedCourier = couriers.find((c) => c.id === Number(assignedCourierId));
-  const courierCapacity = selectedCourier ? (selectedCourier.max_parcels || 15) : 15;
+  const courierCapacity = selectedCourier ? Math.min(selectedCourier.max_parcels || 30, 30) : 30;
   const isOverCapacity = selectedParcelIds.length > courierCapacity;
+  const isSurchargeOver30 = selectedParcelIds.length > 30;
+  const isSurcharge = isOverCapacity || isSurchargeOver30;
 
   // Reset selected parcels & page when axis corridor or filters change
   useEffect(() => {
@@ -312,33 +312,26 @@ export default function DispatchPage() {
     setCurrentPage(1);
   }, [selectedGare, searchQuery]);
 
-  // Synchronize assigned courier with available couriers for the selected axis
+  // Synchronize assigned courier with available couriers
   useEffect(() => {
     if (couriers.length === 0) return;
-    if (selectedAxis === "ALL") {
-      if (assignedCourierId === "" || !couriers.some((c) => c.id === Number(assignedCourierId))) {
-        setAssignedCourierId(couriers[0].id);
-      }
-    } else {
-      const matching = couriers.filter((c) => c.assigned_axis === selectedAxis);
-      if (matching.length > 0) {
-        if (!matching.some((c) => c.id === Number(assignedCourierId))) {
-          setAssignedCourierId(matching[0].id);
-        }
-      } else {
-        setAssignedCourierId("");
-      }
+    if (assignedCourierId === "" || !couriers.some((c) => c.id === Number(assignedCourierId))) {
+      setAssignedCourierId(couriers[0].id);
     }
-  }, [selectedAxis, couriers]);
+  }, [couriers]);
 
   useEffect(() => {
     if (selectedCourier) {
-      setCourierCapacityInput(selectedCourier.max_parcels || 15);
+      setCourierCapacityInput(selectedCourier.max_parcels || 30);
     }
   }, [selectedCourier]);
 
   const handleSaveCapacity = async () => {
     if (!selectedCourier || courierCapacityInput <= 0) return;
+    if (courierCapacityInput > 30) {
+      alert("Surcharge interdite : un livreur ne peut pas transporter plus de 30 colis.");
+      return;
+    }
     setIsUpdatingCapacity(true);
     try {
       await updateCourierCapacity(selectedCourier.id, courierCapacityInput);
@@ -770,77 +763,40 @@ export default function DispatchPage() {
                     onChange={(e) => setAssignedCourierId(e.target.value ? Number(e.target.value) : "")}
                     data-cy="select-courier"
                     disabled={availableCouriers.length === 0}
-                    className={`border text-xs font-medium px-2.5 py-1.5 rounded-lg focus:border-blue-500 focus:outline-none ${
-                      availableCouriers.length === 0
-                        ? "bg-amber-50 border-amber-300 text-amber-800"
-                        : "bg-white border-slate-300 text-slate-900"
-                    }`}
+                    className="border text-xs font-medium px-2.5 py-1.5 rounded-lg focus:border-blue-500 focus:outline-none bg-white border-slate-300 text-slate-900"
                   >
                     {availableCouriers.length === 0 ? (
                       <option value="" disabled>
-                        Aucun livreur rattaché à {AXIS_OPTIONS.find((a) => a.code === selectedAxis)?.short || selectedAxis}
+                        Aucun livreur disponible
                       </option>
                     ) : (
                       availableCouriers.map((c) => (
                         <option key={c.id} value={c.id}>
-                          {c.name} ({c.vehicle_type} - {c.phone_formatted}){selectedAxis === "ALL" && c.assigned_axis ? ` [${AXIS_OPTIONS.find((a) => a.code === c.assigned_axis)?.short || c.assigned_axis}]` : ""}
+                          {c.name} ({c.vehicle_type} - {c.phone_formatted})
                         </option>
                       ))
                     )}
                   </select>
                 </div>
 
-                {/* Quick assign courier to axis if none available */}
-                {availableCouriers.length === 0 && selectedAxis !== "ALL" && (
-                  <div className="flex items-center gap-1.5 text-xs bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                    <span className="text-amber-800 text-[11px] font-medium">Aucun livreur pour cet axe :</span>
-                    <select
-                      onChange={async (e) => {
-                        if (e.target.value) {
-                          const cid = Number(e.target.value);
-                          try {
-                            await updateCourierAxis(cid, selectedAxis);
-                            setCouriers((prev) =>
-                              prev.map((c) => (c.id === cid ? { ...c, assigned_axis: selectedAxis } : c))
-                            );
-                            setAssignedCourierId(cid);
-                          } catch (err: any) {
-                            alert(err.message || "Erreur lors du rattachement du livreur.");
-                          }
-                        }
-                      }}
-                      defaultValue=""
-                      className="text-[11px] bg-white border border-amber-300 rounded px-1.5 py-0.5 text-slate-800 font-medium cursor-pointer"
-                    >
-                      <option value="" disabled>+ Assigner un coursier existant...</option>
-                      {couriers.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} ({AXIS_OPTIONS.find((a) => a.code === c.assigned_axis)?.short || c.assigned_axis || "Non assigné"})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {/* Courier Capacity Indicator & Configurator */}
+                {/* Courier Capacity Indicator & Surcharge Configurator (Max 30 colis) */}
                 {selectedCourier && (
                   <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs">
                     <span className="text-slate-500 font-medium">Capacité :</span>
                     <span
                       data-cy="courier-capacity-display"
                       className={`font-mono font-bold ${
-                        isOverCapacity ? "text-red-600" : "text-emerald-600"
+                        isSurcharge ? "text-red-600" : "text-emerald-600"
                       }`}
                     >
                       {selectedParcelIds.length} / {courierCapacity} max
                     </span>
                     <div className="flex items-center gap-1 ml-1.5 border-l border-slate-200 pl-1.5">
-                      <span className="text-[10px] text-slate-500">Plafond :</span>
+                      <span className="text-[10px] text-slate-500">Plafond (max 30):</span>
                       <input
                         type="number"
                         min={1}
-                        max={100}
+                        max={30}
                         data-cy="input-courier-capacity"
                         value={courierCapacityInput}
                         onChange={(e) => setCourierCapacityInput(Number(e.target.value))}
@@ -861,10 +817,10 @@ export default function DispatchPage() {
 
                 <button
                   onClick={handleAssignToTour}
-                  disabled={selectedParcelIds.length === 0 || !assignedCourierId || isAssigning || isOverCapacity}
+                  disabled={selectedParcelIds.length === 0 || !assignedCourierId || isAssigning || isSurcharge}
                   data-cy="assign-tour-btn"
                   className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all shadow-xs ${
-                    selectedParcelIds.length > 0 && assignedCourierId && !isAssigning && !isOverCapacity
+                    selectedParcelIds.length > 0 && assignedCourierId && !isAssigning && !isSurcharge
                       ? "bg-blue-600 hover:bg-blue-500 text-white cursor-pointer"
                       : "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
                   }`}
@@ -873,7 +829,7 @@ export default function DispatchPage() {
                   <span>
                     {isAssigning
                       ? "Assignation en cours..."
-                      : isOverCapacity
+                      : isSurcharge
                       ? `Capacité dépassée (${selectedParcelIds.length}/${courierCapacity})`
                       : `Assigner (${selectedParcelIds.length} colis)`}
                   </span>
@@ -881,15 +837,17 @@ export default function DispatchPage() {
               </div>
             </div>
 
-            {/* Capacity Overload Warning Alert */}
-            {isOverCapacity && (
+            {/* Capacity Overload & Surcharge Warning Alert */}
+            {isSurcharge && (
               <div
                 data-cy="capacity-warning-banner"
                 className="p-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-medium flex items-center gap-2 shadow-xs"
               >
                 <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
                 <span>
-                  Capacité maximale dépassée : le livreur {selectedCourier?.name} ne peut prendre que {courierCapacity} colis maximum ({selectedParcelIds.length} sélectionnés). Réduisez la sélection ou ajustez le plafond paramétrable.
+                  {isSurchargeOver30
+                    ? `🚨 Surcharge stricte : un livreur ne peut transporter que 30 colis au maximum (${selectedParcelIds.length} sélectionnés). Veuillez réduire le lot à assigner.`
+                    : `Capacité maximale dépassée : le livreur ${selectedCourier?.name} ne peut prendre que ${courierCapacity} colis maximum (${selectedParcelIds.length} sélectionnés). Réduisez la sélection ou ajustez le plafond paramétrable.`}
                 </span>
               </div>
             )}

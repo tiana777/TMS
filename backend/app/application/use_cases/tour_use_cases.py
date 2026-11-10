@@ -93,13 +93,14 @@ class TourUseCases:
             tour = self.tour_repo.save(tour)
             existing_ids = set()
 
-        # Enforce configurable maximum parcel capacity per courier (CDC 3 & 5.3)
+        # Enforce configurable maximum parcel capacity per courier & strict 30-parcel surcharge limit
         new_unique_ids = [pid for pid in parcel_ids if pid not in existing_ids]
         total_projected_parcels = len(existing_ids) + len(new_unique_ids)
-        if total_projected_parcels > courier.max_parcels:
+        if total_projected_parcels > courier.max_parcels or total_projected_parcels > 30:
             raise BusinessRuleViolationException(
-                f"Capacité maximale dépassée : le livreur {courier.name} ne peut prendre que "
-                f"{courier.max_parcels} colis maximum par tournée ({total_projected_parcels} colis demandés)."
+                f"Capacité maximale dépassée / Surcharge détectée : le livreur {courier.name} ne peut prendre que "
+                f"{min(courier.max_parcels, 30)} colis maximum par tournée ({total_projected_parcels} colis demandés). "
+                f"Un livreur ne peut pas transporter plus de 30 colis."
             )
 
         # Assign or reassign parcels
@@ -446,7 +447,7 @@ class CourierUseCases:
             phone=PhoneNumber(dto.phone),
             vehicle_type=dto.vehicle_type,
             security_deposit=Money(dto.security_deposit),
-            max_parcels=dto.max_parcels or 15,
+            max_parcels=min(dto.max_parcels or 30, 30),
             assigned_axis=dto.assigned_axis,
         )
         saved = self.repo.save(c)

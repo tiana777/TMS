@@ -144,7 +144,7 @@ def seed_master_data():
             session.commit()
             print("Partners seeded.")
 
-        # 4. Seed initial Couriers
+        # 4. Seed initial Couriers (Mutualized pool: not assigned to axes directly, 30 parcels max)
         if not session.query(CourierORM).first():
             print("Seeding initial couriers...")
             couriers = [
@@ -153,7 +153,8 @@ def seed_master_data():
                     telephone="0341234567",
                     type_vehicule="Scooter 110cc",
                     caution_garantie=150000.0,
-                    assigned_axis="AXE_CENTRE_1",
+                    capacite_max_colis=30,
+                    assigned_axis=None,
                     actif=1,
                 ),
                 CourierORM(
@@ -161,15 +162,17 @@ def seed_master_data():
                     telephone="0321122334",
                     type_vehicule="Scooter 125cc",
                     caution_garantie=150000.0,
-                    assigned_axis="AXE_ITAOSY",
+                    capacite_max_colis=30,
+                    assigned_axis=None,
                     actif=1,
                 ),
                 CourierORM(
-                    nom="Randria Paul (Navette Gares)",
+                    nom="Randria Paul (Livreur / Navette)",
                     telephone="0334455667",
                     type_vehicule="Fourgonnette Navette Transit",
                     caution_garantie=150000.0,
-                    assigned_axis="AXE_PROVINCE",
+                    capacite_max_colis=30,
+                    assigned_axis=None,
                     actif=1,
                 ),
             ]
@@ -220,15 +223,6 @@ def seed_master_data():
         print("Master reference data seeded successfully.")
     finally:
         session.close()
-
-    # 6. Seed all Madagascar province corridors, bus stations and authentic parcels
-    try:
-        from backend.app.infrastructure.database.seed_provinces_and_test_parcels import (
-            seed_provinces_and_test_parcels,
-        )
-        seed_provinces_and_test_parcels()
-    except Exception as e:
-        print(f"Notice during province seeder execution: {e}")
 
 
 if __name__ == "__main__":

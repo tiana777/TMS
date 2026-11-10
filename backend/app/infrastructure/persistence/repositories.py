@@ -217,7 +217,7 @@ class PostgresCourierRepository(ICourierRepository):
             phone=PhoneNumber(orm.telephone),
             vehicle_type=orm.type_vehicule,
             security_deposit=Money(orm.caution_garantie),
-            max_parcels=orm.capacite_max_colis or 15,
+            max_parcels=orm.capacite_max_colis or 30,
             assigned_axis=orm.assigned_axis,
             active=bool(orm.actif),
             created_at=orm.created_at,

@@ -85,8 +85,8 @@ export default function CouriersManagementPage() {
     phone: "",
     vehicle_type: "Moto 125cc",
     security_deposit: 150000,
-    max_parcels: 15,
-    assigned_axis: "AXE_CENTRE_1",
+    max_parcels: 30,
+    assigned_axis: "",
   });
 
   // Form states for Edit (Admin)
@@ -103,7 +103,7 @@ export default function CouriersManagementPage() {
     phone: "",
     vehicle_type: "",
     security_deposit: 0,
-    max_parcels: 15,
+    max_parcels: 30,
     assigned_axis: "",
     active: true,
   });
@@ -112,7 +112,7 @@ export default function CouriersManagementPage() {
   const [targetAxis, setTargetAxis] = useState<string>("");
 
   // Form state for Capacity quick change
-  const [targetCapacity, setTargetCapacity] = useState<number>(15);
+  const [targetCapacity, setTargetCapacity] = useState<number>(30);
 
   const isAdmin = currentUserRole === "SUPER_ADMIN";
   const isSuperviseur = currentUserRole === "SUPERVISEUR";
@@ -179,7 +179,7 @@ export default function CouriersManagementPage() {
   const inTourCouriersCount = couriers.filter((c) => c.active_tour_id).length;
   const totalCapacityDeployed = couriers
     .filter((c) => c.active)
-    .reduce((acc, c) => acc + (c.max_parcels || 15), 0);
+    .reduce((acc, c) => acc + (c.max_parcels || 30), 0);
   const totalAssignedToday = couriers.reduce((acc, c) => acc + (c.today_parcels_count || 0), 0);
   const totalDisputes = couriers.reduce((acc, c) => acc + (c.disputes_count || 0), 0);
 
@@ -197,8 +197,8 @@ export default function CouriersManagementPage() {
       phone: "",
       vehicle_type: "Moto 125cc",
       security_deposit: 150000,
-      max_parcels: 15,
-      assigned_axis: "AXE_CENTRE_1",
+      max_parcels: 30,
+      assigned_axis: "",
     });
     setIsCreateModalOpen(true);
   };
@@ -214,6 +214,10 @@ export default function CouriersManagementPage() {
         "error",
         "Numéro de téléphone invalide. Format attendu : 10 chiffres débutant par 032, 033, 034, 037 ou 038."
       );
+      return;
+    }
+    if (Number(createForm.max_parcels) > 30) {
+      showNotification("error", "Surcharge interdite : un livreur ne peut transporter que 30 colis au maximum.");
       return;
     }
 
@@ -248,7 +252,7 @@ export default function CouriersManagementPage() {
       phone: courier.phone,
       vehicle_type: courier.vehicle_type,
       security_deposit: courier.security_deposit,
-      max_parcels: courier.max_parcels || 15,
+      max_parcels: courier.max_parcels || 30,
       assigned_axis: courier.assigned_axis || "",
       active: courier.active,
     });
@@ -258,6 +262,11 @@ export default function CouriersManagementPage() {
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCourier) return;
+
+    if (Number(editForm.max_parcels) > 30) {
+      showNotification("error", "Surcharge interdite : un livreur ne peut transporter que 30 colis au maximum.");
+      return;
+    }
 
     try {
       await updateCourierProfile(selectedCourier.id, {
@@ -304,13 +313,18 @@ export default function CouriersManagementPage() {
 
   const handleOpenAdjustCapacity = (courier: Courier) => {
     setSelectedCourier(courier);
-    setTargetCapacity(courier.max_parcels || 15);
+    setTargetCapacity(courier.max_parcels || 30);
     setIsAdjustCapModalOpen(true);
   };
 
   const handleAdjustCapacitySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCourier) return;
+
+    if (targetCapacity > 30) {
+      showNotification("error", "Surcharge interdite : un livreur ne peut transporter que 30 colis au maximum.");
+      return;
+    }
 
     try {
       await updateCourierCapacity(selectedCourier.id, targetCapacity);
@@ -598,7 +612,7 @@ export default function CouriersManagementPage() {
           {filteredCouriers.map((courier) => {
             const axisMeta = courier.assigned_axis ? AXIS_METADATA[courier.assigned_axis] : null;
             const currentParcels = courier.today_parcels_count || 0;
-            const maxCap = courier.max_parcels || 15;
+            const maxCap = courier.max_parcels || 30;
             const capPercent = Math.min(100, Math.round((currentParcels / maxCap) * 100));
 
             return (
@@ -898,12 +912,12 @@ export default function CouriersManagementPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Capacité Max (colis) *</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Capacité Max (colis, max 30) *</label>
                   <input
                     data-cy="input-courier-capacity"
                     type="number"
                     min="1"
-                    max="60"
+                    max="30"
                     required
                     value={createForm.max_parcels}
                     onChange={(e) =>
@@ -918,13 +932,14 @@ export default function CouriersManagementPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Axe Logistique Principal *</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Axe Logistique Principal (Optionnel)</label>
                 <select
                   data-cy="select-courier-axis"
                   value={createForm.assigned_axis}
                   onChange={(e) => setCreateForm({ ...createForm, assigned_axis: e.target.value })}
                   className="w-full text-xs border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
+                  <option value="">Flotte Globale (Non assigné directement)</option>
                   {Object.entries(AXIS_METADATA).map(([k, meta]) => (
                     <option key={k} value={k}>
                       {meta.label}
@@ -1039,12 +1054,12 @@ export default function CouriersManagementPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Capacité Max (colis) *</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Capacité Max (colis, max 30) *</label>
                   <input
                     data-cy="input-edit-courier-capacity"
                     type="number"
                     min="1"
-                    max="40"
+                    max="30"
                     required
                     value={editForm.max_parcels}
                     onChange={(e) => setEditForm({ ...editForm, max_parcels: Number(e.target.value) })}
@@ -1194,14 +1209,14 @@ export default function CouriersManagementPage() {
             <form onSubmit={handleAdjustCapacitySubmit} className="p-5 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Plafond Maximum de Colis pour la Tournée :
+                  Plafond Maximum de Colis pour la Tournée (Max 30) :
                 </label>
                 <div className="flex items-center gap-3">
                   <input
                     data-cy="input-target-capacity"
                     type="range"
                     min="5"
-                    max="35"
+                    max="30"
                     value={targetCapacity}
                     onChange={(e) => setTargetCapacity(Number(e.target.value))}
                     className="flex-1 accent-purple-600 cursor-pointer"
@@ -1216,7 +1231,7 @@ export default function CouriersManagementPage() {
               </div>
 
               <div className="grid grid-cols-4 gap-2 pt-1">
-                {[10, 15, 20, 25].map((preset) => (
+                {[10, 15, 20, 30].map((preset) => (
                   <button
                     key={preset}
                     type="button"

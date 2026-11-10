@@ -10,7 +10,7 @@ class CreateCourierDTO(BaseModel):
     phone: str
     vehicle_type: str
     security_deposit: int = 0
-    max_parcels: int = 15
+    max_parcels: int = 30
     assigned_axis: Optional[str] = None
 
 
@@ -40,7 +40,7 @@ class CourierResponseDTO(BaseModel):
     vehicle_type: str
     security_deposit: int
     security_deposit_formatted: str
-    max_parcels: int = 15
+    max_parcels: int = 30
     assigned_axis: Optional[str] = None
     active: bool
     today_parcels_count: int = 0

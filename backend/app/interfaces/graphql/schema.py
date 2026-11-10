@@ -70,9 +70,12 @@ class CourierType:
     vehicle_type: str
     security_deposit: int
     security_deposit_formatted: str
-    max_parcels: int = 15
+    max_parcels: int = 30
     assigned_axis: Optional[str] = None
     active: bool
+    today_parcels_count: int = 0
+    active_tour_id: Optional[int] = None
+    disputes_count: int = 0
 
 
 @strawberry.type

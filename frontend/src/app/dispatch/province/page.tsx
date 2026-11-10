@@ -63,7 +63,7 @@ export default function DispatchProvincePage() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedParcelIds, setSelectedParcelIds] = useState<number[]>([]);
   const [assignedCourierId, setAssignedCourierId] = useState<number | "">("");
-  const [courierCapacityInput, setCourierCapacityInput] = useState<number>(15);
+  const [courierCapacityInput, setCourierCapacityInput] = useState<number>(30);
   const [isUpdatingCapacity, setIsUpdatingCapacity] = useState<boolean>(false);
   const [isAssigning, setIsAssigning] = useState<boolean>(false);
   const [assignSuccessMessage, setAssignSuccessMessage] = useState<string | null>(null);
@@ -96,19 +96,19 @@ export default function DispatchProvincePage() {
   const [isSavingAxis, setIsSavingAxis] = useState<boolean>(false);
   const [axisFeedback, setAxisFeedback] = useState<string | null>(null);
 
-  // Filter couriers assigned to Province / Navettes (CDC Écran 03B)
-  const provinceCouriers = couriers.filter(
-    (c) => !c.assigned_axis || c.assigned_axis === "AXE_PROVINCE" || c.assigned_axis.startsWith("AXE_PROV")
-  );
-  const availableCouriers = provinceCouriers.length > 0 ? provinceCouriers : couriers;
+  // Couriers: Mutualized pool across all axes - couriers are NOT assigned to axes directly.
+  // The supervisor manually selects any active courier for any delivery.
+  const availableCouriers = couriers.filter((c) => c.active !== false);
 
   const selectedCourier = availableCouriers.find((c) => c.id === Number(assignedCourierId)) || couriers.find((c) => c.id === Number(assignedCourierId));
-  const courierCapacity = selectedCourier?.max_parcels || 15;
+  const courierCapacity = selectedCourier ? Math.min(selectedCourier.max_parcels || 30, 30) : 30;
   const isOverCapacity = selectedParcelIds.length > courierCapacity;
+  const isSurchargeOver30 = selectedParcelIds.length > 30;
+  const isSurcharge = isOverCapacity || isSurchargeOver30;
 
   useEffect(() => {
     if (selectedCourier) {
-      setCourierCapacityInput(selectedCourier.max_parcels || 15);
+      setCourierCapacityInput(selectedCourier.max_parcels || 30);
     }
   }, [selectedCourier]);
 
@@ -116,12 +116,8 @@ export default function DispatchProvincePage() {
     try {
       const couriersList = await fetchCouriers();
       setCouriers(couriersList);
-      const provList = couriersList.filter(
-        (c: Courier) => !c.assigned_axis || c.assigned_axis === "AXE_PROVINCE" || c.assigned_axis.startsWith("AXE_PROV")
-      );
-      const targetList = provList.length > 0 ? provList : couriersList;
-      if (targetList.length > 0 && assignedCourierId === "") {
-        setAssignedCourierId(targetList[0].id);
+      if (couriersList.length > 0 && assignedCourierId === "") {
+        setAssignedCourierId(couriersList[0].id);
       }
     } catch (e) {
       console.error("Error loading couriers", e);
@@ -239,6 +235,10 @@ export default function DispatchProvincePage() {
 
   const handleSaveCapacity = async () => {
     if (!selectedCourier || courierCapacityInput <= 0) return;
+    if (courierCapacityInput > 30) {
+      alert("Surcharge interdite : un livreur ne peut pas transporter plus de 30 colis.");
+      return;
+    }
     setIsUpdatingCapacity(true);
     try {
       await updateCourierCapacity(selectedCourier.id, courierCapacityInput);
@@ -255,7 +255,7 @@ export default function DispatchProvincePage() {
   };
 
   const handleAssignToTour = async () => {
-    if (selectedParcelIds.length === 0 || !assignedCourierId || isOverCapacity) return;
+    if (selectedParcelIds.length === 0 || !assignedCourierId || isSurcharge) return;
     setIsAssigning(true);
     try {
       const res = await createOrAssignTour(Number(assignedCourierId), selectedDate, selectedParcelIds);
@@ -604,17 +604,17 @@ export default function DispatchProvincePage() {
                     <span
                       data-cy="courier-capacity-display"
                       className={`font-mono font-bold ${
-                        isOverCapacity ? "text-red-600" : "text-emerald-600"
+                        isSurcharge ? "text-red-600" : "text-emerald-600"
                       }`}
                     >
                       {selectedParcelIds.length} / {courierCapacity} max
                     </span>
                     <div className="flex items-center gap-1 ml-1.5 border-l border-slate-200 pl-1.5">
-                      <span className="text-[10px] text-slate-500">Plafond :</span>
+                      <span className="text-[10px] text-slate-500">Plafond (max 30):</span>
                       <input
                         type="number"
                         min={1}
-                        max={100}
+                        max={30}
                         data-cy="input-courier-capacity"
                         value={courierCapacityInput}
                         onChange={(e) => setCourierCapacityInput(Number(e.target.value))}
@@ -636,10 +636,10 @@ export default function DispatchProvincePage() {
                 {/* Assign button */}
                 <button
                   onClick={handleAssignToTour}
-                  disabled={selectedParcelIds.length === 0 || !assignedCourierId || isAssigning || isOverCapacity}
+                  disabled={selectedParcelIds.length === 0 || !assignedCourierId || isAssigning || isSurcharge}
                   data-cy="assign-tour-btn"
                   className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all shadow-xs ${
-                    selectedParcelIds.length > 0 && assignedCourierId && !isAssigning && !isOverCapacity
+                    selectedParcelIds.length > 0 && assignedCourierId && !isAssigning && !isSurcharge
                       ? "bg-purple-600 hover:bg-purple-500 text-white cursor-pointer"
                       : "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
                   }`}
@@ -648,7 +648,7 @@ export default function DispatchProvincePage() {
                   <span>
                     {isAssigning
                       ? "Assignation..."
-                      : isOverCapacity
+                      : isSurcharge
                       ? `Capacité dépassée (${selectedParcelIds.length}/${courierCapacity})`
                       : `Assigner (${selectedParcelIds.length} colis)`}
                   </span>
@@ -657,14 +657,16 @@ export default function DispatchProvincePage() {
             </div>
 
             {/* Capacity Overload Warning Alert */}
-            {isOverCapacity && (
+            {isSurcharge && (
               <div
                 data-cy="capacity-warning-banner"
                 className="p-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-medium flex items-center gap-2 shadow-xs"
               >
                 <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
                 <span>
-                  Capacité maximale dépassée : le livreur {selectedCourier?.name} ne peut prendre que {courierCapacity} colis maximum ({selectedParcelIds.length} sélectionnés). Réduisez la sélection ou ajustez le plafond paramétrable.
+                  {isSurchargeOver30
+                    ? `🚨 Surcharge stricte : un livreur ne peut transporter que 30 colis au maximum (${selectedParcelIds.length} sélectionnés). Veuillez réduire le lot.`
+                    : `Capacité maximale dépassée : le livreur ${selectedCourier?.name} ne peut prendre que ${courierCapacity} colis maximum (${selectedParcelIds.length} sélectionnés). Réduisez la sélection ou ajustez le plafond paramétrable.`}
                 </span>
               </div>
             )}
