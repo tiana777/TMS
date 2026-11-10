@@ -5,48 +5,25 @@ from backend.app.domain.value_objects.axis import LogisticAxis
 
 
 class TestAxisAutoDetector:
-    def test_level1_province_cities(self):
+    def test_province_addresses_require_manual_axis_selection(self):
+        """Province destinations are no longer auto-detected: they fall back to AXE_CENTRE_1 with is_fallback=True so the user assigns them manually."""
         cases = [
-            ("Livraison boutique Toamasina bazar be", LogisticAxis.AXE_PROVINCE, "toamasina"),
-            ("Colis pour Tamatave port", LogisticAxis.AXE_PROVINCE, "tamatave"),
-            ("Avenue de la paix Majunga", LogisticAxis.AXE_PROVINCE, "majunga"),
-            ("Mahajanga bord de mer", LogisticAxis.AXE_PROVINCE, "mahajanga"),
-            ("Centre ville Antsirabe", LogisticAxis.AXE_PROVINCE, "antsirabe"),
-            ("Fianarantsoa ville haute", LogisticAxis.AXE_PROVINCE, "fianarantsoa"),
-            ("Toliara sanfily", LogisticAxis.AXE_PROVINCE, "toliara"),
-            ("Diego Suarez grand hotel", LogisticAxis.AXE_PROVINCE, "diego"),
-            ("Antsiranana place scobel", LogisticAxis.AXE_PROVINCE, "antsiranana"),
-            ("Moramanga gare", LogisticAxis.AXE_PROVINCE, "moramanga"),
-            ("Nosy Be Hell-Ville", LogisticAxis.AXE_PROVINCE, "nosy be"),
-            ("Fort-Dauphin plage libanona", LogisticAxis.AXE_PROVINCE, "fort-dauphin"),
+            "Livraison boutique Toamasina bazar be",
+            "Colis pour Tamatave port",
+            "Avenue de la paix Majunga",
+            "Mahajanga bord de mer",
+            "Centre ville Antsirabe",
+            "Fianarantsoa ville haute",
+            "Toliara sanfily",
+            "Diego Suarez grand hotel",
+            "Moramanga ville",
+            "Sambava centre",
+            "Envoi par Cotisse Transport",
         ]
-        for address, expected_axis, keyword in cases:
+        for address in cases:
             res = AxisAutoDetector.detect(address)
-            assert res.axis == expected_axis, f"Failed for {address}"
-            assert res.is_fallback is False
-            assert res.matched_keyword == keyword
-
-    def test_level1_bus_stations(self):
-        cases = [
-            ("Dépôt Gare Ambodivona guichet 3", LogisticAxis.AXE_PROVINCE),
-            ("Gare Fasan'ny Karana vers RN7", LogisticAxis.AXE_PROVINCE),
-            ("Andohatapenaka Gare Maki", LogisticAxis.AXE_PROVINCE),
-        ]
-        for address, expected_axis in cases:
-            res = AxisAutoDetector.detect(address)
-            assert res.axis == expected_axis
-            assert res.is_fallback is False
-
-    def test_level1_cooperatives(self):
-        cases = [
-            ("Envoi par Cotisse Transport", LogisticAxis.AXE_PROVINCE),
-            ("Coopérative Kofmad guichet Sud", LogisticAxis.AXE_PROVINCE),
-            ("Besady Plus vers Majunga", LogisticAxis.AXE_PROVINCE),
-        ]
-        for address, expected_axis in cases:
-            res = AxisAutoDetector.detect(address)
-            assert res.axis == expected_axis
-            assert res.is_fallback is False
+            assert res.axis == LogisticAxis.AXE_CENTRE_1, f"Expected fallback for {address}"
+            assert res.is_fallback is True
 
     def test_level2_real_urban_corridors_and_fees(self):
         cases = [

@@ -232,18 +232,7 @@ class AxisAutoDetector:
                     delivery_fee=cz["fee"],
                 )
 
-        # 1. Level 1: Province Priority
-        for keyword in PROVINCE_KEYWORDS:
-            norm_kw = normalize_text(keyword)
-            if norm_kw in norm_addr:
-                return AxisDetectionResult(
-                    axis=LogisticAxis.AXE_PROVINCE,
-                    matched_keyword=keyword,
-                    is_fallback=False,
-                    delivery_fee=fee,
-                )
-
-        # 2. Level 2: Real 9 Urban Corridors
+        # 1. Level 1: Real 9 Urban Corridors
         for axis, keywords in REAL_URBAN_KEYWORDS.items():
             for kw in keywords:
                 norm_kw = normalize_text(kw)
@@ -255,7 +244,7 @@ class AxisAutoDetector:
                         delivery_fee=fee,
                     )
 
-        # 3. Level 3: Fallback to AXE_CENTRE_1
+        # 2. Level 2: Fallback to AXE_CENTRE_1 (Province destinations are set manually)
         return AxisDetectionResult(
             axis=LogisticAxis.AXE_CENTRE_1,
             matched_keyword=None,

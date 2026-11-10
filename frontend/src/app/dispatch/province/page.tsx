@@ -40,6 +40,7 @@ import {
   startTour,
   overrideParcelAxis,
   updateCourierCapacity,
+  fetchAxes,
 } from "@/lib/api";
 import { Courier, LogisticAxis, Parcel, Tour } from "@/types";
 
@@ -93,6 +94,7 @@ export default function DispatchProvincePage() {
   // Axis modification state (CDC 5.2)
   const [editingAxisParcel, setEditingAxisParcel] = useState<Parcel | null>(null);
   const [targetAxis, setTargetAxis] = useState<LogisticAxis>("AXE_PROVINCE");
+  const [provinceAxes, setProvinceAxes] = useState<{ id?: number; code: string; libelle: string }[]>([]);
   const [isSavingAxis, setIsSavingAxis] = useState<boolean>(false);
   const [axisFeedback, setAxisFeedback] = useState<string | null>(null);
 
@@ -114,13 +116,19 @@ export default function DispatchProvincePage() {
 
   const loadData = async () => {
     try {
-      const couriersList = await fetchCouriers();
+      const [couriersList, pAxes] = await Promise.all([
+        fetchCouriers(),
+        fetchAxes("PROVINCE").catch(() => []),
+      ]);
       setCouriers(couriersList);
+      if (Array.isArray(pAxes)) {
+        setProvinceAxes(pAxes);
+      }
       if (couriersList.length > 0 && assignedCourierId === "") {
         setAssignedCourierId(couriersList[0].id);
       }
     } catch (e) {
-      console.error("Error loading couriers", e);
+      console.error("Error loading data", e);
     }
   };
 
@@ -1121,14 +1129,15 @@ export default function DispatchProvincePage() {
                   <option value="AXE_ALASORA">9. Axe Alasora (Mandroseza & By-pass)</option>
                 </optgroup>
                 <optgroup label="🚐 Expéditions Nationales (Province & Gares)">
-                  <option value="AXE_PROVINCE">8. AXE_PROVINCE (Toutes Gares Routières)</option>
-                  <option value="AXE_PROV_RN2_EST">9. AXE_PROV_RN2_EST (Tamatave / Moramanga / Sainte-Marie)</option>
-                  <option value="AXE_PROV_RN4_OUEST">10. AXE_PROV_RN4_OUEST (Majunga / Maevatanana / Marovoay)</option>
-                  <option value="AXE_PROV_RN6_NORD">11. AXE_PROV_RN6_NORD (Diego-Suarez / Nosy Be / Sambava)</option>
-                  <option value="AXE_PROV_RN7_SUD">12. AXE_PROV_RN7_SUD (Antsirabe / Ambositra / Fianar)</option>
-                  <option value="AXE_PROV_RN7_SUD_OUEST">13. AXE_PROV_RN7_SUD_OUEST (Tuléar / Morondava)</option>
-                  <option value="AXE_PROV_SUD_EST">14. AXE_PROV_SUD_EST (Manakara / Fort-Dauphin)</option>
-                  <option value="AXE_PROV_RN44_ALAOTRA">15. AXE_PROV_RN44_ALAOTRA (Ambatondrazaka / Alaotra)</option>
+                  {provinceAxes.length > 0 ? (
+                    provinceAxes.map((a) => (
+                      <option key={a.code} value={a.code}>
+                        {a.libelle} ({a.code})
+                      </option>
+                    ))
+                  ) : (
+                    <option value="AXE_PROVINCE">AXE_PROVINCE (Toutes Gares Routières)</option>
+                  )}
                 </optgroup>
               </select>
             </div>

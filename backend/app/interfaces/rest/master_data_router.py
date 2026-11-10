@@ -140,28 +140,32 @@ def create_axis(
     clean_code = data.code.strip().upper()
     if not clean_code:
         raise HTTPException(status_code=400, detail="Le code de l'axe est obligatoire.")
-    if not clean_code.startswith("AXE_"):
+    if data.type_axe and data.type_axe.upper() == "PROVINCE":
+        if not clean_code.startswith("AXE_PROV"):
+            clean_code = f"AXE_PROVINCE_{clean_code.replace('AXE_', '')}"
+    elif not clean_code.startswith("AXE_"):
         clean_code = f"AXE_{clean_code}"
 
     existing = db.query(AxisORM).filter(AxisORM.code == clean_code).first()
     if existing:
         if existing.actif == 0:
             existing.actif = 1
-            existing.libelle = data.libelle.strip() or existing.libelle
+        if data.libelle and data.libelle.strip():
+            existing.libelle = data.libelle.strip()
+        if data.type_axe:
             existing.type_axe = data.type_axe.upper()
-            db.commit()
-            db.refresh(existing)
-            zones_detail = [ZoneDetailDTO(id=z.id, nom=z.nom) for z in existing.zones]
-            return AxisResponseDTO(
-                id=existing.id,
-                code=existing.code,
-                libelle=existing.libelle,
-                type_axe=existing.type_axe or "URBAIN",
-                actif=existing.actif,
-                zones=[z.nom for z in existing.zones],
-                zones_detail=zones_detail,
-            )
-        raise HTTPException(status_code=400, detail=f"L'axe avec le code '{clean_code}' existe déjà.")
+        db.commit()
+        db.refresh(existing)
+        zones_detail = [ZoneDetailDTO(id=z.id, nom=z.nom) for z in existing.zones]
+        return AxisResponseDTO(
+            id=existing.id,
+            code=existing.code,
+            libelle=existing.libelle,
+            type_axe=existing.type_axe or ("PROVINCE" if "PROV" in existing.code else "URBAIN"),
+            actif=existing.actif,
+            zones=[z.nom for z in existing.zones],
+            zones_detail=zones_detail,
+        )
 
     axis = AxisORM(
         code=clean_code,

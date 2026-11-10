@@ -35,6 +35,15 @@ class LogisticAxis(str, Enum):
     AXE_PROV_SUD_EST = "AXE_PROV_SUD_EST"
     AXE_PROV_RN44_ALAOTRA = "AXE_PROV_RN44_ALAOTRA"
 
+    @classmethod
+    def _missing_(cls, value):
+        if isinstance(value, str):
+            obj = str.__new__(cls, value)
+            obj._value_ = value
+            obj._name_ = str(value)
+            return obj
+        return super()._missing_(value)
+
     @property
     def label(self) -> str:
         labels = {
@@ -63,7 +72,14 @@ class LogisticAxis(str, Enum):
             LogisticAxis.AXE_PROV_SUD_EST: "AXE PROVINCE SUD-EST & ANOSY (Manakara / Fort-Dauphin)",
             LogisticAxis.AXE_PROV_RN44_ALAOTRA: "AXE PROVINCE RN44 (Ambatondrazaka / Alaotra)",
         }
-        return labels.get(self, self.value)
+        if self in labels:
+            return labels[self]
+        val = str(self.value)
+        if val.startswith("AXE_PROVINCE_"):
+            return f"Axe Province {val.replace('AXE_PROVINCE_', '').replace('_', ' ').title()}"
+        if val.startswith("AXE_PROV_"):
+            return f"Axe Province {val.replace('AXE_PROV_', '').replace('_', ' ').title()}"
+        return val.replace("AXE_", "Axe ").replace("_", " ").title()
 
     @property
     def vehicle_type(self) -> str:
@@ -84,7 +100,7 @@ class LogisticAxis(str, Enum):
             LogisticAxis.AXE_RN4: "Moto Cross 150cc",
             LogisticAxis.AXE_RN7: "Scooter 150cc",
             LogisticAxis.AXE_SUD_EST: "Moto Roadster",
-            LogisticAxis.AXE_PROVINCE: "Moto 125cc",
+            LogisticAxis.AXE_PROVINCE: "Navette Gares / Fourgonnette",
             LogisticAxis.AXE_PROV_RN2_EST: "Navette Gares / Fourgonnette",
             LogisticAxis.AXE_PROV_RN4_OUEST: "Navette Gares / Fourgonnette",
             LogisticAxis.AXE_PROV_RN6_NORD: "Navette Gares / Fourgonnette",
@@ -93,4 +109,8 @@ class LogisticAxis(str, Enum):
             LogisticAxis.AXE_PROV_SUD_EST: "Navette Gares / Fourgonnette",
             LogisticAxis.AXE_PROV_RN44_ALAOTRA: "Navette Gares / Fourgonnette",
         }
-        return vehicles.get(self, "Deux-roues")
+        if self in vehicles:
+            return vehicles[self]
+        if "PROV" in str(self.value).upper():
+            return "Navette Gares / Fourgonnette"
+        return "Deux-roues"

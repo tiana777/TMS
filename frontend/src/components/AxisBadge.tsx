@@ -1,5 +1,5 @@
 import React from "react";
-import { AXIS_METADATA } from "../lib/axis";
+import { getAxisMetadata } from "../lib/axis";
 import { LogisticAxis } from "../types";
 
 interface Props {
@@ -10,10 +10,8 @@ interface Props {
 
 export const AxisBadge: React.FC<Props> = ({ axis, isFallback = false, isManual = false }) => {
   const normalized = (axis || "").toString().trim().toUpperCase();
-  const meta = (normalized && AXIS_METADATA[normalized as LogisticAxis]) || {
-    label: normalized || "Non défini",
-    badgeColor: "bg-slate-100 text-slate-700 border-slate-200",
-  };
+  const meta = getAxisMetadata(normalized);
+  const isProvince = normalized.includes("PROV");
 
   const testId = normalized ? `badge-axis-${normalized.toLowerCase()}` : "badge-axis-unknown";
 
@@ -23,7 +21,7 @@ export const AxisBadge: React.FC<Props> = ({ axis, isFallback = false, isManual 
         data-testid={testId}
         className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${meta.badgeColor}`}
       >
-        {normalized === "AXE_PROVINCE" && <span className="mr-1">🚌</span>}
+        {isProvince && <span className="mr-1">🚌</span>}
         {meta.label}
       </span>
       {isManual && (

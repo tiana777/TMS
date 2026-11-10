@@ -240,14 +240,7 @@ export function detectAxisClient(address: string): {
     }
   }
 
-  // 1. Province Priority
-  for (const kw of PROVINCE_KEYWORDS) {
-    if (lower.includes(kw) || norm.includes(normalizeText(kw))) {
-      return { axis: "AXE_PROVINCE", isFallback: false, fee };
-    }
-  }
-
-  // 2. Real Urban Axes in Priority Order
+  // Real Urban Axes in Priority Order (Province destinations are entered manually)
   const realAxes: LogisticAxis[] = [
     "AXE_IVATO",
     "AXE_SABOTSY_NAMEHANA",
@@ -376,3 +369,49 @@ export const AXIS_METADATA: Record<string, { label: string; badgeColor: string }
     badgeColor: "bg-pink-100 text-pink-800 border-pink-300",
   },
 };
+
+export interface RegisteredProvinceAxis {
+  code: string;
+  label: string;
+}
+
+export const DYNAMIC_PROVINCE_AXES: RegisteredProvinceAxis[] = [];
+
+export function registerProvinceAxisClient(code: string, label: string) {
+  const normCode = code.trim().toUpperCase();
+  if (!normCode) return;
+  const existing = DYNAMIC_PROVINCE_AXES.find((a) => a.code === normCode);
+  if (!existing) {
+    DYNAMIC_PROVINCE_AXES.push({ code: normCode, label: label.trim() || normCode });
+  }
+}
+
+export function getAxisMetadata(axis?: string | null): { label: string; badgeColor: string } {
+  if (!axis) return { label: "Non défini", badgeColor: "bg-slate-100 text-slate-700 border-slate-200" };
+  const normalized = axis.trim().toUpperCase();
+  if (AXIS_METADATA[normalized]) {
+    return AXIS_METADATA[normalized];
+  }
+  const dynamicProv = DYNAMIC_PROVINCE_AXES.find((a) => a.code === normalized);
+  if (dynamicProv) {
+    return {
+      label: dynamicProv.label,
+      badgeColor: "bg-purple-100 text-purple-800 border-purple-300",
+    };
+  }
+  if (normalized.includes("PROV")) {
+    const rawName = normalized
+      .replace("AXE_PROVINCE_", "")
+      .replace("AXE_PROV_", "")
+      .replace("AXE_", "")
+      .replace(/_/g, " ");
+    return {
+      label: `Axe Province ${rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase()}`,
+      badgeColor: "bg-purple-100 text-purple-800 border-purple-300",
+    };
+  }
+  return {
+    label: normalized.replace("AXE_", "Axe ").replace(/_/g, " "),
+    badgeColor: "bg-slate-100 text-slate-700 border-slate-200",
+  };
+}

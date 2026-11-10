@@ -255,7 +255,7 @@ class TestRESTandGraphQLAPI:
         assert len(axes) >= 8
         codes = [a["code"] for a in axes]
         assert "AXE_CENTRE_1" in codes
-        assert "AXE_PROVINCE" in codes
+        assert "AXE_ITAOSY" in codes
 
         # 2. Query couriers
         query_couriers = """

@@ -46,9 +46,10 @@ export async function fetchVendors(typeExpediteur?: string) {
   }
 }
 
-export async function fetchAxes() {
+export async function fetchAxes(type_axe?: string) {
   try {
-    const res = await fetch(`${API_BASE_URL}/master/axes`);
+    const url = type_axe ? `${API_BASE_URL}/master/axes?type_axe=${encodeURIComponent(type_axe)}` : `${API_BASE_URL}/master/axes`;
+    const res = await fetch(url);
     if (!res.ok) throw new Error("Erreur chargement axes");
     return await res.json();
   } catch (e) {

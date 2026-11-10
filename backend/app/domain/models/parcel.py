@@ -93,9 +93,10 @@ class Parcel:
             )
         self.axis = new_axis
         self.is_manual_axis = True
-        if new_axis == LogisticAxis.AXE_PROVINCE:
+        is_prov = "PROV" in str(new_axis).upper()
+        if is_prov:
             self.flux_type = FluxType.PROVINCE
-        elif self.flux_type == FluxType.PROVINCE and new_axis != LogisticAxis.AXE_PROVINCE:
+        elif self.flux_type == FluxType.PROVINCE and not is_prov:
             self.flux_type = FluxType.COD if self.merchandise_amount.amount > 0 else FluxType.SIMPLE
 
     def update_contact_info(

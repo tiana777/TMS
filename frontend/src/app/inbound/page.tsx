@@ -18,8 +18,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { detectMalagasyPhone } from "../../lib/phone";
-import { detectAxisClient, registerCustomZone } from "../../lib/axis";
-import { fetchVendors, createParcelBatch, addZoneToAxis } from "../../lib/api";
+import { detectAxisClient, registerCustomZone, registerProvinceAxisClient } from "../../lib/axis";
+import { fetchVendors, createParcelBatch, addZoneToAxis, fetchAxes, createAxis } from "../../lib/api";
 import { OperatorBadge } from "../../components/OperatorBadge";
 import { AxisBadge } from "../../components/AxisBadge";
 import { FluxType, LogisticAxis, SenderType, Vendor } from "../../types";
@@ -129,12 +129,139 @@ export default function InboundPage() {
     }
   };
 
+  // Registered Province Axes state for dynamic manual entry and autocomplete
+  const [provinceAxes, setProvinceAxes] = useState<{ id?: number; code: string; libelle: string }[]>([]);
+
+  const loadProvinceAxes = async () => {
+    try {
+      const data = await fetchAxes("PROVINCE");
+      if (Array.isArray(data)) {
+        setProvinceAxes(data);
+        data.forEach((ax: any) => registerProvinceAxisClient(ax.code, ax.libelle));
+      }
+    } catch (e) {
+      console.warn("Could not load province axes", e);
+    }
+  };
+
   useEffect(() => {
     fetchVendors().then((data) => {
       setVendors(data);
       // Sender fields remain strictly empty on first load (user request)
     });
+    loadProvinceAxes();
   }, []);
+
+  const getProvinceDisplayName = (axisCode?: string) => {
+    if (!axisCode) return "";
+    const found = provinceAxes.find((p) => p.code === axisCode);
+    if (found) {
+      return found.libelle.replace("Axe Province ", "").replace("AXE PROVINCE ", "");
+    }
+    return axisCode
+      .replace("AXE_PROVINCE_", "")
+      .replace("AXE_PROV_", "")
+      .replace("AXE_", "")
+      .replace(/_/g, " ");
+  };
+
+  const handleProvinceAxisInputChange = (idx: number, rawInput: string) => {
+    const trimmed = rawInput.trim();
+    const match = provinceAxes.find(
+      (p) =>
+        p.code.toLowerCase() === trimmed.toLowerCase() ||
+        p.libelle.toLowerCase() === trimmed.toLowerCase() ||
+        p.libelle.toLowerCase().replace("axe province ", "").trim() === trimmed.toLowerCase()
+    );
+
+    let finalCode = trimmed;
+    if (match) {
+      finalCode = match.code;
+    } else if (trimmed) {
+      const cleanUpper = trimmed
+        .toUpperCase()
+        .replace(/^AXE_PROVINCE_/, "")
+        .replace(/^AXE_PROV_/, "")
+        .replace(/^AXE_/, "")
+        .replace(/\s+/g, "_");
+      finalCode = `AXE_PROVINCE_${cleanUpper}`;
+    }
+
+    setRows((prev) => {
+      const copy = [...prev];
+      if (copy[idx]) {
+        copy[idx] = {
+          ...copy[idx],
+          axis: (finalCode || "AXE_PROVINCE") as LogisticAxis,
+          fluxType: "PROVINCE",
+          isManualAxis: true,
+          isAxisFallback: false,
+        };
+      }
+      return copy;
+    });
+  };
+
+  const selectProvinceAxis = (idx: number, axisCode: string) => {
+    setRows((prev) => {
+      const copy = [...prev];
+      if (copy[idx]) {
+        copy[idx] = {
+          ...copy[idx],
+          axis: axisCode as LogisticAxis,
+          fluxType: "PROVINCE",
+          isManualAxis: true,
+          isAxisFallback: false,
+        };
+      }
+      return copy;
+    });
+  };
+
+  const isNewUnregisteredProvinceAxis = (axisCode?: string) => {
+    if (!axisCode || axisCode === "AXE_PROVINCE") return false;
+    const exists = provinceAxes.some((p) => p.code === axisCode);
+    return !exists && axisCode.trim().length > 0;
+  };
+
+  const handleRegisterProvinceAxisFromRow = async (idx: number) => {
+    const row = rows[idx];
+    if (!row || !row.axis) return;
+    const cleanCode = row.axis.startsWith("AXE_")
+      ? row.axis
+      : `AXE_PROVINCE_${row.axis.toUpperCase().replace(/\s+/g, "_")}`;
+    const rawName = cleanCode
+      .replace("AXE_PROVINCE_", "")
+      .replace("AXE_PROV_", "")
+      .replace("AXE_", "")
+      .replace(/_/g, " ")
+      .trim();
+    const cleanLibelle = `Axe Province ${rawName.charAt(0).toUpperCase() + rawName.slice(1)}`;
+
+    try {
+      const created = await createAxis({
+        code: cleanCode,
+        libelle: cleanLibelle,
+        type_axe: "PROVINCE",
+      });
+      registerProvinceAxisClient(created.code, created.libelle);
+      setProvinceAxes((prev) => {
+        if (prev.some((p) => p.code === created.code)) return prev;
+        return [...prev, created];
+      });
+      setZoneSuccessMessage(`Axe Province "${created.libelle}" enregistré avec succès et disponible en autocomplétion !`);
+      setTimeout(() => setZoneSuccessMessage(null), 5000);
+    } catch (err: any) {
+      const fallbackItem = { code: cleanCode, libelle: cleanLibelle };
+      registerProvinceAxisClient(cleanCode, cleanLibelle);
+      setProvinceAxes((prev) => {
+        if (prev.some((p) => p.code === cleanCode)) return prev;
+        return [...prev, fallbackItem];
+      });
+      setZoneSuccessMessage(`Axe Province "${cleanLibelle}" mémorisé pour autocomplétion !`);
+      setTimeout(() => setZoneSuccessMessage(null), 5000);
+    }
+  };
 
   const applyVendorData = (v: Vendor) => {
     setSelectedVendorId(v.id);
@@ -733,34 +860,114 @@ export default function InboundPage() {
                         </span>
                       )}
                     </div>
-                    <select
-                      data-testid={`select-axis-${idx}`}
-                      data-cy={`select-axis-${idx}`}
-                      value={row.axis}
-                      onChange={(e) => updateRow(idx, "axis", e.target.value as LogisticAxis)}
-                      className={`w-full px-3 py-2 bg-white border rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none transition ${
-                        row.axis === "AXE_PROVINCE"
-                          ? "border-purple-300 bg-purple-50/30 ring-1 ring-purple-400"
-                          : row.isManualAxis
-                          ? "border-blue-400 bg-blue-50/20"
-                          : "border-slate-300"
-                      }`}
-                    >
-                      <optgroup label="📍 Réseau Urbain (Grand Tanà - 9 Axes Réels)">
-                        <option value="AXE_CENTRE_1">1. Axe Centre Ville 1 (Hyper-Centre & Analakely)</option>
-                        <option value="AXE_CENTRE_2">2. Axe Centre Ville 2 (Péri-Centre & Antanimena)</option>
-                        <option value="AXE_ITAOSY">3. Axe Itaosy (67Ha, Itaosy & Ouest)</option>
-                        <option value="AXE_AMPITATAFIKA">4. Axe Ampitatafika (Ampefiloha & Fenoarivo)</option>
-                        <option value="AXE_AMBOHIMANGAKELY">5. Axe Ambohimangakely (Besarety & RN2)</option>
-                        <option value="AXE_SABOTSY_NAMEHANA">6. Axe Sabotsy Namehana (Ankadikely & RN3)</option>
-                        <option value="AXE_IVATO">7. Axe Ivato (RN4 Digue & Aéroport)</option>
-                        <option value="AXE_IAVOLOHA">8. Axe Iavoloha (RN7 Sud & Tanjombato)</option>
-                        <option value="AXE_ALASORA">9. Axe Alasora (Mandroseza & By-pass)</option>
-                      </optgroup>
-                      <optgroup label="🚚 Expéditions Nationales (Province)">
-                        <option value="AXE_PROVINCE">10. AXE_PROVINCE (Gares Routières & Régions)</option>
-                      </optgroup>
-                    </select>
+                    {row.fluxType === "PROVINCE" ? (
+                      <div className="space-y-1.5">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            list="province-axes-datalist"
+                            data-testid={`input-province-axis-${idx}`}
+                            data-cy={`input-province-axis-${idx}`}
+                            value={getProvinceDisplayName(row.axis)}
+                            onChange={(e) => handleProvinceAxisInputChange(idx, e.target.value)}
+                            placeholder="Tapez l'axe de province (ex: Toamasina, Majunga...)"
+                            className="w-full px-3 py-2 bg-purple-50/50 border border-purple-300 rounded-xl text-xs font-bold text-purple-900 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                          />
+                        </div>
+
+                        {/* Inline Button to register new province axis if not yet in database */}
+                        {isNewUnregisteredProvinceAxis(row.axis) && (
+                          <div className="flex items-center justify-between gap-1 bg-purple-100/70 p-1.5 rounded-lg border border-purple-200">
+                            <span className="text-[10px] text-purple-800 font-semibold truncate">
+                              Nouvel axe : {getProvinceDisplayName(row.axis)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRegisterProvinceAxisFromRow(idx)}
+                              data-cy={`btn-register-province-axis-${idx}`}
+                              className="px-2 py-0.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-[10px] font-bold shadow-xs transition shrink-0"
+                            >
+                              + Enregistrer l'axe
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Quick Autocomplete Suggestions Chips */}
+                        {provinceAxes.length > 0 && (
+                          <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                            <span className="text-[9px] text-slate-400 font-semibold uppercase">Suggestions :</span>
+                            {provinceAxes.map((pAx) => {
+                              const isSelected = row.axis === pAx.code;
+                              return (
+                                <button
+                                  key={pAx.code}
+                                  type="button"
+                                  onClick={() => selectProvinceAxis(idx, pAx.code)}
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border transition ${
+                                    isSelected
+                                      ? "bg-purple-600 text-white border-purple-600 shadow-2xs"
+                                      : "bg-white text-purple-700 border-purple-200 hover:bg-purple-50"
+                                  }`}
+                                >
+                                  🚌 {pAx.libelle.replace("Axe Province ", "").replace("AXE PROVINCE ", "")}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between pt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              updateRow(idx, "fluxType", "COD");
+                              updateRow(idx, "axis", "AXE_CENTRE_1");
+                            }}
+                            className="text-[10px] text-slate-500 hover:text-blue-600 underline"
+                          >
+                            ← Revenir aux axes urbains
+                          </button>
+                          <span className="text-[10px] font-bold text-purple-700 bg-purple-100/70 px-2 py-0.5 rounded border border-purple-200 flex items-center gap-1">
+                            📦 Expédition Province
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <select
+                        data-testid={`select-axis-${idx}`}
+                        data-cy={`select-axis-${idx}`}
+                        value={row.axis}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === "SWITCH_TO_PROVINCE") {
+                            updateRow(idx, "fluxType", "PROVINCE");
+                            updateRow(idx, "isManualAxis", true);
+                          } else {
+                            updateRow(idx, "axis", val as LogisticAxis);
+                          }
+                        }}
+                        className={`w-full px-3 py-2 bg-white border rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none transition ${
+                          row.isManualAxis
+                            ? "border-blue-400 bg-blue-50/20"
+                            : "border-slate-300"
+                        }`}
+                      >
+                        <optgroup label="📍 Réseau Urbain (Grand Tanà - 9 Axes Réels)">
+                          <option value="AXE_CENTRE_1">1. Axe Centre Ville 1 (Hyper-Centre & Analakely)</option>
+                          <option value="AXE_CENTRE_2">2. Axe Centre Ville 2 (Péri-Centre & Antanimena)</option>
+                          <option value="AXE_ITAOSY">3. Axe Itaosy (67Ha, Itaosy & Ouest)</option>
+                          <option value="AXE_AMPITATAFIKA">4. Axe Ampitatafika (Ampefiloha & Fenoarivo)</option>
+                          <option value="AXE_AMBOHIMANGAKELY">5. Axe Ambohimangakely (Besarety & RN2)</option>
+                          <option value="AXE_SABOTSY_NAMEHANA">6. Axe Sabotsy Namehana (Ankadikely & RN3)</option>
+                          <option value="AXE_IVATO">7. Axe Ivato (RN4 Digue & Aéroport)</option>
+                          <option value="AXE_IAVOLOHA">8. Axe Iavoloha (RN7 Sud & Tanjombato)</option>
+                          <option value="AXE_ALASORA">9. Axe Alasora (Mandroseza & By-pass)</option>
+                        </optgroup>
+                        <optgroup label="🚚 Expéditions Régionales">
+                          <option value="SWITCH_TO_PROVINCE">➔ Expédition Province (Saisie Manuelle & Autocomplétion)...</option>
+                        </optgroup>
+                      </select>
+                    )}
                     <div className="pt-0.5 flex items-center justify-between gap-1 flex-wrap">
                       <AxisBadge
                         axis={row.axis}
@@ -778,11 +985,6 @@ export default function InboundPage() {
                         <Plus className="w-3 h-3" />
                         <span>Nouveau Quartier ?</span>
                       </button>
-                      {row.axis === "AXE_PROVINCE" && (
-                        <span className="text-[10px] font-bold text-purple-700 bg-purple-100/70 px-2 py-0.5 rounded border border-purple-200 flex items-center gap-1">
-                          📦 Dépôt Gare Coopérative
-                        </span>
-                      )}
                     </div>
                   </div>
 
@@ -966,6 +1168,18 @@ export default function InboundPage() {
         </div>
       )}
 
+      {/* Datalist for Province Axes Autocomplete */}
+      <datalist id="province-axes-datalist">
+        {provinceAxes.map((pAx) => (
+          <option
+            key={pAx.code}
+            value={pAx.libelle.replace("Axe Province ", "").replace("AXE PROVINCE ", "")}
+          >
+            {pAx.code}
+          </option>
+        ))}
+      </datalist>
+
       {/* Modal : Rattacher un Nouveau Quartier / Lieu à un Axe */}
       {isAddZoneModalOpen && (
         <div
@@ -1032,9 +1246,6 @@ export default function InboundPage() {
                     <option value="AXE_IVATO">7. Axe Ivato (RN4 Digue & Aéroport)</option>
                     <option value="AXE_IAVOLOHA">8. Axe Iavoloha (RN7 Sud & Tanjombato)</option>
                     <option value="AXE_ALASORA">9. Axe Alasora (Mandroseza & By-pass)</option>
-                  </optgroup>
-                  <optgroup label="🚚 Expéditions Nationales (Province)">
-                    <option value="AXE_PROVINCE">10. AXE_PROVINCE (Gares Routières & Régions)</option>
                   </optgroup>
                 </select>
               </div>
