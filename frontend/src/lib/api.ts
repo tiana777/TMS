@@ -72,73 +72,8 @@ export async function fetchCouriers(axis?: string, includeInactive: boolean = fa
     if (!res.ok) throw new Error("Erreur chargement livreurs");
     return await res.json();
   } catch (e) {
-    console.warn("API offline, using fallback couriers", e);
-    const fallbacks = [
-      {
-        id: 1,
-        name: "RAKOTO Jean",
-        phone: "0341122233",
-        phone_formatted: "034 11 222 33",
-        vehicle_type: "Moto Cross 150cc",
-        security_deposit: 150000,
-        security_deposit_formatted: "150 000 Ar",
-        max_parcels: 30,
-        assigned_axis: "AXE_CENTRE_1",
-        active: true,
-        today_parcels_count: 8,
-        active_tour_id: 101,
-        disputes_count: 0,
-      },
-      {
-        id: 2,
-        name: "ANDRY Nirina",
-        phone: "0324455566",
-        phone_formatted: "032 44 555 66",
-        vehicle_type: "Scooter 125cc",
-        security_deposit: 150000,
-        security_deposit_formatted: "150 000 Ar",
-        max_parcels: 30,
-        assigned_axis: "AXE_ITAOSY",
-        active: true,
-        today_parcels_count: 14,
-        active_tour_id: null,
-        disputes_count: 1,
-      },
-      {
-        id: 3,
-        name: "SOLO Faneva",
-        phone: "0337788899",
-        phone_formatted: "033 77 888 99",
-        vehicle_type: "Moto Trail 150cc",
-        security_deposit: 150000,
-        security_deposit_formatted: "150 000 Ar",
-        max_parcels: 30,
-        assigned_axis: "AXE_IVATO",
-        active: true,
-        today_parcels_count: 5,
-        active_tour_id: null,
-        disputes_count: 0,
-      },
-      {
-        id: 4,
-        name: "RAZAFI Paul (Livreur)",
-        phone: "0381020304",
-        phone_formatted: "038 10 203 04",
-        vehicle_type: "Moto 125cc",
-        security_deposit: 150000,
-        security_deposit_formatted: "150 000 Ar",
-        max_parcels: 30,
-        assigned_axis: "AXE_AMBOHIMANGAKELY",
-        active: true,
-        today_parcels_count: 12,
-        active_tour_id: null,
-        disputes_count: 0,
-      },
-    ];
-    if (axis && axis !== "ALL") {
-      return fallbacks.filter((c) => c.assigned_axis === axis);
-    }
-    return fallbacks;
+    console.warn("API offline or error loading couriers", e);
+    return [];
   }
 }
 
@@ -260,125 +195,8 @@ export async function fetchParcels(filters?: {
     if (!res.ok) throw new Error("Erreur chargement colis");
     return await res.json();
   } catch (e) {
-    console.warn("API offline, using fallback parcels", e);
-    const fallbacks = [
-      {
-        id: 101,
-        tracking_number: "0001",
-        reception_date: "2026-11-08",
-        vendor_id: 1,
-        sender_type: "CYBERMARCHAND",
-        sender_name: "Mod'Tanà Boutique",
-        sender_phone: "0345566778",
-        sender_phone_formatted: "034 55 667 78",
-        sender_operator: "TELMA",
-        recipient_name: "Madame Rasoa",
-        recipient_phone: "0341234567",
-        recipient_phone_formatted: "034 12 345 67",
-        operator: "TELMA",
-        delivery_address: "Itaosy Cité près Pharmacie",
-        designation: "Robe de soirée en soie",
-        axis: "AXE_ITAOSY",
-        axis_label: "Axe Itaosy (67Ha, Itaosy & Ouest)",
-        flux_type: "COD",
-        merchandise_amount: 45000,
-        delivery_fee: 4000,
-        total_to_collect: 49000,
-        total_to_collect_formatted: "49 000 Ar",
-        partner_fee: 0,
-        status: "EN_DEPOT",
-        status_label: "En Dépôt (Stock Hub)",
-        active: true,
-      },
-      {
-        id: 102,
-        tracking_number: "0002",
-        reception_date: "2026-11-08",
-        vendor_id: 2,
-        sender_type: "ENTREPRISE",
-        sender_name: "Cabinet Juridique & Audit Tanà",
-        sender_phone: "0329988776",
-        sender_phone_formatted: "032 99 887 76",
-        sender_operator: "ORANGE",
-        recipient_name: "Société Fiadanana",
-        recipient_phone: "0325544332",
-        recipient_phone_formatted: "032 55 443 32",
-        operator: "ORANGE",
-        delivery_address: "Zone Galaxy Andraharo Lot 4",
-        designation: "Dossier audit certifié & contrats",
-        axis: "AXE_IVATO",
-        axis_label: "Axe Ivato (RN4 Digue & Aéroport)",
-        flux_type: "SIMPLE",
-        merchandise_amount: 0,
-        delivery_fee: 6000,
-        total_to_collect: 6000,
-        total_to_collect_formatted: "6 000 Ar",
-        partner_fee: 0,
-        status: "EN_DEPOT",
-        status_label: "En Dépôt (Stock Hub)",
-        active: true,
-      },
-      {
-        id: 103,
-        tracking_number: "0003",
-        reception_date: "2026-11-08",
-        vendor_id: 1,
-        sender_type: "CYBERMARCHAND",
-        sender_name: "Mod'Tanà Boutique",
-        sender_phone: "0345566778",
-        sender_phone_formatted: "034 55 667 78",
-        sender_operator: "TELMA",
-        recipient_name: "M. Andry",
-        recipient_phone: "0331122334",
-        recipient_phone_formatted: "033 11 223 34",
-        operator: "AIRTEL",
-        delivery_address: "Gare Ambodivona Guichet Cotisse Toamasina",
-        designation: "Colis prêt-à-porter 3 pièces",
-        axis: "AXE_PROVINCE",
-        axis_label: "AXE PROVINCES & GARES ROUTIÈRES",
-        flux_type: "PROVINCE",
-        merchandise_amount: 85000,
-        delivery_fee: 10000,
-        total_to_collect: 95000,
-        total_to_collect_formatted: "95 000 Ar",
-        partner_fee: 10000,
-        status: "EN_DEPOT",
-        status_label: "En Dépôt (Stock Hub)",
-        active: true,
-      },
-      {
-        id: 104,
-        tracking_number: "0004",
-        reception_date: "2026-11-08",
-        vendor_id: 3,
-        sender_type: "PARTICULIER",
-        sender_name: "Rasoamalala Hanta",
-        sender_phone: "0331234599",
-        sender_phone_formatted: "033 12 345 99",
-        sender_operator: "AIRTEL",
-        recipient_name: "Rakotoniaina Paul",
-        recipient_phone: "0348877665",
-        recipient_phone_formatted: "034 88 776 65",
-        operator: "TELMA",
-        delivery_address: "Gare Fasan'ny Karana vers Antsirabe Kofmad",
-        designation: "Effets personnels et panier d'artisanat",
-        axis: "AXE_PROVINCE",
-        axis_label: "AXE PROVINCES & GARES ROUTIÈRES",
-        flux_type: "PROVINCE",
-        merchandise_amount: 30000,
-        delivery_fee: 8000,
-        total_to_collect: 38000,
-        total_to_collect_formatted: "38 000 Ar",
-        partner_fee: 8000,
-        status: "EN_DEPOT",
-        status_label: "En Dépôt (Stock Hub)",
-        active: true,
-      },
-    ];
-    let res = fallbacks;
-    if (filters?.status) res = res.filter((p) => p.status === filters.status);
-    if (filters?.axis) res = res.filter((p) => p.axis === filters.axis);
-    return res;
+    console.warn("API offline or error loading parcels", e);
+    return [];
   }
 }
 
@@ -643,22 +461,8 @@ export async function fetchDisputes(courierId?: number) {
     if (!res.ok) throw new Error("Erreur chargement des litiges");
     return await res.json();
   } catch (e) {
-    console.warn("API offline, fallback disputes", e);
-    return [
-      {
-        id: 1,
-        reference_litige: "LIT-2026-0001",
-        livreur_id: 1,
-        tournee_id: 1,
-        incident_type: "DEFICIT_COD",
-        initial_amount: 15000,
-        refunded_amount: 0,
-        remaining_balance: 15000,
-        status: "OUVERTE",
-        reason: "Déficit de caisse constaté lors de la clôture de tournée",
-        incident_date: "2026-11-08",
-      },
-    ];
+    console.warn("API offline or error loading disputes", e);
+    return [];
   }
 }
 
@@ -724,54 +528,8 @@ export async function fetchFleetLeaderboard(period: string) {
     if (!res.ok) throw new Error("Erreur chargement du leaderboard");
     return await res.json();
   } catch (e) {
-    console.warn("API offline, fallback fleet leaderboard", e);
-    return [
-      {
-        livreur_id: 1,
-        courier_name: "RAKOTO Jean",
-        period,
-        total_assigned: 45,
-        total_delivered: 43,
-        success_rate: 95.6,
-        punctuality_rate: 93.3,
-        quality_rate: 100.0,
-        cash_rigor_rate: 100.0,
-        global_score: 96.5,
-        tier: "OR",
-        bonus_amount: 150000,
-        bonus_formatted: "150 000 Ar",
-      },
-      {
-        livreur_id: 2,
-        courier_name: "ANDRY Nirina",
-        period,
-        total_assigned: 40,
-        total_delivered: 36,
-        success_rate: 90.0,
-        punctuality_rate: 88.0,
-        quality_rate: 98.0,
-        cash_rigor_rate: 95.0,
-        global_score: 91.6,
-        tier: "ARGENT",
-        bonus_amount: 80000,
-        bonus_formatted: "80 000 Ar",
-      },
-      {
-        livreur_id: 3,
-        courier_name: "SOLO Faneva",
-        period,
-        total_assigned: 38,
-        total_delivered: 31,
-        success_rate: 81.6,
-        punctuality_rate: 80.0,
-        quality_rate: 95.0,
-        cash_rigor_rate: 85.0,
-        global_score: 83.8,
-        tier: "BRONZE",
-        bonus_amount: 0,
-        bonus_formatted: "0 Ar",
-      },
-    ];
+    console.warn("API offline or error loading fleet leaderboard", e);
+    return [];
   }
 }
 
@@ -979,21 +737,8 @@ export async function fetchScorecard(courierId: number, period: string) {
     if (!res.ok) throw new Error("Erreur chargement du scorecard");
     return await res.json();
   } catch (e) {
-    console.warn("API offline, fallback scorecard", e);
-    return {
-      livreur_id: courierId,
-      period,
-      total_assigned: 20,
-      total_delivered: 19,
-      success_rate: 95.0,
-      punctuality_rate: 96.0,
-      quality_rate: 100.0,
-      cash_rigor_rate: 100.0,
-      global_score: 96.5,
-      tier: "OR",
-      bonus_amount: 50000,
-      bonus_formatted: "50 000 Ar",
-    };
+    console.warn("API offline or error loading scorecard", e);
+    return null;
   }
 }
 
