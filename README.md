@@ -8,14 +8,15 @@ Système de Gestion du Transport et de la Logistique du Dernier Kilomètre (Urba
 
 1. [Architecture & Stack Technique](#-architecture--stack-technique)
 2. [Prérequis Système](#-prérequis-système)
-3. [Arborescence du Projet](#-arborescence-du-projet)
-4. [Étape 1 : Configuration de la Base de Données PostgreSQL](#-étape-1--configuration-de-la-base-de-données-postgresql)
-5. [Étape 2 : Installation & Lancement du Backend (FastAPI)](#-étape-2--installation--lancement-du-backend-fastapi)
-6. [Étape 3 : Installation & Lancement du Frontend (Next.js)](#-étape-3--installation--lancement-du-frontend-nextjs)
-7. [🔑 Identifiants & Comptes de Démonstration](#-identifiants--comptes-de-démonstration)
-8. [🌐 Points d'Accès & Documentation API](#-points-daccès--documentation-api)
-9. [🧪 Exécution des Suites de Tests](#-exécution-des-suites-de-tests)
-10. [🛠️ Commandes Utiles & Résolution de Problèmes](#-commandes-utiles--résolution-de-problèmes)
+3. [🚀 Lancement Rapide en 1 Clic (Windows)](#-lancement-rapide-en-1-clic-windows)
+4. [Arborescence du Projet](#-arborescence-du-projet)
+5. [Étape 1 : Configuration de la Base de Données PostgreSQL](#-étape-1--configuration-de-la-base-de-données-postgresql)
+6. [Étape 2 : Installation & Lancement du Backend (FastAPI)](#-étape-2--installation--lancement-du-backend-fastapi)
+7. [Étape 3 : Installation & Lancement du Frontend (Next.js)](#-étape-3--installation--lancement-du-frontend-nextjs)
+8. [🔑 Identifiants & Comptes de Démonstration](#-identifiants--comptes-de-démonstration)
+9. [🌐 Points d'Accès & Documentation API](#-points-daccès--documentation-api)
+10. [🧪 Exécution des Suites de Tests](#-exécution-des-suites-de-tests)
+11. [🛠️ Commandes Utiles & Résolution de Problèmes](#-commandes-utiles--résolution-de-problèmes)
 
 ---
 
@@ -52,6 +53,30 @@ Assurez-vous que les outils suivants sont installés sur votre machine :
 | **npm** | 9.0 ou supérieur | `npm --version` |
 | **PostgreSQL** | 14 ou supérieur | `psql --version` |
 | **Git** | 2.30 ou supérieur | `git --version` |
+
+---
+
+## 🚀 Lancement Rapide en 1 Clic (Windows)
+
+Un script batch automatisé est fourni à la racine pour démarrer la plateforme complète et ouvrir le navigateur dès que les services sont opérationnels :
+
+1. **Démarrer les serveurs et ouvrir le navigateur** :
+   Double-cliquez sur :
+   ```cmd
+   start.bat
+   ```
+   Ce script :
+   - Vérifie la présence du backend et des dépendances frontend.
+   - Lance le backend FastAPI (port 8000) et le frontend Next.js (port 3000) dans deux fenêtres distinctes.
+   - Attend la disponibilité effective des deux serveurs.
+   - Ouvre automatiquement **`http://localhost:3000`** dans votre navigateur par défaut.
+
+2. **Arrêter tous les serveurs proprement** :
+   Double-cliquez sur :
+   ```cmd
+   stop.bat
+   ```
+   Ce script libère instantanément les ports 8000 et 3000.
 
 ---
 
