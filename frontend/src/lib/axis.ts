@@ -240,7 +240,14 @@ export function detectAxisClient(address: string): {
     }
   }
 
-  // Real Urban Axes in Priority Order (Province destinations are entered manually)
+  // 1. Province Priority (Gares Routières, Coopératives et Villes Régionales)
+  for (const kw of PROVINCE_KEYWORDS) {
+    if (lower.includes(kw) || norm.includes(normalizeText(kw))) {
+      return { axis: "AXE_PROVINCE", isFallback: false, fee: 10000 };
+    }
+  }
+
+  // Real Urban Axes in Priority Order
   const realAxes: LogisticAxis[] = [
     "AXE_IVATO",
     "AXE_SABOTSY_NAMEHANA",

@@ -27,12 +27,14 @@ def login(dto: LoginRequestDTO, db: Session = Depends(get_db)):
             detail="Identifiants incorrects (nom d'utilisateur ou mot de passe invalide).",
         )
 
-    token = create_access_token({"sub": user.id, "role": user.role, "username": user.username})
+    token = create_access_token({"sub": user.id, "role": user.role, "username": user.username, "assigned_flux": user.assigned_flux})
     return TokenResponseDTO(
         access_token=token,
         role=user.role,
         username=user.username,
         nom_complet=user.nom_complet,
+        id=user.id,
+        assigned_flux=user.assigned_flux,
     )
 
 
@@ -44,5 +46,6 @@ def get_me(current_user: UserORM = Depends(get_current_user)):
         email=current_user.email,
         role=current_user.role,
         nom_complet=current_user.nom_complet,
+        assigned_flux=current_user.assigned_flux,
         actif=bool(current_user.actif),
     )

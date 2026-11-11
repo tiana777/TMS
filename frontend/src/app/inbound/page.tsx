@@ -23,6 +23,7 @@ import { fetchVendors, createParcelBatch, addZoneToAxis, fetchAxes, createAxis }
 import { OperatorBadge } from "../../components/OperatorBadge";
 import { AxisBadge } from "../../components/AxisBadge";
 import { FluxType, LogisticAxis, SenderType, Vendor } from "../../types";
+import { RECEPTIONIST_AGENTS, ReceptionistAgent, UserRole } from "../../components/HeaderUserRole";
 
 interface InboundRow {
   id: string;
@@ -78,6 +79,65 @@ export default function InboundPage() {
   const [modalSelectedFee, setModalSelectedFee] = useState<number>(3000);
   const [modalError, setModalError] = useState<string | null>(null);
   const [zoneSuccessMessage, setZoneSuccessMessage] = useState<string | null>(null);
+
+  // Receptionist Desk & Role State (5 Cloisonnés Flows)
+  const [currentUserRole, setCurrentUserRole] = useState<UserRole>("SUPERVISEUR");
+  const [activeReceptionist, setActiveReceptionist] = useState<ReceptionistAgent | null>(null);
+
+  useEffect(() => {
+    const syncRole = () => {
+      if (typeof window === "undefined") return;
+      const role = (localStorage.getItem("tms_user_role") as UserRole) || "SUPERVISEUR";
+      setCurrentUserRole(role);
+      const username = localStorage.getItem("tms_username");
+      if (role === "RECEPTIONNISTE" || username) {
+        const found = RECEPTIONIST_AGENTS.find((a) => a.username === username) || RECEPTIONIST_AGENTS[0];
+        setActiveReceptionist(found);
+      } else {
+        setActiveReceptionist(null);
+      }
+    };
+
+    syncRole();
+    window.addEventListener("tms_role_change", syncRole);
+    window.addEventListener("storage", syncRole);
+    return () => {
+      window.removeEventListener("tms_role_change", syncRole);
+      window.removeEventListener("storage", syncRole);
+    };
+  }, []);
+
+  const handleSelectGuichet = (agent: ReceptionistAgent) => {
+    setActiveReceptionist(agent);
+    setCurrentUserRole("RECEPTIONNISTE");
+    localStorage.setItem("tms_user_role", "RECEPTIONNISTE");
+    localStorage.setItem("tms_username", agent.username);
+    localStorage.setItem("tms_user_id", agent.id.toString());
+    localStorage.setItem("tms_user_nom", agent.nom);
+    localStorage.setItem("tms_assigned_flux", agent.flux);
+    window.dispatchEvent(new Event("tms_role_change"));
+
+    // Adapt empty row defaults to the newly selected receptionist flux
+    const isProv = agent.flux === "PROVINCE";
+    setRows((prev) =>
+      prev.map((r, i) => {
+        if (!r.recipientName && !r.deliveryAddress) {
+          return {
+            ...r,
+            fluxType: agent.flux as FluxType,
+            axis: isProv ? ("AXE_PROVINCE" as LogisticAxis) : r.axis,
+            deliveryFee: isProv ? 10000 : r.deliveryFee,
+            merchandiseAmount: agent.flux === "SIMPLE" ? 0 : r.merchandiseAmount,
+          };
+        }
+        return r;
+      })
+    );
+
+    if (agent.flux === "ENTREPRISE") {
+      setSenderType("ENTREPRISE");
+    }
+  };
 
   const handleOpenAddZoneModal = (rowIndex: number) => {
     setModalTargetRowIndex(rowIndex);
@@ -291,6 +351,8 @@ export default function InboundPage() {
   };
 
   const addRow = () => {
+    const currentFlux = activeReceptionist ? activeReceptionist.flux : "COD";
+    const isProv = currentFlux === "PROVINCE";
     setRows((prev) => [
       ...prev,
       {
@@ -298,13 +360,13 @@ export default function InboundPage() {
         recipientName: "",
         recipientPhone: "",
         designation: "",
-        deliveryAddress: "",
-        axis: "AXE_CENTRE_1",
-        isAxisFallback: true,
-        isManualAxis: false,
-        fluxType: "COD",
+        deliveryAddress: isProv ? "Gare Routière " : "",
+        axis: isProv ? ("AXE_PROVINCE" as LogisticAxis) : ("AXE_CENTRE_1" as LogisticAxis),
+        isAxisFallback: !isProv,
+        isManualAxis: isProv,
+        fluxType: currentFlux as FluxType,
         merchandiseAmount: 0,
-        deliveryFee: 3000,
+        deliveryFee: isProv ? 10000 : 3000,
         observation: "",
       },
     ]);
@@ -409,6 +471,15 @@ export default function InboundPage() {
 
     setIsSubmitting(true);
     try {
+      const activeUserId =
+        activeReceptionist?.id ||
+        (typeof window !== "undefined" && localStorage.getItem("tms_user_id")
+          ? Number(localStorage.getItem("tms_user_id"))
+          : undefined);
+      const activeUserNom =
+        activeReceptionist?.nom ||
+        (typeof window !== "undefined" ? localStorage.getItem("tms_user_nom") || undefined : undefined);
+
       const payload = rows.map((r) => ({
         vendor_id: selectedVendorId || 1,
         sender_type: senderType,
@@ -424,6 +495,8 @@ export default function InboundPage() {
         flux_type: r.fluxType,
         merchandise_amount: Number(r.merchandiseAmount) || 0,
         delivery_fee: Number(r.deliveryFee) || 0,
+        receptionniste_id: activeUserId,
+        receptionniste_nom: activeUserNom,
         observation: r.observation || undefined,
       }));
 
@@ -443,6 +516,77 @@ export default function InboundPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
+      {/* 5 Guichets Réceptionnistes (Flux Cloisonnés) */}
+      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-5 rounded-2xl shadow-lg border border-slate-700/60 space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur border border-white/20 flex items-center justify-center text-2xl shadow-inner">
+              {activeReceptionist ? activeReceptionist.icon : "📋"}
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-black uppercase tracking-wider text-blue-300">
+                  {activeReceptionist ? activeReceptionist.badge : "Guichet Inbound Général"}
+                </span>
+                {activeReceptionist && (
+                  <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-sm ${activeReceptionist.badgeBg} ${activeReceptionist.badgeText}`}>
+                    Flux Assigné : {activeReceptionist.flux}
+                  </span>
+                )}
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-2 py-0.5 rounded-full font-bold">
+                  ● Guichet Actif
+                </span>
+              </div>
+              <h1 className="text-lg font-black text-white mt-0.5">
+                {activeReceptionist
+                  ? `${activeReceptionist.nom} — ${activeReceptionist.fluxLabel}`
+                  : "Accueil Quai Central • Enregistrement Entrant"}
+              </h1>
+              <p className="text-xs text-slate-300">
+                {activeReceptionist?.flux === "COD" &&
+                  "Encaissement obligatoire contre-remboursement (COD) auprès des destinataires urbains Grand Tanà."}
+                {activeReceptionist?.flux === "SIMPLE" &&
+                  "Course simple et port payé d'avance : encaissement marchandise nul (0 Ar), seuls les frais s'appliquent."}
+                {activeReceptionist?.flux === "PROVINCE" &&
+                  "Acheminement régional national via les gares routières (Ambodivona, Fasan'ny Karana, Andohatapenaka)."}
+                {activeReceptionist?.flux === "RETOUR" &&
+                  "Gestion quai des retours clients, échanges de références, avaries et réexpéditions SAV."}
+                {activeReceptionist?.flux === "ENTREPRISE" &&
+                  "Prise en charge des flux réguliers d'entreprises, plis confidentiels, contrats et facturation périodique."}
+                {!activeReceptionist && "Sélectionnez votre guichet ci-dessous pour cloisonner le flux opérationnel."}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 self-start lg:self-auto">
+            <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+              Changer de Guichet :
+            </span>
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-1.5">
+              {RECEPTIONIST_AGENTS.map((agent) => {
+                const isSelected = activeReceptionist?.username === agent.username;
+                return (
+                  <button
+                    key={agent.username}
+                    type="button"
+                    data-cy={`guichet-tab-${agent.username}`}
+                    onClick={() => handleSelectGuichet(agent)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                      isSelected
+                        ? "bg-white text-slate-900 shadow-md ring-2 ring-blue-400 font-black scale-105"
+                        : "bg-white/10 hover:bg-white/20 text-slate-200 border border-white/10"
+                    }`}
+                  >
+                    <span>{agent.icon}</span>
+                    <span>{agent.badge}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Header & Title */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -1135,6 +1279,14 @@ export default function InboundPage() {
                     {p.total_to_collect_formatted}
                   </span>
                 </div>
+                {(p.receptionniste_nom || activeReceptionist) && (
+                  <div className="text-[10px] text-slate-500 font-semibold flex items-center justify-between pt-0.5">
+                    <span className="text-slate-400">Pris en charge par :</span>
+                    <span className="text-blue-700 font-bold">
+                      {p.receptionniste_nom || activeReceptionist?.nom}
+                    </span>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -1143,19 +1295,21 @@ export default function InboundPage() {
             <button
               onClick={() => {
                 setCreatedParcels(null);
+                const currentFlux = activeReceptionist ? activeReceptionist.flux : "COD";
+                const isProv = currentFlux === "PROVINCE";
                 setRows([
                   {
                     id: "row-1",
                     recipientName: "",
                     recipientPhone: "",
                     designation: "",
-                    deliveryAddress: "",
-                    axis: "AXE_CENTRE_1",
-                    isAxisFallback: true,
-                    isManualAxis: false,
-                    fluxType: "COD",
+                    deliveryAddress: isProv ? "Gare Routière " : "",
+                    axis: isProv ? ("AXE_PROVINCE" as LogisticAxis) : ("AXE_CENTRE_1" as LogisticAxis),
+                    isAxisFallback: !isProv,
+                    isManualAxis: isProv,
+                    fluxType: currentFlux as FluxType,
                     merchandiseAmount: 0,
-                    deliveryFee: 3000,
+                    deliveryFee: isProv ? 10000 : 3000,
                     observation: "",
                   },
                 ]);

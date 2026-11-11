@@ -32,7 +32,7 @@ def create_parcel(
 ):
     try:
         use_cases = ParcelUseCases(db)
-        return use_cases.create_parcel(dto)
+        return use_cases.create_parcel(dto, user_id=current_user.id, user_nom=current_user.nom_complet)
     except DomainException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -45,7 +45,7 @@ def create_batch_parcels(
 ):
     try:
         use_cases = ParcelUseCases(db)
-        return use_cases.create_batch(dto)
+        return use_cases.create_batch(dto, user_id=current_user.id, user_nom=current_user.nom_complet)
     except DomainException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -56,11 +56,20 @@ def list_parcels(
     axis: Optional[str] = None,
     date: Optional[str] = None,
     tour_id: Optional[int] = None,
+    flux_type: Optional[str] = None,
+    receptionniste_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: UserORM = Depends(get_current_user),
 ):
     use_cases = ParcelUseCases(db)
-    return use_cases.list_parcels(status=status, axis=axis, date_str=date, tour_id=tour_id)
+    return use_cases.list_parcels(
+        status=status,
+        axis=axis,
+        date_str=date,
+        tour_id=tour_id,
+        flux_type=flux_type,
+        receptionniste_id=receptionniste_id,
+    )
 
 
 @router.get("/{parcel_id}", response_model=ParcelResponseDTO)

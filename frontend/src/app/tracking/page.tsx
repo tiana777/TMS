@@ -47,6 +47,7 @@ import {
   isValidMalagasyPhone,
   MALAGASY_PHONE_REGEX,
 } from "../../lib/phone";
+import { RECEPTIONIST_AGENTS } from "../../components/HeaderUserRole";
 
 const DEFAULT_CANCEL_REASONS = [
   "Refus client : article non conforme",
@@ -107,6 +108,8 @@ interface Parcel {
   partner_reference?: string;
   driver_contact?: string;
   vehicle_plate?: string;
+  receptionniste_id?: number | null;
+  receptionniste_nom?: string | null;
   observation?: string;
 }
 
@@ -132,6 +135,8 @@ export default function TrackingPage() {
   const [couriers, setCouriers] = useState<Courier[]>([]);
   const [selectedTourId, setSelectedTourId] = useState<number | "ALL">("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [fluxFilter, setFluxFilter] = useState<string>("ALL");
+  const [receptionistFilter, setReceptionistFilter] = useState<number | "ALL">("ALL");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   const [parcels, setParcels] = useState<Parcel[]>([]);
@@ -150,6 +155,9 @@ export default function TrackingPage() {
 
   // Role & Reassignment states
   const [currentUserRole, setCurrentUserRole] = useState<string>("SUPERVISEUR");
+  const [activeUsername, setActiveUsername] = useState<string>("");
+  const [activeUserId, setActiveUserId] = useState<number | null>(null);
+  const [activeUserNom, setActiveUserNom] = useState<string>("");
   const [reassignTargetCourierId, setReassignTargetCourierId] = useState<number | "">("");
   const [reassignReason, setReassignReason] = useState<string>("Panne de moto du livreur initial");
 
@@ -157,6 +165,12 @@ export default function TrackingPage() {
     const updateRole = () => {
       const saved = localStorage.getItem("tms_user_role") || "SUPERVISEUR";
       setCurrentUserRole(saved);
+      const username = localStorage.getItem("tms_username") || "";
+      setActiveUsername(username);
+      const uid = localStorage.getItem("tms_user_id");
+      setActiveUserId(uid ? Number(uid) : null);
+      const unom = localStorage.getItem("tms_user_nom") || "";
+      setActiveUserNom(unom);
     };
     updateRole();
     window.addEventListener("tms_role_change", updateRole);
@@ -350,6 +364,14 @@ export default function TrackingPage() {
       if (statusFilter !== "ALL") {
         if (!matchesStatusFilter(p.status, statusFilter)) return false;
       }
+      // Flux filter
+      if (fluxFilter !== "ALL") {
+        if ((p.flux_type || "COD") !== fluxFilter) return false;
+      }
+      // Receptionist filter
+      if (receptionistFilter !== "ALL") {
+        if (p.receptionniste_id !== receptionistFilter) return false;
+      }
       // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -364,7 +386,7 @@ export default function TrackingPage() {
       }
       return true;
     });
-  }, [parcels, selectedTourId, statusFilter, searchQuery]);
+  }, [parcels, selectedTourId, statusFilter, searchQuery, fluxFilter, receptionistFilter]);
 
   // Scoped parcels for currently selected tour / courier (used to compute dynamic tab counts)
   const scopedParcels = useMemo(() => {
@@ -918,6 +940,90 @@ export default function TrackingPage() {
         </div>
       </div>
 
+      {/* Guichets Réceptionnistes & Flux Filter Bar */}
+      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 shadow-2xs flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 shrink-0">
+            <User className="w-3.5 h-3.5 text-blue-600" /> Guichet Inbound :
+          </span>
+          <select
+            data-cy="receptionist-filter"
+            value={receptionistFilter}
+            onChange={(e) =>
+              setReceptionistFilter(e.target.value === "ALL" ? "ALL" : Number(e.target.value))
+            }
+            className="bg-white border border-slate-300 text-slate-800 text-xs font-semibold rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs cursor-pointer"
+          >
+            <option value="ALL">🌐 Tous les Guichets (5 agents)</option>
+            {RECEPTIONIST_AGENTS.map((agent) => (
+              <option key={agent.id} value={agent.id}>
+                {agent.badge} — {agent.nom} ({agent.flux})
+              </option>
+            ))}
+          </select>
+
+          {/* Quick "My Parcels" button for Receptionists */}
+          {activeUserId && (
+            <button
+              type="button"
+              data-cy="filter-my-parcels"
+              onClick={() => {
+                if (receptionistFilter === activeUserId) {
+                  setReceptionistFilter("ALL");
+                } else {
+                  setReceptionistFilter(activeUserId);
+                }
+              }}
+              className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                receptionistFilter === activeUserId
+                  ? "bg-blue-600 text-white shadow-xs"
+                  : "bg-white text-blue-700 hover:bg-blue-50 border border-blue-200"
+              }`}
+            >
+              <span>🎯</span>
+              <span>
+                {receptionistFilter === activeUserId
+                  ? `Filtre actif : ${activeUserNom}`
+                  : `Mes Réceptions (${activeUserNom || "Mon Guichet"})`}
+              </span>
+            </button>
+          )}
+        </div>
+
+        {/* Flux Type Pill Filter */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">
+            Flux :
+          </span>
+          {[
+            { id: "ALL", label: "Tous Flux" },
+            { id: "COD", label: "COD Urbain", icon: "📦" },
+            { id: "SIMPLE", label: "Port Payé", icon: "✉️" },
+            { id: "PROVINCE", label: "Province", icon: "🚌" },
+            { id: "RETOUR", label: "Retours SAV", icon: "🔄" },
+            { id: "ENTREPRISE", label: "B2B", icon: "🏢" },
+          ].map((flx) => {
+            const isFlxActive = fluxFilter === flx.id;
+            return (
+              <button
+                key={flx.id}
+                type="button"
+                data-cy={`flux-tab-${flx.id.toLowerCase()}`}
+                onClick={() => setFluxFilter(flx.id)}
+                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all flex items-center gap-1 ${
+                  isFlxActive
+                    ? "bg-slate-900 text-white shadow-xs font-extrabold"
+                    : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
+                }`}
+              >
+                {flx.icon && <span>{flx.icon}</span>}
+                <span>{flx.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Filter and Search Bar */}
       <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
         {/* Status Tabs with Dynamic Parcel Counts (reactive to selected courier) */}
@@ -1073,6 +1179,16 @@ export default function TrackingPage() {
                         <span className="px-2 py-0.5 text-[11px] font-medium rounded bg-slate-50 text-slate-600 border border-slate-200 inline-flex items-center gap-1">
                           <User className="w-3 h-3 text-slate-400" />
                           Livreur #{parcel.courier_id}
+                        </span>
+                      )}
+                      {parcel.receptionniste_nom && (
+                        <span
+                          data-cy={`receptionist-badge-${parcel.id}`}
+                          className="px-2 py-0.5 text-[11px] font-bold rounded bg-blue-50 text-blue-800 border border-blue-200 inline-flex items-center gap-1"
+                          title="Guichet réceptionniste ayant enregistré ce colis à l'Inbound"
+                        >
+                          <User className="w-3 h-3 text-blue-600" />
+                          Guichet : {parcel.receptionniste_nom}
                         </span>
                       )}
                     </div>

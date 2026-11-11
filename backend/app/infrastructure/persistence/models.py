@@ -29,6 +29,7 @@ class UserORM(Base):
     )
     nom_complet = Column(String(100), nullable=False)
     mot_de_passe_hash = Column(String(255), nullable=False)
+    assigned_flux = Column(String(30), nullable=True)
     actif = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
@@ -201,6 +202,8 @@ class ParcelORM(Base):
         default="NON_REVERSE",
         nullable=False,
     )
+    receptionniste_id = Column(Integer, ForeignKey("utilisateurs.id"), nullable=True, index=True)
+    receptionniste_nom = Column(String(100), nullable=True)
     actif = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -208,6 +211,7 @@ class ParcelORM(Base):
     vendeur = relationship("VendorORM", back_populates="colis")
     tournee = relationship("TourORM", back_populates="colis")
     reversement = relationship("VendorPayoutORM", back_populates="colis")
+    receptionniste = relationship("UserORM", foreign_keys=[receptionniste_id])
     historique_statuts = relationship("ParcelStatusHistoryORM", back_populates="colis", cascade="all, delete-orphan")
     encaissements = relationship("CashCollectionORM", back_populates="colis", cascade="all, delete-orphan")
 

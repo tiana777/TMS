@@ -21,6 +21,8 @@ class CreateParcelDTO(BaseModel):
     reception_date: Optional[str] = None  # YYYY-MM-DD
     axis: Optional[str] = None  # If None, auto-detected!
     is_manual_axis: bool = False
+    receptionniste_id: Optional[int] = None
+    receptionniste_nom: Optional[str] = None
     observation: Optional[str] = None
 
 
@@ -114,5 +116,7 @@ class ParcelResponseDTO(BaseModel):
     vehicle_plate: Optional[str] = None
     remittance_id: Optional[int] = None
     remittance_status: str = "NON_REVERSE"
+    receptionniste_id: Optional[int] = None
+    receptionniste_nom: Optional[str] = None
     observation: Optional[str] = None
     active: bool

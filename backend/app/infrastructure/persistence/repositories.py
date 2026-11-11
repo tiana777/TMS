@@ -49,7 +49,7 @@ class PostgresParcelRepository(IParcelRepository):
             designation=orm.designation,
             axis=LogisticAxis(orm.axe),
             is_manual_axis=bool(orm.axe_modifie_manuellement) if getattr(orm, "axe_modifie_manuellement", None) else False,
-            flux_type=FluxType(orm.type_flux),
+            flux_type=FluxType(orm.type_flux) if orm.type_flux in [f.value for f in FluxType] else FluxType.COD,
             merchandise_amount=Money(orm.montant_marchandise),
             delivery_fee=Money(orm.frais_livraison),
             partner_fee=Money(orm.frais_partenaire),
@@ -67,6 +67,8 @@ class PostgresParcelRepository(IParcelRepository):
             vehicle_plate=orm.vehicle_plate,
             remittance_id=orm.reversement_id,
             remittance_status=orm.statut_reversement if getattr(orm, "statut_reversement", None) else "NON_REVERSE",
+            receptionniste_id=getattr(orm, "receptionniste_id", None),
+            receptionniste_nom=getattr(orm, "receptionniste_nom", None),
             observation=orm.observation,
             active=bool(orm.actif),
             created_at=orm.created_at,
@@ -108,6 +110,8 @@ class PostgresParcelRepository(IParcelRepository):
             vehicle_plate=domain.vehicle_plate,
             reversement_id=domain.remittance_id,
             statut_reversement=domain.remittance_status,
+            receptionniste_id=domain.receptionniste_id,
+            receptionniste_nom=domain.receptionniste_nom,
             actif=1 if domain.active else 0,
         )
 
@@ -147,6 +151,10 @@ class PostgresParcelRepository(IParcelRepository):
                 orm.vehicle_plate = parcel.vehicle_plate
                 orm.reversement_id = parcel.remittance_id
                 orm.statut_reversement = parcel.remittance_status
+                if parcel.receptionniste_id is not None:
+                    orm.receptionniste_id = parcel.receptionniste_id
+                if parcel.receptionniste_nom is not None:
+                    orm.receptionniste_nom = parcel.receptionniste_nom
                 orm.actif = 1 if parcel.active else 0
                 orm.updated_at = datetime.utcnow()
                 self.session.commit()

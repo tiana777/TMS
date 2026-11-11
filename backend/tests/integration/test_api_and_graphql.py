@@ -1194,4 +1194,88 @@ class TestRESTandGraphQLAPI:
         dup_res = client.post("/api/v1/payouts", json=payout_payload, headers=headers)
         assert dup_res.status_code == 400
 
+    def test_5_receptionist_agents_flow_separation(self):
+        """Verify the 5 distinct receptionist profiles with separated operational flows."""
+        expected_agents = [
+            ("recep_cod", "COD", "Aina (Guichet 1 - COD Urbain)"),
+            ("recep_simple", "SIMPLE", "Faly (Guichet 2 - Port Payé)"),
+            ("recep_province", "PROVINCE", "Hery (Guichet 3 - Province & Gares)"),
+            ("recep_retour", "RETOUR", "Voahirana (Guichet 4 - SAV & Retours)"),
+            ("recep_b2b", "ENTREPRISE", "Mamy (Guichet 5 - Entreprises & B2B)"),
+        ]
+
+        agent_tokens = {}
+        for username, assigned_flux, nom in expected_agents:
+            res = client.post(
+                "/api/v1/auth/login",
+                json={"username": username, "password": "recep123"},
+            )
+            assert res.status_code == 200, f"Login failed for {username}"
+            data = res.json()
+            assert data["role"] == "RECEPTIONNISTE"
+            assert data["assigned_flux"] == assigned_flux
+            assert data["nom_complet"] == nom
+            assert data["id"] is not None
+            agent_tokens[username] = (data["access_token"], data["id"], data["nom_complet"])
+
+        # Agent 1 (COD) creates a parcel
+        token_cod, id_cod, nom_cod = agent_tokens["recep_cod"]
+        res_cod = client.post(
+            "/api/v1/parcels",
+            json={
+                "vendor_id": 1,
+                "recipient_name": "Client COD Aina",
+                "recipient_phone": "0341122334",
+                "delivery_address": "Analakely",
+                "flux_type": "COD",
+                "merchandise_amount": 50000,
+                "delivery_fee": 3000,
+            },
+            headers={"Authorization": f"Bearer {token_cod}"},
+        )
+        assert res_cod.status_code == 201
+        p_cod = res_cod.json()
+        assert p_cod["receptionniste_id"] == id_cod
+        assert p_cod["receptionniste_nom"] == nom_cod
+        assert p_cod["flux_type"] == "COD"
+
+        # Agent 3 (Province) creates a parcel
+        token_prov, id_prov, nom_prov = agent_tokens["recep_province"]
+        res_prov = client.post(
+            "/api/v1/parcels",
+            json={
+                "vendor_id": 1,
+                "recipient_name": "Client Province Hery",
+                "recipient_phone": "0324455667",
+                "delivery_address": "Gare Ambodivona vers Majunga",
+                "flux_type": "PROVINCE",
+                "merchandise_amount": 100000,
+                "delivery_fee": 10000,
+            },
+            headers={"Authorization": f"Bearer {token_prov}"},
+        )
+        assert res_prov.status_code == 201
+        p_prov = res_prov.json()
+        assert p_prov["receptionniste_id"] == id_prov
+        assert p_prov["receptionniste_nom"] == nom_prov
+        assert p_prov["flux_type"] == "PROVINCE"
+
+        # Check separated filtering by receptionist ID and flux
+        list_cod = client.get(
+            f"/api/v1/parcels?receptionniste_id={id_cod}",
+            headers={"Authorization": f"Bearer {token_cod}"},
+        ).json()
+        cod_ids = [p["id"] for p in list_cod]
+        assert p_cod["id"] in cod_ids
+        assert p_prov["id"] not in cod_ids  # Isolated work queue!
+
+        list_prov = client.get(
+            f"/api/v1/parcels?receptionniste_id={id_prov}",
+            headers={"Authorization": f"Bearer {token_prov}"},
+        ).json()
+        prov_ids = [p["id"] for p in list_prov]
+        assert p_prov["id"] in prov_ids
+        assert p_cod["id"] not in prov_ids  # Isolated work queue!
+
+
 

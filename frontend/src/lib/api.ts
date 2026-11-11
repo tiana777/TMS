@@ -182,6 +182,8 @@ export async function fetchParcels(filters?: {
   axis?: string;
   date?: string;
   tour_id?: number;
+  flux_type?: string;
+  receptionniste_id?: number;
 }) {
   try {
     const params = new URLSearchParams();
@@ -189,6 +191,8 @@ export async function fetchParcels(filters?: {
     if (filters?.axis) params.append("axis", filters.axis);
     if (filters?.date) params.append("date", filters.date);
     if (filters?.tour_id !== undefined) params.append("tour_id", filters.tour_id.toString());
+    if (filters?.flux_type) params.append("flux_type", filters.flux_type);
+    if (filters?.receptionniste_id !== undefined) params.append("receptionniste_id", filters.receptionniste_id.toString());
 
     const url = `${API_BASE_URL}/parcels${params.toString() ? `?${params.toString()}` : ""}`;
     const res = await fetch(url);

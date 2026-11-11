@@ -78,11 +78,18 @@ class ParcelUseCases:
             vehicle_plate=p.vehicle_plate,
             remittance_id=p.remittance_id,
             remittance_status=p.remittance_status,
+            receptionniste_id=p.receptionniste_id,
+            receptionniste_nom=p.receptionniste_nom,
             observation=p.observation,
             active=p.active,
         )
 
-    def create_parcel(self, dto: CreateParcelDTO) -> ParcelResponseDTO:
+    def create_parcel(
+        self,
+        dto: CreateParcelDTO,
+        user_id: Optional[int] = None,
+        user_nom: Optional[str] = None,
+    ) -> ParcelResponseDTO:
         # 1. Phone validation & parsing
         phone = PhoneNumber(dto.recipient_phone)
 
@@ -142,6 +149,9 @@ class ParcelUseCases:
             else AxisAutoDetector.detect_fee(dto.delivery_address)
         )
 
+        rec_id = dto.receptionniste_id if dto.receptionniste_id is not None else user_id
+        rec_nom = dto.receptionniste_nom if dto.receptionniste_nom is not None else user_nom
+
         parcel = Parcel(
             tracking_number=tracking_number,
             reception_date=reception_date,
@@ -156,17 +166,24 @@ class ParcelUseCases:
             designation=dto.designation,
             axis=axis,
             is_manual_axis=is_manual_axis,
-            flux_type=FluxType(dto.flux_type),
+            flux_type=FluxType(dto.flux_type) if dto.flux_type in [f.value for f in FluxType] else FluxType.COD,
             merchandise_amount=Money(dto.merchandise_amount),
             delivery_fee=Money(final_fee),
+            receptionniste_id=rec_id,
+            receptionniste_nom=rec_nom,
             observation=dto.observation,
         )
 
         saved = self.repo.save(parcel)
         return self._to_response_dto(saved)
 
-    def create_batch(self, dto: CreateBatchParcelDTO) -> List[ParcelResponseDTO]:
-        return [self.create_parcel(item) for item in dto.parcels]
+    def create_batch(
+        self,
+        dto: CreateBatchParcelDTO,
+        user_id: Optional[int] = None,
+        user_nom: Optional[str] = None,
+    ) -> List[ParcelResponseDTO]:
+        return [self.create_parcel(item, user_id=user_id, user_nom=user_nom) for item in dto.parcels]
 
     def update_status(
         self,
@@ -349,6 +366,8 @@ class ParcelUseCases:
         axis: Optional[str] = None,
         date_str: Optional[str] = None,
         tour_id: Optional[int] = None,
+        flux_type: Optional[str] = None,
+        receptionniste_id: Optional[int] = None,
     ) -> List[ParcelResponseDTO]:
         q = self.db.query(ParcelORM).filter(ParcelORM.actif == 1)
         if status:
@@ -359,6 +378,10 @@ class ParcelUseCases:
             q = q.filter(ParcelORM.date_reception == date_str)
         if tour_id is not None:
             q = q.filter(ParcelORM.tournee_id == tour_id)
+        if flux_type:
+            q = q.filter(ParcelORM.type_flux == flux_type)
+        if receptionniste_id is not None:
+            q = q.filter(ParcelORM.receptionniste_id == receptionniste_id)
 
         orms = q.order_by(ParcelORM.id.desc()).all()
         parcels = [self.repo._to_domain(o) for o in orms]

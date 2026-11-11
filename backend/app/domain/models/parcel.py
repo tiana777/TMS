@@ -18,11 +18,12 @@ from backend.app.domain.value_objects.phone_number import PhoneNumber
 
 
 class FluxType(str, Enum):
-    """The 4 business logistic flows from CDC section 4."""
+    """The 5 business logistic flows from CDC."""
     COD = "COD"            # Cash On Delivery: Merchandise + Delivery Fee
     SIMPLE = "SIMPLE"      # Port Payé: Delivery fee only (or 0)
     RETOUR = "RETOUR"      # Reverse logistics / SAV
     PROVINCE = "PROVINCE"  # Regional freight via cooperative
+    ENTREPRISE = "ENTREPRISE"  # Flux Entreprises & B2B (grands comptes, facturation périodique)
 
 
 @dataclass
@@ -60,6 +61,8 @@ class Parcel:
     vehicle_plate: Optional[str] = None
     remittance_id: Optional[int] = None
     remittance_status: str = "NON_REVERSE"
+    receptionniste_id: Optional[int] = None
+    receptionniste_nom: Optional[str] = None
     observation: Optional[str] = None
     active: bool = True
     created_at: Optional[datetime] = None

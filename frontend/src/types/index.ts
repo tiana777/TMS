@@ -83,6 +83,8 @@ export interface Parcel {
   vehicle_plate?: string | null;
   remittance_id?: number | null;
   remittance_status?: string;
+  receptionniste_id?: number | null;
+  receptionniste_nom?: string | null;
   observation?: string | null;
   active: boolean;
 }

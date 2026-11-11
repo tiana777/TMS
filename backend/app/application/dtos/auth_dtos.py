@@ -15,6 +15,8 @@ class TokenResponseDTO(BaseModel):
     role: str
     username: str
     nom_complet: str
+    id: Optional[int] = None
+    assigned_flux: Optional[str] = None
 
 
 class UserResponseDTO(BaseModel):
@@ -23,4 +25,5 @@ class UserResponseDTO(BaseModel):
     email: str
     role: str
     nom_complet: str
+    assigned_flux: Optional[str] = None
     actif: bool
