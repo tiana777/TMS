@@ -1,5 +1,28 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+  role: string;
+  username: string;
+  nom_complet: string;
+  id: number;
+  assigned_flux?: string | null;
+}
+
+export async function loginApi(username: string, password: string): Promise<LoginResponse> {
+  const res = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || "Identifiants incorrects (login ou mot de passe invalide).");
+  }
+  return await res.json();
+}
+
 export async function fetchVendors(typeExpediteur?: string) {
   try {
     const url = typeExpediteur

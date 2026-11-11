@@ -20,17 +20,17 @@ import {
 
 const navigation = [
   { name: "Tableau de Bord", href: "/", icon: LayoutDashboard },
-  { name: "01. Réception Inbound", href: "/inbound", icon: PackagePlus },
-  { name: "02. Import Fichiers", href: "/import", icon: FileSpreadsheet },
-  { name: "03A. Dispatch Ville (Urbain)", href: "/dispatch", icon: Truck },
-  { name: "03B. Dispatch Province (Gares)", href: "/dispatch/province", icon: MapPin },
-  { name: "04. Flotte & Livreurs", href: "/couriers", icon: Bike },
-  { name: "05. Pointage Terrain", href: "/tracking", icon: CheckCircle2 },
-  { name: "07. Caisse & Clôture", href: "/cash", icon: Wallet },
-  { name: "09. CRM Expéditeurs", href: "/crm", icon: Users },
-  { name: "10. Référentiel Logistique", href: "/referentiel", icon: Settings },
-  { name: "11. Scorecards Livreurs", href: "/scorecards", icon: Award },
-  { name: "12. Litiges & Dettes", href: "/disputes", icon: AlertTriangle },
+  { name: "Réception Quai & Inbound", href: "/inbound", icon: PackagePlus },
+  { name: "Importation Fichiers", href: "/import", icon: FileSpreadsheet },
+  { name: "Dispatching Urbain", href: "/dispatch", icon: Truck },
+  { name: "Expéditions Province", href: "/dispatch/province", icon: MapPin },
+  { name: "Flotte & Livreurs", href: "/couriers", icon: Bike },
+  { name: "Pointage Terrain", href: "/tracking", icon: CheckCircle2 },
+  { name: "Caisse & Rapprochements", href: "/cash", icon: Wallet },
+  { name: "Gestion Expéditeurs", href: "/crm", icon: Users },
+  { name: "Référentiel Logistique", href: "/referentiel", icon: Settings },
+  { name: "Performance Flotte", href: "/scorecards", icon: Award },
+  { name: "Litiges & Recouvrement", href: "/disputes", icon: AlertTriangle },
 ];
 
 export const Sidebar: React.FC = () => {
@@ -52,7 +52,7 @@ export const Sidebar: React.FC = () => {
 
       <nav className="flex-1 px-2.5 py-3 space-y-0.5 overflow-y-auto">
         <p className="px-2.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-          Modules Opérationnels
+          Modules d&apos;Exploitation
         </p>
         {navigation.map((item) => {
           const isActive = pathname === item.href;
