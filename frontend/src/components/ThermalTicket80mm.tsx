@@ -146,6 +146,13 @@ export const ThermalTicket80mm: React.FC<ThermalTicket80mmProps> = ({ tour, onCl
                     </div>
                   )}
 
+                  {p.observation && (
+                    <div className="text-[9px] font-black border border-black p-0.5 mt-0.5 bg-gray-50 uppercase">
+                      <span>CONSIGNE / PLAGE : </span>
+                      <span>{p.observation}</span>
+                    </div>
+                  )}
+
                   <div className="flex justify-between items-center pt-1 font-bold text-[11px] bg-gray-100 p-0.5 rounded">
                     <span>A ENCAISSER :</span>
                     <span className="text-black font-black">

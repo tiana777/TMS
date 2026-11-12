@@ -1064,10 +1064,30 @@ export default function DispatchPage() {
                               </button>
                             </div>
                           </td>
-                          <td className="py-2.5 px-3 max-w-[180px]">
-                            <div className="text-slate-600 truncate text-xs" title={p.designation || "-"}>
+                          <td className="py-2.5 px-3 max-w-[200px]">
+                            <div className="text-slate-700 truncate text-xs font-medium" title={p.designation || "-"}>
                               {p.designation || <span className="text-slate-400 italic">-</span>}
                             </div>
+                            {p.observation && (
+                              <div className="mt-1">
+                                {p.observation.toUpperCase().includes("URGENT") ? (
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-extrabold text-rose-800 bg-rose-100 px-1.5 py-0.5 rounded border border-rose-300 animate-pulse">
+                                    ⚡ {p.observation}
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-blue-800 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200" title={p.observation}>
+                                    ⏰ {p.observation}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {p.reschedule_date && (
+                              <div className="mt-1">
+                                <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                  🗓️ Planifié : {p.reschedule_date}
+                                </span>
+                              </div>
+                            )}
                           </td>
                           <td className="py-2.5 px-3">
                             <span

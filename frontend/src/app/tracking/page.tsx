@@ -1280,8 +1280,17 @@ export default function TrackingPage() {
                   </div>
 
                   {/* Operational Event Alerts / Notes if any */}
-                  {(parcel.reschedule_date || (parcel.status === "ANNULE_RETOUR" && parcel.incident_reason) || parcel.status === "SOUS_TRAITE" || parcel.payment_method || (parcel.observation && parcel.observation.includes("Marchandise payée"))) && (
+                  {(parcel.reschedule_date || (parcel.status === "ANNULE_RETOUR" && parcel.incident_reason) || parcel.status === "SOUS_TRAITE" || parcel.payment_method || parcel.observation) && (
                     <div className="flex flex-wrap gap-1.5 pt-1 text-xs">
+                      {parcel.observation && (
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border font-semibold text-[11px] ${
+                          parcel.observation.toUpperCase().includes("URGENT")
+                            ? "bg-rose-50 text-rose-800 border-rose-300 font-extrabold animate-pulse"
+                            : "bg-blue-50 text-blue-800 border-blue-200"
+                        }`}>
+                          {parcel.observation.toUpperCase().includes("URGENT") ? "⚡" : "⏰"} Consigne / Plage : {parcel.observation}
+                        </span>
+                      )}
                       {parcel.reschedule_date && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 font-semibold text-[11px]">
                           🗓️ Reporté au {parcel.reschedule_date} • Motif : {parcel.incident_reason}
@@ -1302,11 +1311,6 @@ export default function TrackingPage() {
                       {parcel.payment_method && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold text-[11px]">
                           ✓ Encaissé via {parcel.payment_method}
-                        </span>
-                      )}
-                      {parcel.observation && parcel.observation.includes("Marchandise payée") && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 font-semibold text-[11px]">
-                          ✓ Marchandise déjà réglée au siège
                         </span>
                       )}
                     </div>

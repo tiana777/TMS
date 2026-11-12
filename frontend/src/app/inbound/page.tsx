@@ -1214,6 +1214,46 @@ export default function InboundPage() {
                       placeholder="Indiquez impérativement la plage horaire ou consigne spéciale pour le livreur..."
                       className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none bg-slate-50/50"
                     />
+
+                    {/* Quick tags for easy one-click input */}
+                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                      <span className="text-[10px] text-slate-400 font-semibold uppercase">Raccourcis :</span>
+                      <button
+                        type="button"
+                        onClick={() => updateRow(idx, "observation", "⚡ URGENT - Livraison immédiate")}
+                        className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition cursor-pointer"
+                      >
+                        ⚡ URGENT
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateRow(idx, "observation", "Matin (08h - 12h)")}
+                        className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition cursor-pointer"
+                      >
+                        ⏰ Matin (8h-12h)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateRow(idx, "observation", "Après-midi (13h - 17h)")}
+                        className="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition cursor-pointer"
+                      >
+                        ⏰ Après-midi (13h-17h)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateRow(idx, "observation", "📞 Appeler 15 min avant d'arriver")}
+                        className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition cursor-pointer"
+                      >
+                        📞 Appeler avant
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateRow(idx, "observation", "📅 Livraison planifiée pour demain")}
+                        className="px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition cursor-pointer"
+                      >
+                        📅 Planifié Demain
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
