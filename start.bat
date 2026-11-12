@@ -8,9 +8,10 @@ echo ===========================================================================
 echo.
 
 set "ROOT_DIR=%~dp0"
+if "%ROOT_DIR:~-1%"=="\" set "ROOT_DIR=%ROOT_DIR:~0,-1%"
 cd /d "%ROOT_DIR%"
 
-:: 1. Vérification de l'environnement virtuel Python
+REM 1. Vérification de l'environnement virtuel Python
 if not exist "backend\.venv\Scripts\uvicorn.exe" (
     echo [ERREUR] L'environnement virtuel 'backend\.venv' est introuvable.
     echo.
@@ -24,34 +25,32 @@ if not exist "backend\.venv\Scripts\uvicorn.exe" (
     exit /b 1
 )
 
-:: 2. Vérification du fichier .env pour le backend (création par défaut si absent)
+REM 2. Vérification du fichier .env pour le backend (création par défaut si absent)
 if not exist "backend\.env" (
     echo [INFO] Creation du fichier backend\.env par defaut...
-    (
-        echo DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/tms_express_db
-        echo SECRET_KEY=super-secret-tms-express-key-2026
-        echo TIMEZONE=Indian/Antananarivo
-        echo CURRENCY=MGA
-    ) > "backend\.env"
+    > "backend\.env" echo DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/tms_express_db
+    >> "backend\.env" echo SECRET_KEY=super-secret-tms-express-key-2026
+    >> "backend\.env" echo TIMEZONE=Indian/Antananarivo
+    >> "backend\.env" echo CURRENCY=MGA
 )
 
-:: 3. Vérification des dépendances frontend
+REM 3. Vérification des dépendances frontend
 if not exist "frontend\node_modules" (
     echo [INFO] Premier lancement detecte : installation des dependances frontend (npm install)...
-    cd /d "%ROOT_DIR%frontend"
+    cd /d "%ROOT_DIR%\frontend"
     call npm install
     cd /d "%ROOT_DIR%"
 )
 
-:: 4. Lancement du Backend (FastAPI sur le port 8000)
+REM 4. Lancement du Backend (FastAPI sur le port 8000)
 echo [1/3] Lancement du Backend FastAPI sur le port 8000...
-start "TMS EXPRESS - Backend (FastAPI :8000)" cmd /k "title TMS EXPRESS - Backend (Port 8000) && cd /d ""%ROOT_DIR%"" && set PYTHONPATH=. && call backend\.venv\Scripts\activate.bat && uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload"
+start "TMS EXPRESS - Backend (FastAPI :8000)" cmd /k "title TMS EXPRESS - Backend (Port 8000) && cd /d "%ROOT_DIR%" && set PYTHONPATH=. && call backend\.venv\Scripts\activate.bat && uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload"
 
-:: 5. Lancement du Frontend (Next.js sur le port 3000)
+REM 5. Lancement du Frontend (Next.js sur le port 3000)
 echo [2/3] Lancement du Frontend Next.js sur le port 3000...
-start "TMS EXPRESS - Frontend (Next.js :3000)" cmd /k "title TMS EXPRESS - Frontend (Port 3000) && cd /d ""%ROOT_DIR%frontend"" && npm run dev"
+start "TMS EXPRESS - Frontend (Next.js :3000)" cmd /k "title TMS EXPRESS - Frontend (Port 3000) && cd /d "%ROOT_DIR%\frontend" && npm run dev"
 
-:: 6. Attente de la disponibilité des deux serveurs
+REM 6. Attente de la disponibilité des deux serveurs
 echo [3/3] En attente de la disponibilite des services (Backend & Frontend)...
 echo.
 
