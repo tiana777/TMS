@@ -267,6 +267,11 @@ export default function TrackingPage() {
   const [isCreatingCancelReason, setIsCreatingCancelReason] = useState<boolean>(false);
   const [newCancelReasonInput, setNewCancelReasonInput] = useState<string>("");
 
+  // Partial delivery & return states (ex: client prend 2 chaussures au lieu de 3)
+  const [isPartialDelivery, setIsPartialDelivery] = useState<boolean>(false);
+  const [partialMerchandiseAmount, setPartialMerchandiseAmount] = useState<number>(0);
+  const [partialReturnNotes, setPartialReturnNotes] = useState<string>("");
+
   // Phone verification & live correction states (CDC 7.1)
   const [testPhoneInput, setTestPhoneInput] = useState<string>("");
   const [isUpdatingPhone, setIsUpdatingPhone] = useState<boolean>(false);
@@ -494,6 +499,9 @@ export default function TrackingPage() {
     setIsCreatingRescheduleReason(false);
     setNewCancelReasonInput("");
     setNewRescheduleReasonInput("");
+    setIsPartialDelivery(false);
+    setPartialMerchandiseAmount(parcel.merchandise_amount || 0);
+    setPartialReturnNotes("");
   };
 
   // Dynamic Reason Creators & Managers (never hardcoded, persistent in localStorage)
@@ -651,6 +659,24 @@ export default function TrackingPage() {
       const payload: UpdateParcelStatusPayload = { status: "EN_COURS" };
 
       if (activeModal === "DELIVER") {
+        if (isPartialDelivery) {
+          if (partialMerchandiseAmount <= 0) {
+            throw new Error("Veuillez saisir le montant réel de la marchandise achetée.");
+          }
+          const returnNote = partialReturnNotes.trim()
+            ? `Vente partielle (${partialMerchandiseAmount.toLocaleString("fr-FR")} Ar) - Reste retourné : ${partialReturnNotes.trim()}`
+            : `Vente partielle (${partialMerchandiseAmount.toLocaleString("fr-FR")} Ar au lieu de ${targetParcel.merchandise_amount.toLocaleString("fr-FR")} Ar) - Articles non retenus retournés au Hub`;
+
+          const updatedObs = targetParcel.observation
+            ? `${targetParcel.observation} | ${returnNote}`
+            : returnNote;
+
+          await updateParcelContact(targetParcel.id, {
+            merchandise_amount: partialMerchandiseAmount,
+            observation: updatedObs,
+          });
+        }
+
         payload.status = targetParcel.status === "LIVRE" || targetParcel.status === "SOUS_TRAITE" ? "ENCAISSE" : "LIVRE_ENCAISSE";
         payload.payment_method = selectedPaymentMethod;
       } else if (activeModal === "MARK_DELIVERED") {
@@ -708,6 +734,18 @@ export default function TrackingPage() {
                 partner_reference: payload.partner_reference,
                 driver_contact: payload.driver_contact,
                 vehicle_plate: payload.vehicle_plate,
+                merchandise_amount:
+                  activeModal === "DELIVER" && isPartialDelivery
+                    ? partialMerchandiseAmount
+                    : p.merchandise_amount,
+                total_to_collect:
+                  activeModal === "DELIVER" && isPartialDelivery
+                    ? partialMerchandiseAmount + (p.delivery_fee || 0)
+                    : p.total_to_collect,
+                observation:
+                  activeModal === "DELIVER" && isPartialDelivery
+                    ? `${p.observation || ""} | Vente partielle (${partialMerchandiseAmount.toLocaleString("fr-FR")} Ar) - Reste retourné : ${partialReturnNotes.trim()}`
+                    : p.observation,
               }
             : p
         )
@@ -1740,15 +1778,85 @@ export default function TrackingPage() {
 
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-1 text-center">
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                Montant Total à Encaisser
+                Montant Total Réel à Encaisser
               </p>
               <p className="text-3xl font-black text-emerald-600">
-                {targetParcel.total_to_collect?.toLocaleString()} Ar
+                {isPartialDelivery
+                  ? (partialMerchandiseAmount + (targetParcel.delivery_fee || 0)).toLocaleString("fr-FR")
+                  : targetParcel.total_to_collect?.toLocaleString("fr-FR")}{" "}
+                Ar
               </p>
               <p className="text-[11px] text-slate-500">
-                (Marchandise COD : {targetParcel.merchandise_amount?.toLocaleString()} Ar +
-                Livraison : {targetParcel.delivery_fee?.toLocaleString()} Ar)
+                {isPartialDelivery
+                  ? `(Marchandise achetée : ${partialMerchandiseAmount.toLocaleString("fr-FR")} Ar + Frais livraison : ${targetParcel.delivery_fee?.toLocaleString("fr-FR")} Ar)`
+                  : `(Marchandise COD : ${targetParcel.merchandise_amount?.toLocaleString("fr-FR")} Ar + Livraison : ${targetParcel.delivery_fee?.toLocaleString("fr-FR")} Ar)`}
               </p>
+            </div>
+
+            {/* Toggle Vente Partielle & Retour d'Articles (ex: 2 chaussures gardées sur 3) */}
+            <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black text-blue-900 flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isPartialDelivery}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setIsPartialDelivery(checked);
+                      if (checked && partialMerchandiseAmount === 0) {
+                        setPartialMerchandiseAmount(targetParcel.merchandise_amount);
+                      }
+                    }}
+                    className="rounded text-blue-600 focus:ring-0 w-4 h-4 cursor-pointer"
+                  />
+                  <span>👟 Vente Partielle (ex: 2 articles gardés sur 3)</span>
+                </label>
+                {isPartialDelivery && (
+                  <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300">
+                    Reste retourné au Hub
+                  </span>
+                )}
+              </div>
+
+              {isPartialDelivery && (
+                <div className="pt-2.5 border-t border-blue-200/80 space-y-2.5 text-xs animate-in fade-in duration-150">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-800 block mb-1">
+                      Prix des articles réellement achetés (Marchandise Ar) *
+                    </label>
+                    <input
+                      type="number"
+                      value={partialMerchandiseAmount === 0 ? "" : partialMerchandiseAmount}
+                      onChange={(e) => setPartialMerchandiseAmount(Number(e.target.value) || 0)}
+                      placeholder={`Ex: 100000 (au lieu de ${targetParcel.merchandise_amount})`}
+                      className="w-full px-3 py-2 text-xs font-mono font-bold border border-blue-300 rounded-xl bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <div className="flex items-center justify-between text-[11px] text-slate-600 mt-1">
+                      <span>Marchandise : <strong>{partialMerchandiseAmount.toLocaleString("fr-FR")} Ar</strong></span>
+                      <span>+ Frais port : <strong>{targetParcel.delivery_fee?.toLocaleString("fr-FR")} Ar</strong></span>
+                      <span className="text-blue-900 font-black">
+                        = Total Perçu : {(partialMerchandiseAmount + (targetParcel.delivery_fee || 0)).toLocaleString("fr-FR")} Ar
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-800 block mb-1">
+                      Article(s) retourné(s) / Motif restitution Hub *
+                    </label>
+                    <input
+                      type="text"
+                      value={partialReturnNotes}
+                      onChange={(e) => setPartialReturnNotes(e.target.value)}
+                      placeholder="Ex: Pris 2 paires, retourné 1 paire pointure 39 non retenue"
+                      className="w-full px-3 py-2 text-xs border border-blue-300 rounded-xl bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-0.5 italic">
+                      ℹ️ Cette note figurera sur le relevé de l'expéditeur et les articles non pris seront déchargés au Hub le soir pour restitution.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">

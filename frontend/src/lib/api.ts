@@ -388,7 +388,15 @@ export async function updateParcelStatus(parcelId: number, payload: UpdateParcel
 
 export async function updateParcelContact(
   parcelId: number,
-  payload: { recipient_phone?: string; recipient_name?: string; delivery_address?: string }
+  payload: {
+    recipient_phone?: string;
+    recipient_name?: string;
+    delivery_address?: string;
+    designation?: string;
+    observation?: string;
+    merchandise_amount?: number;
+    delivery_fee?: number;
+  }
 ) {
   const headers = getAuthHeaders();
 
