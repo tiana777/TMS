@@ -50,7 +50,7 @@ def get_tour_detail(
 def start_tour(
     tour_id: int,
     db: Session = Depends(get_db),
-    current_user: UserORM = Depends(require_roles(["SUPERVISEUR", "SUPER_ADMIN"])),
+    current_user: UserORM = Depends(require_roles(["RECEPTIONNISTE", "SUPERVISEUR", "SUPER_ADMIN"])),
 ):
     try:
         use_cases = TourUseCases(db)
@@ -64,7 +64,7 @@ def unassign_parcel_from_tour(
     tour_id: int,
     parcel_id: int,
     db: Session = Depends(get_db),
-    current_user: UserORM = Depends(require_roles(["SUPERVISEUR", "SUPER_ADMIN"])),
+    current_user: UserORM = Depends(require_roles(["RECEPTIONNISTE", "SUPERVISEUR", "SUPER_ADMIN"])),
 ):
     try:
         use_cases = TourUseCases(db)

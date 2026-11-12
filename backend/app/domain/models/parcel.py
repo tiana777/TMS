@@ -73,7 +73,7 @@ class Parcel:
         if not self.tracking_number:
             raise BusinessRuleViolationException("Le numéro de bordereau (BDR) est obligatoire.")
         if not self.recipient_name or not self.recipient_name.strip():
-            raise BusinessRuleViolationException("Le nom du destinataire est obligatoire.")
+            self.recipient_name = "Client"
         if not self.delivery_address or not self.delivery_address.strip():
             raise BusinessRuleViolationException("Le lieu / adresse de livraison est obligatoire.")
 

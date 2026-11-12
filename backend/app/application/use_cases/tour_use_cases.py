@@ -20,6 +20,7 @@ from backend.app.domain.models.courier import Courier
 from backend.app.domain.models.dispute import CourierDebt, IncidentType
 from backend.app.domain.models.tour import Tour, TourStatus
 from backend.app.domain.services.scorecard_engine import ScorecardEngine
+from backend.app.domain.models.parcel import FluxType
 from backend.app.domain.state_machine.parcel_fsm import ParcelStatus
 from backend.app.domain.value_objects.money import Money
 from backend.app.domain.value_objects.phone_number import PhoneNumber
@@ -84,6 +85,10 @@ class TourUseCases:
                 .all()
             )
             existing_ids = {p.id for p in current_parcels}
+            existing_urban = {
+                p.id for p in current_parcels
+                if p.type_flux != "PROVINCE" and "PROV" not in str(p.axe).upper()
+            }
         else:
             tour = Tour(
                 tour_date=tour_date,
@@ -92,15 +97,24 @@ class TourUseCases:
             )
             tour = self.tour_repo.save(tour)
             existing_ids = set()
+            existing_urban = set()
 
         # Enforce configurable maximum parcel capacity per courier & strict 30-parcel surcharge limit
+        # The 30-parcel limit applies EXCLUSIVELY to urban deliveries (Grand Tanà).
+        # Province parcels (transport to cooperatives / bus stations) are exempt from this ceiling.
         new_unique_ids = [pid for pid in parcel_ids if pid not in existing_ids]
-        total_projected_parcels = len(existing_ids) + len(new_unique_ids)
-        if total_projected_parcels > courier.max_parcels or total_projected_parcels > 30:
+        new_urban_count = 0
+        for pid in new_unique_ids:
+            p_obj = self.parcel_repo.get_by_id(pid)
+            if p_obj and p_obj.flux_type != FluxType.PROVINCE and "PROV" not in str(p_obj.axis).upper():
+                new_urban_count += 1
+
+        total_projected_urban = len(existing_urban) + new_urban_count
+        if total_projected_urban > courier.max_parcels or total_projected_urban > 30:
             raise BusinessRuleViolationException(
                 f"Capacité maximale dépassée / Surcharge détectée : le livreur {courier.name} ne peut prendre que "
-                f"{min(courier.max_parcels, 30)} colis maximum par tournée ({total_projected_parcels} colis demandés). "
-                f"Un livreur ne peut pas transporter plus de 30 colis."
+                f"{min(courier.max_parcels, 30)} colis urbains maximum par tournée ({total_projected_urban} colis urbains demandés). "
+                f"Le plafond de 30 colis s'applique uniquement aux livraisons en ville (les colis province sont exemptés)."
             )
 
         # Assign or reassign parcels

@@ -41,37 +41,53 @@ export default function ImportPage() {
     });
   }, []);
 
-  // Parse CSV / Tabular pasted or loaded text
+  // Parse CSV / Tabular pasted or loaded text with flexible column detection
   const parseCSV = (content: string) => {
     const lines = content.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     if (lines.length === 0) return;
 
-    // Check if header present
-    let startIndex = 0;
-    const firstLineLower = lines[0].toLowerCase();
-    if (
-      firstLineLower.includes("nom") ||
-      firstLineLower.includes("destinataire") ||
-      firstLineLower.includes("telephone") ||
-      firstLineLower.includes("tel")
-    ) {
-      startIndex = 1;
+    // Detect header columns dynamically to support custom Excel models
+    const headerParts = lines[0].split(/[;,\t]/).map((p) => p.trim().toLowerCase());
+    let hasHeader = false;
+    let colName = 0;
+    let colPhone = 1;
+    let colAddress = 2;
+    let colMerch = 3;
+    let colFee = 4;
+    let colObs = -1;
+
+    // Check if line 0 looks like a header
+    const matchesHeader = headerParts.some((h) =>
+      ["nom", "destinataire", "client", "contact", "tel", "telephone", "phone", "lieu", "adresse", "prix", "montant", "marchandise", "frais"].some(k => h.includes(k))
+    );
+
+    if (matchesHeader) {
+      hasHeader = true;
+      headerParts.forEach((h, idx) => {
+        if (h.includes("tel") || h.includes("contact") || h.includes("phone")) colPhone = idx;
+        else if (h.includes("lieu") || h.includes("adresse") || h.includes("quartier") || h.includes("repere")) colAddress = idx;
+        else if (h.includes("prix") || h.includes("marchandise") || h.includes("montant") || h.includes("article")) colMerch = idx;
+        else if (h.includes("frais") || h.includes("tarif") || h.includes("port")) colFee = idx;
+        else if (h.includes("remarque") || h.includes("obs") || h.includes("plage") || h.includes("note")) colObs = idx;
+        else if (h.includes("nom") || h.includes("destinataire") || h.includes("client")) colName = idx;
+      });
     }
 
+    const startIndex = hasHeader ? 1 : 0;
     const rows: ParsedParcelRow[] = [];
 
     for (let i = startIndex; i < lines.length; i++) {
       // Split by semicolon, comma, or tab
       const parts = lines[i].split(/[;,\t]/).map((p) => p.trim());
-      if (parts.length < 3) continue;
+      if (parts.length < 2) continue;
 
-      const recipientName = parts[0] || "Client Inconnu";
-      const rawPhone = parts[1] || "";
-      const address = parts[2] || "Antananarivo";
-      const rawMerch = parts[3] ? parseInt(parts[3].replace(/[^\d]/g, ""), 10) || 0 : 0;
+      const recipientName = parts[colName] || "Client";
+      const rawPhone = parts[colPhone] || "";
+      const address = parts[colAddress] || "Antananarivo";
+      const rawMerch = parts[colMerch] ? parseInt(parts[colMerch].replace(/[^\d]/g, ""), 10) || 0 : 0;
       const phoneDetect = detectMalagasyPhone(rawPhone);
       const axisDetect = detectAxisClient(address);
-      const parsedFee = parts[4] ? parseInt(parts[4].replace(/[^\d]/g, ""), 10) : 0;
+      const parsedFee = colFee >= 0 && parts[colFee] ? parseInt(parts[colFee].replace(/[^\d]/g, ""), 10) : 0;
       const rawFee = parsedFee && parsedFee > 0 ? parsedFee : axisDetect.fee;
       const fluxType: FluxType = axisDetect.axis === "AXE_PROVINCE" ? "PROVINCE" : "COD";
 

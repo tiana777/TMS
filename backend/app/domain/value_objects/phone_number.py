@@ -16,13 +16,15 @@ class Operator(str, Enum):
 PREFIX_OPERATOR_MAP = {
     "034": Operator.TELMA,
     "038": Operator.TELMA,
+    "035": Operator.TELMA,
     "032": Operator.ORANGE,
     "037": Operator.ORANGE,
     "033": Operator.AIRTEL,
+    "036": Operator.AIRTEL,
 }
 
-# Strict 10-digit Malagasy phone regex: starts with 03 followed by 2, 3, 4, 7, 8 and 7 digits
-MALAGASY_PHONE_REGEX = re.compile(r"^03([23478])\d{7}$")
+# Strict 10-digit Malagasy phone regex: starts with 03 followed by 2, 3, 4, 5, 6, 7, 8 and 7 digits
+MALAGASY_PHONE_REGEX = re.compile(r"^03([2345678])\d{7}$")
 
 
 @dataclass(frozen=True)

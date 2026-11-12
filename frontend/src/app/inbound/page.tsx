@@ -382,10 +382,12 @@ export default function InboundPage() {
       const copy = [...prev];
       const target = { ...copy[index], [field]: value };
 
-      // Auto-detect axis and fee when address changes (Tarification automatique CDC 5.3)
+      // Auto-detect axis and fee when address changes (Tarification manuelle / négociée CDC)
       if (field === "deliveryAddress") {
         const detection = detectAxisClient(value);
-        target.deliveryFee = detection.fee;
+        if (!target.deliveryFee || target.deliveryFee === 0) {
+          target.deliveryFee = detection.fee;
+        }
         if (!target.isManualAxis) {
           target.axis = detection.axis;
           target.isAxisFallback = detection.isFallback;
@@ -442,7 +444,7 @@ export default function InboundPage() {
     }
     if (senderPhone && !senderPhoneDetect.isValid) {
       setErrorMessage(
-        `Numéro de téléphone expéditeur invalide (${senderPhone}). Requis : 10 chiffres malgaches (032/033/034/037/038).`
+        `Numéro de téléphone expéditeur invalide (${senderPhone}). Requis : 10 chiffres malgaches valides (032, 033, 034, 035, 036, 037, 038).`
       );
       return;
     }
@@ -450,21 +452,24 @@ export default function InboundPage() {
     // Validate Rows
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
-      if (!r.recipientName.trim()) {
-        setErrorMessage(`Ligne #${i + 1} : Le nom du destinataire est obligatoire.`);
-        return;
-      }
+      // Note : recipientName est facultatif selon la consigne
       const phoneCheck = detectMalagasyPhone(r.recipientPhone);
       if (!phoneCheck.isValid) {
         setErrorMessage(
           `Ligne #${i + 1} : Numéro de téléphone destinataire invalide (${
             r.recipientPhone || "vide"
-          }). Requis : 10 chiffres malgaches valides (032, 033, 034, 037, 038).`
+          }). Requis : 10 chiffres malgaches valides (032, 033, 034, 035, 036, 037, 038).`
         );
         return;
       }
       if (!r.deliveryAddress.trim()) {
-        setErrorMessage(`Ligne #${i + 1} : L'adresse de livraison est obligatoire.`);
+        setErrorMessage(`Ligne #${i + 1} : L'adresse / lieu de livraison est obligatoire.`);
+        return;
+      }
+      if (!r.observation || !r.observation.trim()) {
+        setErrorMessage(
+          `Ligne #${i + 1} : La plage horaire ou remarque spéciale de livraison est obligatoire.`
+        );
         return;
       }
     }
@@ -486,7 +491,7 @@ export default function InboundPage() {
         sender_name: senderName,
         sender_phone: senderPhone || undefined,
         sender_address: senderAddress || undefined,
-        recipient_name: r.recipientName,
+        recipient_name: r.recipientName.trim() || "Client",
         recipient_phone: r.recipientPhone,
         designation: r.designation || undefined,
         delivery_address: r.deliveryAddress,
@@ -497,7 +502,7 @@ export default function InboundPage() {
         delivery_fee: Number(r.deliveryFee) || 0,
         receptionniste_id: activeUserId,
         receptionniste_nom: activeUserNom,
-        observation: r.observation || undefined,
+        observation: r.observation ? r.observation.trim() : undefined,
       }));
 
       const results = await createParcelBatch(payload);
@@ -892,17 +897,17 @@ export default function InboundPage() {
 
                 {/* Form Fields: Grid Layout with Natural Multi-Line Wrapping */}
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                  {/* Destinataire Nom (col-span-3) */}
+                  {/* Destinataire Nom (col-span-3 - Facultatif) */}
                   <div className="md:col-span-3 space-y-1">
                     <label className="text-[11px] font-bold text-slate-700 block">
-                      Destinataire (Nom complet) *
+                      Destinataire (Nom facultatif)
                     </label>
                     <input
                       type="text"
                       data-testid={`input-name-${idx}`}
                       value={row.recipientName}
                       onChange={(e) => updateRow(idx, "recipientName", e.target.value)}
-                      placeholder="Nom du client destinataire..."
+                      placeholder="Nom (laisser vide = Client)..."
                       className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     />
                   </div>
@@ -1186,6 +1191,29 @@ export default function InboundPage() {
                         className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold text-right focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       />
                     </div>
+                  </div>
+
+                  {/* Plage Horaire & Remarques Spéciales (md:col-span-12) */}
+                  <div className="md:col-span-12 space-y-1">
+                    <label className="text-[11px] font-bold text-slate-700 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <span>⏰ Plage Horaire / Remarque Spéciale Livraison *</span>
+                        <span className="text-[10px] text-amber-700 font-semibold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                          Obligatoire
+                        </span>
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-normal">
+                        Ex: Matin avant 12h, Après 14h, Appeler 15min avant, Au bureau...
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      data-testid={`input-observation-${idx}`}
+                      value={row.observation}
+                      onChange={(e) => updateRow(idx, "observation", e.target.value)}
+                      placeholder="Indiquez impérativement la plage horaire ou consigne spéciale pour le livreur..."
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none bg-slate-50/50"
+                    />
                   </div>
                 </div>
               </div>

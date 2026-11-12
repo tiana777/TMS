@@ -18,19 +18,21 @@ export interface PhoneDetectionResult {
  * - Orange: 032, 037
  * - Airtel: 033
  */
-export const MALAGASY_PHONE_REGEX = /^03([23478])\d{7}$/;
+export const MALAGASY_PHONE_REGEX = /^03([2345678])\d{7}$/;
 
 /** Operator-specific strict 10-digit regexes */
-export const TELMA_PHONE_REGEX = /^03([48])\d{7}$/;
+export const TELMA_PHONE_REGEX = /^03([458])\d{7}$/;
 export const ORANGE_PHONE_REGEX = /^03([27])\d{7}$/;
-export const AIRTEL_PHONE_REGEX = /^033\d{7}$/;
+export const AIRTEL_PHONE_REGEX = /^03([36])\d{7}$/;
 
 export const MALAGASY_OPERATOR_PREFIXES: Record<string, Operator> = {
   "034": "TELMA",
   "038": "TELMA",
+  "035": "TELMA",
   "032": "ORANGE",
   "037": "ORANGE",
   "033": "AIRTEL",
+  "036": "AIRTEL",
 };
 
 /**

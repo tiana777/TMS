@@ -836,37 +836,120 @@ export default function CRMVendorsPage() {
                 </div>
               </div>
 
-              {/* Table of delivered parcels with COD */}
+              {/* Table of all parcels scheduled (delivered + not delivered) */}
               <div>
-                <h5 className="font-bold text-slate-800 mb-2 uppercase tracking-wider text-[11px]">
-                  Détail des Colis Encaissés à Reverser
-                </h5>
+                <div className="flex items-center justify-between mb-2">
+                  <h5 className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
+                    Relevé Complet des Colis Prévus (Urbains & Province)
+                  </h5>
+                  <div className="flex items-center gap-2 text-[10px]">
+                    <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                      ✓ {deliveredParcels.length} Livré(s) & Encaissé(s)
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-semibold">
+                      ⚠️ {vendorParcels.length - deliveredParcels.length} Non Livré(s) (Report / Annulé)
+                    </span>
+                  </div>
+                </div>
+
                 <table className="w-full text-left text-xs border border-slate-200 rounded-lg overflow-hidden">
                   <thead className="bg-slate-100 text-slate-600 font-bold uppercase text-[10px]">
                     <tr>
-                      <th className="px-3 py-2">Bordereau</th>
-                      <th className="px-3 py-2">Destinataire</th>
-                      <th className="px-3 py-2 text-right">Valeur Marchandise</th>
-                      <th className="px-3 py-2 text-right">Frais Livraison TMS</th>
+                      <th className="px-2.5 py-2">Bordereau</th>
+                      <th className="px-2.5 py-2">Destinataire & Tél</th>
+                      <th className="px-2.5 py-2">Destination / Axe</th>
+                      <th className="px-2.5 py-2">Statut & Motif</th>
+                      <th className="px-2.5 py-2 text-right">Marchandise</th>
+                      <th className="px-2.5 py-2 text-right">Frais TMS</th>
+                      <th className="px-2.5 py-2 text-right">Pris en Compte</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {deliveredParcels.map((p) => (
-                      <tr key={p.id}>
-                        <td className="px-3 py-1.5 font-mono font-bold text-slate-900">{p.tracking_number}</td>
-                        <td className="px-3 py-1.5 text-slate-700">{p.recipient_name}</td>
-                        <td className="px-3 py-1.5 text-right font-bold text-slate-900">
-                          {p.merchandise_amount.toLocaleString("fr-FR")} Ar
-                        </td>
-                        <td className="px-3 py-1.5 text-right text-slate-600">
-                          {p.delivery_fee.toLocaleString("fr-FR")} Ar
-                        </td>
-                      </tr>
-                    ))}
-                    {deliveredParcels.length === 0 && (
+                    {vendorParcels.map((p) => {
+                      const isDelivered = ["LIVRE", "ENCAISSE", "LIVRE_ENCAISSE", "CLOTURE_CAISSE"].includes(p.status);
+                      const isProvince = p.flux_type === "PROVINCE" || p.axis.includes("PROV");
+                      const isDirectSenderPaid = p.payment_method === "MVOLA" && (
+                        (p.observation && p.observation.toLowerCase().includes("direct")) ||
+                        (p.incident_reason && p.incident_reason.toLowerCase().includes("direct"))
+                      );
+
+                      return (
+                        <tr key={p.id} className={!isDelivered ? "bg-amber-50/30" : ""}>
+                          <td className="px-2.5 py-2 font-mono font-bold text-slate-900">
+                            {p.tracking_number}
+                          </td>
+                          <td className="px-2.5 py-2">
+                            <span className="font-semibold text-slate-800 block truncate max-w-[130px]">
+                              {p.recipient_name || "Client"}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              {p.recipient_phone}
+                            </span>
+                          </td>
+                          <td className="px-2.5 py-2">
+                            <span className="text-[11px] text-slate-700 block truncate max-w-[140px]" title={p.delivery_address}>
+                              {p.delivery_address}
+                            </span>
+                            <span className={`inline-block text-[9px] font-bold px-1 rounded ${
+                              isProvince ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"
+                            }`}>
+                              {isProvince ? "Province" : p.axis_label || p.axis}
+                            </span>
+                          </td>
+                          <td className="px-2.5 py-2">
+                            {isDelivered ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                ✓ Livré & Encaissé
+                              </span>
+                            ) : (
+                              <div>
+                                <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                                  p.status === "REPORTE"
+                                    ? "bg-amber-100 text-amber-800 border-amber-200"
+                                    : p.status === "ANNULE_RETOUR"
+                                    ? "bg-rose-100 text-rose-800 border-rose-200"
+                                    : "bg-slate-100 text-slate-700 border-slate-200"
+                                }`}>
+                                  {p.status_label || p.status}
+                                </span>
+                                {(p.incident_reason || p.reschedule_date) && (
+                                  <span className="text-[9px] text-slate-500 block italic mt-0.5 max-w-[140px] truncate" title={p.incident_reason || p.reschedule_date || ""}>
+                                    Motif: {p.incident_reason || `Reporté au ${p.reschedule_date}`}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-2.5 py-2 text-right font-medium text-slate-700">
+                            {p.merchandise_amount.toLocaleString("fr-FR")} Ar
+                          </td>
+                          <td className="px-2.5 py-2 text-right text-slate-600">
+                            {p.delivery_fee.toLocaleString("fr-FR")} Ar
+                          </td>
+                          <td className="px-2.5 py-2 text-right font-bold">
+                            {isDelivered ? (
+                              isDirectSenderPaid ? (
+                                <span className="text-amber-700 text-[10px]" title="Déjà payé direct expéditeur">
+                                  0 Ar (Direct Mvola)
+                                </span>
+                              ) : (
+                                <span className="text-emerald-700">
+                                  +{p.merchandise_amount.toLocaleString("fr-FR")} Ar
+                                </span>
+                              )
+                            ) : (
+                              <span className="text-slate-400 text-[10px] italic">
+                                0 Ar (Non livré)
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {vendorParcels.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="px-3 py-4 text-center text-slate-400">
-                          Aucun colis encaissé à reverser pour le moment.
+                        <td colSpan={7} className="px-3 py-4 text-center text-slate-400">
+                          Aucun colis enregistré pour cet expéditeur.
                         </td>
                       </tr>
                     )}
@@ -876,8 +959,14 @@ export default function CRMVendorsPage() {
 
               {/* Financial Recap Box */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                <div className="flex justify-between text-xs text-slate-500 pb-1 border-b border-slate-200">
+                  <span>Volume Total Colis sur le Bordereau :</span>
+                  <span className="font-semibold text-slate-700">
+                    {vendorParcels.length} colis ({deliveredParcels.length} livrés & encaissés, {vendorParcels.length - deliveredParcels.length} non livrés)
+                  </span>
+                </div>
                 <div className="flex justify-between font-semibold text-slate-700">
-                  <span>Total Brut Valeur Marchandise Encaissée (COD) :</span>
+                  <span>Total Brut Valeur Marchandise Encaissée (seuls les colis livrés) :</span>
                   <span>{totalCodCollected.toLocaleString("fr-FR")} Ar</span>
                 </div>
                 <div className="flex justify-between font-semibold text-slate-500">

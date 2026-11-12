@@ -10,7 +10,7 @@ class CreateParcelDTO(BaseModel):
     sender_name: Optional[str] = None
     sender_phone: Optional[str] = None
     sender_address: Optional[str] = None
-    recipient_name: str
+    recipient_name: Optional[str] = "Client"
     recipient_phone: str
     delivery_address: str
     designation: Optional[str] = None
@@ -38,6 +38,10 @@ class UpdateParcelContactDTO(BaseModel):
     recipient_name: Optional[str] = None
     recipient_phone: Optional[str] = None
     delivery_address: Optional[str] = None
+    designation: Optional[str] = None
+    observation: Optional[str] = None
+    merchandise_amount: Optional[int] = None
+    delivery_fee: Optional[int] = None
 
 
 class ReassignParcelDTO(BaseModel):

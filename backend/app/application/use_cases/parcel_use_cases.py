@@ -160,7 +160,7 @@ class ParcelUseCases:
             sender_name=dto.sender_name,
             sender_phone=sender_phone_vo,
             sender_address=dto.sender_address,
-            recipient_name=dto.recipient_name,
+            recipient_name=dto.recipient_name.strip() if dto.recipient_name and dto.recipient_name.strip() else "Client",
             recipient_phone=phone,
             delivery_address=dto.delivery_address,
             designation=dto.designation,
@@ -319,6 +319,10 @@ class ParcelUseCases:
         recipient_phone: Optional[str] = None,
         recipient_name: Optional[str] = None,
         delivery_address: Optional[str] = None,
+        designation: Optional[str] = None,
+        observation: Optional[str] = None,
+        merchandise_amount: Optional[int] = None,
+        delivery_fee: Optional[int] = None,
         user_id: Optional[int] = None,
     ) -> ParcelResponseDTO:
         parcel = self.repo.get_by_id(parcel_id)
@@ -333,7 +337,33 @@ class ParcelUseCases:
         if recipient_name and recipient_name.strip():
             notes.append(f"Nom destinataire : {recipient_name.strip()}")
         if delivery_address and delivery_address.strip():
-            notes.append(f"Adresse : {delivery_address.strip()}")
+            new_addr = delivery_address.strip()
+            if new_addr != parcel.delivery_address:
+                notes.append(f"Adresse : {new_addr}")
+                # Réaffectation automatique de l'axe si le colis est en dépôt ou assigné
+                if parcel.status in (ParcelStatus.EN_DEPOT, ParcelStatus.ASSIGNE):
+                    detection = self.axis_detector.detect(new_addr)
+                    if detection.axis != parcel.axis:
+                        old_axis_val = parcel.axis.value
+                        parcel.axis = detection.axis
+                        parcel.is_manual_axis = False
+                        notes.append(f"Axe réaffecté : {old_axis_val} ➔ {detection.axis.value}")
+                        if parcel.status == ParcelStatus.ASSIGNE:
+                            parcel.unassign()
+                            notes.append("Désassigné de l'ancienne tournée suite à changement d'axe")
+
+        if designation is not None:
+            parcel.designation = designation.strip() if designation.strip() else None
+            notes.append("Désignation mise à jour")
+        if observation is not None:
+            parcel.observation = observation.strip() if observation.strip() else None
+            notes.append("Remarque / plage horaire mise à jour")
+        if merchandise_amount is not None:
+            parcel.merchandise_amount = Money(merchandise_amount)
+            notes.append(f"Montant marchandise : {merchandise_amount} Ar")
+        if delivery_fee is not None:
+            parcel.delivery_fee = Money(delivery_fee)
+            notes.append(f"Frais de livraison : {delivery_fee} Ar")
 
         parcel.update_contact_info(
             recipient_phone=validated_phone,

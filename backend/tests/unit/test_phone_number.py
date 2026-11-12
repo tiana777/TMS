@@ -56,13 +56,20 @@ class TestPhoneNumber:
         from backend.app.domain.value_objects.phone_number import MALAGASY_PHONE_REGEX
         assert MALAGASY_PHONE_REGEX.match("0341234567")
         assert MALAGASY_PHONE_REGEX.match("0381234567")
+        assert MALAGASY_PHONE_REGEX.match("0351234567")
         assert MALAGASY_PHONE_REGEX.match("0321234567")
         assert MALAGASY_PHONE_REGEX.match("0371234567")
         assert MALAGASY_PHONE_REGEX.match("0331234567")
+        assert MALAGASY_PHONE_REGEX.match("0361234567")
+
+        p35 = PhoneNumber("0351234567")
+        assert p35.operator == Operator.TELMA
+        p36 = PhoneNumber("0361234567")
+        assert p36.operator == Operator.AIRTEL
 
         # Invalid prefixes
         assert not MALAGASY_PHONE_REGEX.match("0391234567")
-        assert not MALAGASY_PHONE_REGEX.match("0351234567")
+        assert not MALAGASY_PHONE_REGEX.match("0311234567")
         assert not MALAGASY_PHONE_REGEX.match("0201234567")
 
     def test_invalid_length_too_short(self):

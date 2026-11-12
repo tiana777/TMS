@@ -90,7 +90,7 @@ def update_parcel_status(
     parcel_id: int,
     dto: UpdateParcelStatusDTO,
     db: Session = Depends(get_db),
-    current_user: UserORM = Depends(require_roles(["SUPERVISEUR", "SUPER_ADMIN"])),
+    current_user: UserORM = Depends(require_roles(["RECEPTIONNISTE", "SUPERVISEUR", "SUPER_ADMIN", "LIVREUR"])),
 ):
     try:
         use_cases = ParcelUseCases(db)
@@ -127,6 +127,10 @@ def update_parcel_contact(
             recipient_phone=dto.recipient_phone,
             recipient_name=dto.recipient_name,
             delivery_address=dto.delivery_address,
+            designation=dto.designation,
+            observation=dto.observation,
+            merchandise_amount=dto.merchandise_amount,
+            delivery_fee=dto.delivery_fee,
             user_id=current_user.id,
         )
     except DomainException as e:
