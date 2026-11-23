@@ -42,7 +42,7 @@ class Settings(BaseModel):
     # Database
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL",
-        "postgresql+psycopg://postgres:postgres@localhost:5432/tms_express_db"
+        "postgresql+psycopg://postgres:root@localhost:5432/tms_express_db"
     )
     
     # Timezone & Locale

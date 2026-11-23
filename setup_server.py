@@ -193,46 +193,76 @@ def step_4_init_database(py_exe, args, database_url=None):
     print("\n[Étape 4/6] 🗄️ Initialisation et amorçage de la base de données PostgreSQL...")
     clean_script = "backend.app.infrastructure.database.clean_for_production"
     
-    current_url = database_url or "postgresql+psycopg://postgres:postgres@localhost:5432/tms_express_db"
+    # Tester en priorité l'URL fournie, puis root et postgres
+    candidate_urls = []
+    if database_url:
+        candidate_urls.append(database_url)
+    for auto_url in [
+        "postgresql+psycopg://postgres:root@localhost:5432/tms_express_db",
+        "postgresql+psycopg://postgres:postgres@localhost:5432/tms_express_db",
+        "postgresql+psycopg://postgres:admin@localhost:5432/tms_express_db",
+    ]:
+        if auto_url not in candidate_urls:
+            candidate_urls.append(auto_url)
 
-    while True:
+    connected = False
+    for candidate in candidate_urls:
         env_copy = os.environ.copy()
         env_copy["PYTHONPATH"] = str(ROOT_DIR)
-        env_copy["DATABASE_URL"] = current_url
+        env_copy["DATABASE_URL"] = candidate
 
         res = subprocess.run(
             f'"{py_exe}" -m {clean_script}',
             cwd=str(ROOT_DIR),
             shell=True,
             env=env_copy,
+            capture_output=True,
+            text=True,
         )
         if res.returncode == 0:
             print("   ✓ Base de données initialisée avec succès.")
+            backend_env_path = BACKEND_DIR / ".env"
+            if backend_env_path.exists():
+                with open(backend_env_path, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+                with open(backend_env_path, "w", encoding="utf-8") as f:
+                    for l in lines:
+                        if l.startswith("DATABASE_URL="):
+                            f.write(f"DATABASE_URL={candidate}\n")
+                        else:
+                            f.write(l)
+            connected = True
             break
-        else:
-            print("\n   ⚠️ Échec de connexion à PostgreSQL.")
-            print(f"      URL testée : {current_url}")
-            print("      Causes possibles : mot de passe postgres requis, ou service PostgreSQL arrêté.")
-            try:
-                prompt_text = "   Entrez le mot de passe de l'utilisateur 'postgres' (ou Entrée pour ignorer) : "
-                pwd_input = input(prompt_text).strip()
-                if not pwd_input:
-                    break
-                current_url = f"postgresql+psycopg://postgres:{pwd_input}@localhost:5432/tms_express_db"
-                # Mettre à jour backend/.env
-                backend_env_path = BACKEND_DIR / ".env"
-                if backend_env_path.exists():
-                    with open(backend_env_path, "r", encoding="utf-8") as f:
-                        lines = f.readlines()
-                    with open(backend_env_path, "w", encoding="utf-8") as f:
-                        for l in lines:
-                            if l.startswith("DATABASE_URL="):
-                                f.write(f"DATABASE_URL={current_url}\n")
-                            else:
-                                f.write(l)
-                print(f"   • Re-tentative avec le mot de passe renseigné...")
-            except (EOFError, KeyboardInterrupt):
-                break
+
+    if not connected:
+        print("\n   ⚠️ Échec de connexion avec les mots de passe par défaut (root, postgres, admin).")
+        try:
+            pwd_input = input("   Entrez le mot de passe de l'utilisateur 'postgres' : ").strip()
+            if pwd_input:
+                manual_url = f"postgresql+psycopg://postgres:{pwd_input}@localhost:5432/tms_express_db"
+                env_copy = os.environ.copy()
+                env_copy["PYTHONPATH"] = str(ROOT_DIR)
+                env_copy["DATABASE_URL"] = manual_url
+                res = subprocess.run(
+                    f'"{py_exe}" -m {clean_script}',
+                    cwd=str(ROOT_DIR),
+                    shell=True,
+                    env=env_copy,
+                )
+                if res.returncode == 0:
+                    print("   ✓ Base de données initialisée avec succès.")
+                    backend_env_path = BACKEND_DIR / ".env"
+                    if backend_env_path.exists():
+                        with open(backend_env_path, "r", encoding="utf-8") as f:
+                            lines = f.readlines()
+                        with open(backend_env_path, "w", encoding="utf-8") as f:
+                            for l in lines:
+                                if l.startswith("DATABASE_URL="):
+                                    f.write(f"DATABASE_URL={manual_url}\n")
+                                else:
+                                    f.write(l)
+        except (EOFError, KeyboardInterrupt):
+            pass
 
 
 def step_5_build_frontend(args):
