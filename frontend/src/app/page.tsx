@@ -25,6 +25,8 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { fetchParcels, fetchTours, fetchCouriers } from "../lib/api";
+import { getTodayDateString } from "../lib/date";
+import { useCompany } from "../context/CompanyContext";
 
 interface Parcel {
   id: number;
@@ -77,11 +79,32 @@ interface Courier {
 }
 
 export default function CockpitDashboardPage() {
-  const [selectedDate, setSelectedDate] = useState<string>("2026-11-08");
+  const { company } = useCompany();
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString);
+  const [currentUserRole, setCurrentUserRole] = useState<string>("SUPERVISEUR");
+  const [userNom, setUserNom] = useState<string>("Direction");
   const [parcels, setParcels] = useState<Parcel[]>([]);
   const [tours, setTours] = useState<Tour[]>([]);
   const [couriers, setCouriers] = useState<Courier[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    const updateRole = () => {
+      if (typeof window === "undefined") return;
+      const role = localStorage.getItem("tms_user_role") || "SUPERVISEUR";
+      const nom = localStorage.getItem("tms_user_nom") || "Direction";
+      setCurrentUserRole(role);
+      setUserNom(nom);
+      loadData();
+    };
+    updateRole();
+    window.addEventListener("tms_role_change", updateRole);
+    window.addEventListener("storage", updateRole);
+    return () => {
+      window.removeEventListener("tms_role_change", updateRole);
+      window.removeEventListener("storage", updateRole);
+    };
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -239,22 +262,19 @@ export default function CockpitDashboardPage() {
   return (
     <div className="max-w-7xl mx-auto space-y-5">
       {/* Top Banner & Date Selector */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4 text-slate-900 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1">
+      <div className="bg-white border border-slate-200 rounded-xl p-4 text-slate-900 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
           <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-              Écran 06 • Cockpit & KPIs Temps Réel
-            </span>
-            <span className="flex items-center gap-1.5 text-[11px] text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+            <h2 className="text-lg font-bold tracking-tight text-slate-900 flex items-center gap-2">
+              <span className="text-blue-600">⚡</span> Cockpit d'Exploitation Logistique
+            </h2>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Direct GMT+3 (Indian/Antananarivo)
+              Direct GMT+3
             </span>
           </div>
-          <h2 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 flex items-center gap-2">
-            <span className="text-blue-600">⚡</span> Cockpit d'Exploitation Logistique
-          </h2>
-          <p className="text-slate-500 text-xs max-w-2xl leading-relaxed">
-            Supervision globale des tournées Grand Tanà, du transport régional en Province, du recouvrement de caisse COD et du pilotage de la flotte de distribution.
+          <p className="text-xs text-slate-500 mt-0.5">
+            Tableau de bord temps réel & supervision des flux du Hub
           </p>
         </div>
 
@@ -595,7 +615,7 @@ export default function CockpitDashboardPage() {
       {/* ================= MODULES & LAUNCHPAD ================= */}
       <div>
         <h3 className="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
-          <span className="text-blue-500">🚀</span> Accès Direct aux Modules TMS EXPRESS (Les 12 Écrans)
+          <span className="text-blue-500">🚀</span> Accès Direct aux Modules {company.app_name || "TMS EXPRESS"} (Les 12 Écrans)
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           <Link

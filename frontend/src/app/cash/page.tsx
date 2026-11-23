@@ -23,8 +23,16 @@ import {
   Layers,
   ArrowDownCircle,
   Clock,
+  Truck,
+  Package,
+  XCircle,
+  Archive,
+  ShieldCheck,
+  Lock,
 } from "lucide-react";
 import { HeaderUserRole } from "@/components/HeaderUserRole";
+import { AxisBadge } from "@/components/AxisBadge";
+import { StatusBadge } from "@/components/StatusBadge";
 import {
   fetchParcels,
   fetchTours,
@@ -35,18 +43,23 @@ import {
   closeTour,
 } from "@/lib/api";
 import { Parcel, Tour, Courier, ParcelStatus } from "@/types";
+import { getTodayDateString } from "@/lib/date";
+import { useCompany } from "@/context/CompanyContext";
 
 function formatMGA(amount: number): string {
-  return amount.toLocaleString("fr-FR").replace(/[\u202f\u00a0]/g, " ") + " Ar";
+  if (amount === undefined || amount === null || isNaN(amount)) return "0\u00A0Ar";
+  return amount.toLocaleString("fr-FR").replace(/[\u202f\u00a0]/g, "\u00A0") + "\u00A0Ar";
 }
 
 function formatNumber(amount: number): string {
-  return amount.toLocaleString("fr-FR").replace(/[\u202f\u00a0]/g, " ");
+  if (amount === undefined || amount === null || isNaN(amount)) return "0";
+  return amount.toLocaleString("fr-FR").replace(/[\u202f\u00a0]/g, "\u00A0");
 }
 
 export default function CashAndClosurePage() {
-  const [activeTab, setActiveTab] = useState<"caisse" | "decharge">("caisse");
-  const [selectedDate, setSelectedDate] = useState<string>("2026-11-08");
+  const { company } = useCompany();
+  const [activeTab, setActiveTab] = useState<"caisse" | "decharge" | "siege">("caisse");
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -60,6 +73,7 @@ export default function CashAndClosurePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [paymentFilter, setPaymentFilter] = useState<string>("ALL");
+  const [encaissementLieuFilter, setEncaissementLieuFilter] = useState<string>("ALL");
   const [selectedParcelIds, setSelectedParcelIds] = useState<number[]>([]);
   const [isSubmittingBulk, setIsSubmittingBulk] = useState(false);
 
@@ -78,10 +92,66 @@ export default function CashAndClosurePage() {
     expenses: number;
     discrepancy: number;
     closedAt: string;
+    grossTotal?: number;
+    siegeTotal?: number;
+    siegeParcels?: Parcel[];
   } | null>(null);
 
-  // Load all initial data
-  const loadData = async () => {
+  // Rechargement du détail complet d'une tournée
+  const loadTourDetail = async (tourId: number) => {
+    setLoadingTourDetail(true);
+    try {
+      const detail = await fetchTourDetail(tourId);
+      setSelectedTourDetail(detail);
+
+      // Pré-remplir les montants selon le statut et les encaissements
+      if (detail) {
+        if (detail.status === "CLOTURE") {
+          setRemittedCash(detail.actual_remitted || 0);
+          setRemittedMobile(0);
+          setRemittedExpenses(0);
+        } else {
+          // Calculer le total encaissé par le coursier sur le terrain
+          let cashSum = 0;
+          let mobileSum = 0;
+          const validParcels: Parcel[] = detail.parcels || [];
+          validParcels.forEach((p: Parcel) => {
+            if (
+              p.status === "ENCAISSE" ||
+              p.status === "LIVRE_ENCAISSE" ||
+              p.status === "CLOTURE_CAISSE" ||
+              p.status === "SOUS_TRAITE"
+            ) {
+              // Si le COD est perçu au Siège, le livreur n'a pas encaissé ces fonds
+              if (p.encaissement_lieu === "SIEGE") {
+                return;
+              }
+              if (p.payment_method === "ESPECES") {
+                cashSum += p.total_to_collect;
+              } else if (
+                p.payment_method &&
+                ["MVOLA", "AIRTEL", "ORANGE_MONEY"].includes(p.payment_method)
+              ) {
+                mobileSum += p.total_to_collect;
+              }
+            }
+          });
+          setRemittedCash(cashSum);
+          setRemittedMobile(mobileSum);
+          setRemittedExpenses(0);
+        }
+      }
+      return detail;
+    } catch (e: any) {
+      console.error("Erreur chargement détail tournée", e);
+      return null;
+    } finally {
+      setLoadingTourDetail(false);
+    }
+  };
+
+  // Charger toutes les données initiales et synchroniser la tournée active
+  const loadData = async (targetTourId?: number | null) => {
     setLoading(true);
     setError(null);
     try {
@@ -94,8 +164,16 @@ export default function CashAndClosurePage() {
       setTours(toursData || []);
       setCouriers(couriersData || []);
 
-      if (toursData && toursData.length > 0 && !selectedTourId) {
-        setSelectedTourId(toursData[0].id);
+      const activeTourId =
+        targetTourId !== undefined
+          ? targetTourId
+          : selectedTourId || (toursData && toursData.length > 0 ? toursData[0].id : null);
+
+      if (activeTourId) {
+        if (selectedTourId !== activeTourId) {
+          setSelectedTourId(activeTourId);
+        }
+        await loadTourDetail(activeTourId);
       }
     } catch (e: any) {
       console.error("Erreur chargement données de caisse", e);
@@ -111,56 +189,54 @@ export default function CashAndClosurePage() {
 
   // Load selected tour details when tour selection changes
   useEffect(() => {
-    if (!selectedTourId) {
+    if (selectedTourId) {
+      loadTourDetail(selectedTourId);
+    } else {
       setSelectedTourDetail(null);
-      return;
     }
-    const loadDetail = async () => {
-      setLoadingTourDetail(true);
-      try {
-        const detail = await fetchTourDetail(selectedTourId);
-        setSelectedTourDetail(detail);
+  }, [selectedTourId]);
 
-        // Pre-fill fields based on theoretical and already remitted amounts
-        if (detail) {
-          if (detail.status === "CLOTURE") {
-            setRemittedCash(detail.actual_remitted);
-            setRemittedMobile(0);
-            setRemittedExpenses(0);
-          } else {
-            // Count delivered & cashed parcel totals
-            let cashSum = 0;
-            let mobileSum = 0;
-            const validParcels: Parcel[] = detail.parcels || [];
-            validParcels.forEach((p: Parcel) => {
+  // Polling temps réel (toutes les 6 secondes) pour synchroniser le flux de caisse et décharge
+  useEffect(() => {
+    const timer = setInterval(async () => {
+      if (isClosingTour || isSubmittingBulk) return;
+      try {
+        const [parcelsData, toursData] = await Promise.all([
+          fetchParcels({ date: selectedDate }),
+          fetchTours(selectedDate),
+        ]);
+        if (parcelsData) setParcels(parcelsData);
+        if (toursData) setTours(toursData);
+        if (selectedTourId) {
+          const detail = await fetchTourDetail(selectedTourId);
+          if (detail) {
+            setSelectedTourDetail((prev) => {
               if (
-                p.status === "ENCAISSE" ||
-                p.status === "LIVRE_ENCAISSE" ||
-                p.status === "CLOTURE_CAISSE"
+                !prev ||
+                prev.status !== detail.status ||
+                prev.actual_remitted !== detail.actual_remitted ||
+                prev.discrepancy !== detail.discrepancy ||
+                JSON.stringify(prev.parcels?.map((p: any) => ({ id: p.id, s: p.status }))) !==
+                  JSON.stringify(detail.parcels?.map((p: any) => ({ id: p.id, s: p.status })))
               ) {
-                if (p.payment_method === "ESPECES") {
-                  cashSum += p.total_to_collect;
-                } else if (
-                  p.payment_method &&
-                  ["MVOLA", "AIRTEL", "ORANGE_MONEY"].includes(p.payment_method)
-                ) {
-                  mobileSum += p.total_to_collect;
+                if (detail.status === "CLOTURE") {
+                  setRemittedCash(detail.actual_remitted || 0);
+                  setRemittedMobile(0);
+                  setRemittedExpenses(0);
                 }
+                return detail;
               }
+              return prev;
             });
-            setRemittedCash(cashSum);
-            setRemittedMobile(mobileSum);
-            setRemittedExpenses(0);
           }
         }
-      } catch (e: any) {
-        console.error("Erreur chargement détail tournée", e);
-      } finally {
-        setLoadingTourDetail(false);
+      } catch (err) {
+        // Ignorer silencieusement les erreurs de connexion temporaires en arrière-plan
       }
-    };
-    loadDetail();
-  }, [selectedTourId]);
+    }, 6000);
+
+    return () => clearInterval(timer);
+  }, [selectedDate, selectedTourId, isClosingTour, isSubmittingBulk]);
 
   // Écran 07 : Colis COD éligibles à la caisse
   // Sont considérés comme colis de caisse les colis porteurs de COD ou encaissés
@@ -173,6 +249,15 @@ export default function CashAndClosurePage() {
     );
   }, [parcels]);
 
+  // Colis avec encaissement direct au Siège (Caisse centrale / Virement / En ligne)
+  const siegeParcels = useMemo(() => {
+    return parcels.filter(
+      (p) =>
+        p.encaissement_lieu === "SIEGE" &&
+        (p.merchandise_amount > 0 || p.total_to_collect > 0 || p.flux_type === "PROVINCE")
+    );
+  }, [parcels]);
+
   // Calcul des métriques de caisse
   const cashMetrics = useMemo(() => {
     let totalCOD = 0;
@@ -181,17 +266,36 @@ export default function CashAndClosurePage() {
     let totalAirtel = 0;
     let totalOrange = 0;
     let pendingValidation = 0;
+    let pendingCount = 0;
     let closedCount = 0;
+    let closedAmount = 0;
+    let inTourCount = 0;
+    let inTourAmount = 0;
+    let totalSiege = 0;
+    let totalLivreur = 0;
 
     codParcels.forEach((p) => {
       totalCOD += p.total_to_collect;
-      if (p.status === "CLOTURE_CAISSE") {
-        closedCount++;
-      } else if (["ENCAISSE", "LIVRE_ENCAISSE", "LIVRE"].includes(p.status)) {
-        pendingValidation += p.total_to_collect;
+      if (p.encaissement_lieu === "SIEGE") {
+        totalSiege += p.total_to_collect;
+      } else {
+        totalLivreur += p.total_to_collect;
       }
 
-      if (["ENCAISSE", "LIVRE_ENCAISSE", "CLOTURE_CAISSE"].includes(p.status)) {
+      if (p.status === "CLOTURE_CAISSE") {
+        closedCount++;
+        closedAmount += p.total_to_collect;
+      } else if (
+        ["ENCAISSE", "LIVRE_ENCAISSE", "LIVRE", "SOUS_TRAITE"].includes(p.status)
+      ) {
+        pendingValidation += p.total_to_collect;
+        pendingCount++;
+      } else if (["EN_COURS", "ASSIGNE"].includes(p.status)) {
+        inTourCount++;
+        inTourAmount += p.total_to_collect;
+      }
+
+      if (["ENCAISSE", "LIVRE_ENCAISSE", "CLOTURE_CAISSE", "SOUS_TRAITE"].includes(p.status)) {
         if (p.payment_method === "ESPECES") {
           totalEspeces += p.total_to_collect;
         } else if (p.payment_method === "MVOLA") {
@@ -214,7 +318,13 @@ export default function CashAndClosurePage() {
       totalOrange,
       totalMobile,
       pendingValidation,
+      pendingCount,
       closedCount,
+      closedAmount,
+      inTourCount,
+      inTourAmount,
+      totalSiege,
+      totalLivreur,
       totalCount: codParcels.length,
     };
   }, [codParcels]);
@@ -237,7 +347,13 @@ export default function CashAndClosurePage() {
       // Filtre statut
       if (statusFilter !== "ALL") {
         if (statusFilter === "A_VALIDER") {
-          if (!["ENCAISSE", "LIVRE_ENCAISSE", "LIVRE"].includes(p.status)) return false;
+          if (!["ENCAISSE", "LIVRE_ENCAISSE", "LIVRE", "SOUS_TRAITE"].includes(p.status)) {
+            return false;
+          }
+        } else if (statusFilter === "EN_COURS") {
+          if (!["EN_COURS", "ASSIGNE"].includes(p.status)) {
+            return false;
+          }
         } else if (p.status !== statusFilter) {
           return false;
         }
@@ -248,14 +364,22 @@ export default function CashAndClosurePage() {
         if (p.payment_method !== paymentFilter) return false;
       }
 
+      // Filtre lieu d'encaissement (Siège vs Livreur)
+      if (encaissementLieuFilter !== "ALL") {
+        if (encaissementLieuFilter === "SIEGE" && p.encaissement_lieu !== "SIEGE") return false;
+        if (encaissementLieuFilter === "LIVREUR" && p.encaissement_lieu === "SIEGE") return false;
+      }
+
       return true;
     });
-  }, [codParcels, searchQuery, statusFilter, paymentFilter]);
+  }, [codParcels, searchQuery, statusFilter, paymentFilter, encaissementLieuFilter]);
 
   // Actions de sélection groupée
   const handleToggleSelectAll = () => {
     const selectableIds = filteredParcels
-      .filter((p) => ["ENCAISSE", "LIVRE_ENCAISSE", "LIVRE"].includes(p.status))
+      .filter((p) =>
+        ["ENCAISSE", "LIVRE_ENCAISSE", "LIVRE", "SOUS_TRAITE"].includes(p.status)
+      )
       .map((p) => p.id);
 
     if (
@@ -277,11 +401,28 @@ export default function CashAndClosurePage() {
   // Validation individuelle de caisse
   const handleValidateSingleParcel = async (parcelId: number) => {
     try {
+      // Feedback optimiste instantané
+      setParcels((prev) =>
+        prev.map((p) => (p.id === parcelId ? { ...p, status: "CLOTURE_CAISSE" } : p))
+      );
+      if (selectedTourDetail && selectedTourDetail.parcels) {
+        setSelectedTourDetail((prev) =>
+          prev
+            ? {
+                ...prev,
+                parcels: prev.parcels?.map((p) =>
+                  p.id === parcelId ? { ...p, status: "CLOTURE_CAISSE" } : p
+                ),
+              }
+            : prev
+        );
+      }
       await updateParcelStatus(parcelId, { status: "CLOTURE_CAISSE" });
       setSuccessMessage(`Colis #${parcelId} validé et clôturé en caisse centrale.`);
-      await loadData();
+      await loadData(selectedTourId);
     } catch (e: any) {
       setError(e.message || "Erreur lors de la validation du colis.");
+      await loadData(selectedTourId);
     }
   };
 
@@ -289,32 +430,86 @@ export default function CashAndClosurePage() {
   const handleBulkValidate = async () => {
     if (selectedParcelIds.length === 0) return;
     setIsSubmittingBulk(true);
+    const toValidate = [...selectedParcelIds];
     try {
-      await bulkCloseCash(selectedParcelIds);
+      // Feedback optimiste instantané
+      setParcels((prev) =>
+        prev.map((p) => (toValidate.includes(p.id) ? { ...p, status: "CLOTURE_CAISSE" } : p))
+      );
+      if (selectedTourDetail && selectedTourDetail.parcels) {
+        setSelectedTourDetail((prev) =>
+          prev
+            ? {
+                ...prev,
+                parcels: prev.parcels?.map((p) =>
+                  toValidate.includes(p.id) ? { ...p, status: "CLOTURE_CAISSE" } : p
+                ),
+              }
+            : prev
+        );
+      }
+      await bulkCloseCash(toValidate);
       setSuccessMessage(
-        `${selectedParcelIds.length} colis validé(s) avec succès et clôturé(s) en caisse centrale.`
+        `${toValidate.length} colis validé(s) avec succès et clôturé(s) en caisse centrale.`
       );
       setSelectedParcelIds([]);
-      await loadData();
+      await loadData(selectedTourId);
     } catch (e: any) {
       setError(e.message || "Erreur lors de la validation groupée.");
+      await loadData(selectedTourId);
     } finally {
       setIsSubmittingBulk(false);
     }
   };
 
-  // Calculs financiers pour la décharge de tournée (Écran 08)
-  const theoreticalTotal = useMemo(() => {
-    if (!selectedTourDetail || !selectedTourDetail.parcels) return 0;
-    return selectedTourDetail.parcels
-      .filter((p) =>
-        ["LIVRE", "ENCAISSE", "LIVRE_ENCAISSE", "CLOTURE_CAISSE"].includes(p.status)
-      )
-      .reduce((sum, p) => sum + p.total_to_collect, 0);
+  // Calculs financiers pour la décharge de tournée au Quai (Écran 08)
+  const tourFinancials = useMemo(() => {
+    if (!selectedTourDetail || !selectedTourDetail.parcels) {
+      return {
+        grossTotal: 0,
+        siegeTotal: 0,
+        courierTheoreticalDue: 0,
+        siegeParcels: [] as Parcel[],
+        courierParcels: [] as Parcel[],
+      };
+    }
+
+    const deliveredParcels = selectedTourDetail.parcels.filter((p) =>
+      ["LIVRE", "ENCAISSE", "LIVRE_ENCAISSE", "CLOTURE_CAISSE", "SOUS_TRAITE"].includes(p.status)
+    );
+
+    let grossTotal = 0;
+    let siegeTotal = 0;
+    let courierTheoreticalDue = 0;
+    const siegeParcels: Parcel[] = [];
+    const courierParcels: Parcel[] = [];
+
+    deliveredParcels.forEach((p) => {
+      grossTotal += p.total_to_collect;
+      if (p.encaissement_lieu === "SIEGE") {
+        siegeTotal += p.total_to_collect;
+        siegeParcels.push(p);
+      } else {
+        courierTheoreticalDue += p.total_to_collect;
+        courierParcels.push(p);
+      }
+    });
+
+    return {
+      grossTotal,
+      siegeTotal,
+      courierTheoreticalDue,
+      siegeParcels,
+      courierParcels,
+    };
   }, [selectedTourDetail]);
 
+  const theoreticalTotal = tourFinancials.courierTheoreticalDue;
   const totalRemitted = remittedCash + remittedMobile + remittedExpenses;
-  const cashDiscrepancy = totalRemitted - theoreticalTotal;
+  const cashDiscrepancy =
+    selectedTourDetail?.status === "CLOTURE"
+      ? selectedTourDetail.discrepancy
+      : totalRemitted - theoreticalTotal;
 
   // Clôture définitive de la tournée
   const handleConfirmCloseTour = async () => {
@@ -322,7 +517,19 @@ export default function CashAndClosurePage() {
     setIsClosingTour(true);
     setError(null);
     try {
+      // 1. Appel API de clôture de la tournée
       const res = await closeTour(selectedTourDetail.id, totalRemitted);
+
+      // 2. Recharger immédiatement en temps réel le détail scellé de la tournée
+      const updatedTourDetail = await loadTourDetail(selectedTourDetail.id);
+
+      const finalTour = updatedTourDetail || {
+        ...selectedTourDetail,
+        status: "CLOTURE" as const,
+        actual_remitted: totalRemitted,
+        discrepancy: cashDiscrepancy,
+      };
+
       setSuccessMessage(
         `Tournée #${selectedTourDetail.id} clôturée avec succès. Écart de caisse : ${
           cashDiscrepancy === 0
@@ -333,17 +540,21 @@ export default function CashAndClosurePage() {
         }`
       );
 
-      // Ouvrir le reçu imprimable
+      // 3. Ouvrir le reçu imprimable avec les données scellées
       setReceiptData({
-        tour: selectedTourDetail,
+        tour: finalTour,
         cash: remittedCash,
         mobile: remittedMobile,
         expenses: remittedExpenses,
         discrepancy: cashDiscrepancy,
         closedAt: new Date().toISOString(),
+        grossTotal: tourFinancials.grossTotal,
+        siegeTotal: tourFinancials.siegeTotal,
+        siegeParcels: tourFinancials.siegeParcels,
       });
 
-      await loadData();
+      // 4. Synchroniser en arrière-plan la liste globale des tournées et colis
+      await loadData(selectedTourDetail.id);
     } catch (e: any) {
       setError(e.message || "Erreur lors de la clôture de la tournée.");
     } finally {
@@ -351,94 +562,55 @@ export default function CashAndClosurePage() {
     }
   };
 
-  const getStatusBadge = (status: ParcelStatus) => {
-    switch (status) {
-      case "CLOTURE_CAISSE":
-        return (
-          <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            Clôturé Caisse
-          </span>
-        );
-      case "ENCAISSE":
-      case "LIVRE_ENCAISSE":
-        return (
-          <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-teal-100 text-teal-800 border border-teal-300 flex items-center gap-1">
-            <Coins className="w-3.5 h-3.5 text-teal-600" />
-            Encaissé (À valider)
-          </span>
-        );
-      case "LIVRE":
-        return (
-          <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-cyan-100 text-cyan-800 border border-cyan-300">
-            Livré Simple
-          </span>
-        );
-      case "EN_COURS":
-        return (
-          <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-sky-100 text-sky-800 border border-sky-300">
-            En Cours
-          </span>
-        );
-      case "REPORTE":
-        return (
-          <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-amber-100 text-amber-800 border border-amber-300">
-            Reporté
-          </span>
-        );
-      case "ANNULE_RETOUR":
-        return (
-          <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-rose-100 text-rose-800 border border-rose-300">
-            Annulé / Refus
-          </span>
-        );
-      default:
-        return (
-          <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-700 border border-slate-300">
-            {status}
-          </span>
-        );
-    }
+  const getStatusBadge = (status: ParcelStatus | string, encaissement_lieu?: string | null) => {
+    return <StatusBadge status={status} encaissement_lieu={encaissement_lieu} />;
   };
 
   const getPaymentBadge = (method?: string | null) => {
     if (!method) {
       return (
-        <span className="text-xs text-slate-400 italic">Non renseigné</span>
+        <span className="text-xs text-slate-400 italic whitespace-nowrap">Non renseigné</span>
       );
     }
     switch (method) {
       case "ESPECES":
         return (
-          <span className="px-2 py-0.5 text-xs font-bold rounded bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
-            <DollarSign className="w-3 h-3 text-emerald-600" />
+          <span className="px-2 py-0.5 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1 whitespace-nowrap">
+            <DollarSign className="w-3 h-3 text-emerald-600 shrink-0" />
             Espèces
           </span>
         );
       case "MVOLA":
         return (
-          <span className="px-2 py-0.5 text-xs font-bold rounded bg-yellow-50 text-yellow-800 border border-yellow-300 flex items-center gap-1">
-            <Smartphone className="w-3 h-3 text-yellow-600" />
+          <span className="px-2 py-0.5 text-xs font-bold rounded-lg bg-yellow-50 text-yellow-800 border border-yellow-300 inline-flex items-center gap-1 whitespace-nowrap">
+            <Smartphone className="w-3 h-3 text-yellow-600 shrink-0" />
             MVola (Telma)
           </span>
         );
       case "AIRTEL":
         return (
-          <span className="px-2 py-0.5 text-xs font-bold rounded bg-red-50 text-red-700 border border-red-200 flex items-center gap-1">
-            <Smartphone className="w-3 h-3 text-red-600" />
+          <span className="px-2 py-0.5 text-xs font-bold rounded-lg bg-red-50 text-red-700 border border-red-200 inline-flex items-center gap-1 whitespace-nowrap">
+            <Smartphone className="w-3 h-3 text-red-600 shrink-0" />
             Airtel Money
           </span>
         );
       case "ORANGE_MONEY":
         return (
-          <span className="px-2 py-0.5 text-xs font-bold rounded bg-orange-50 text-orange-700 border border-orange-200 flex items-center gap-1">
-            <Smartphone className="w-3 h-3 text-orange-600" />
+          <span className="px-2 py-0.5 text-xs font-bold rounded-lg bg-orange-50 text-orange-700 border border-orange-200 inline-flex items-center gap-1 whitespace-nowrap">
+            <Smartphone className="w-3 h-3 text-orange-600 shrink-0" />
             Orange Money
+          </span>
+        );
+      case "VIREMENT":
+        return (
+          <span className="px-2 py-0.5 text-xs font-bold rounded-lg bg-blue-50 text-blue-700 border border-blue-200 inline-flex items-center gap-1 whitespace-nowrap">
+            <Building2 className="w-3 h-3 text-blue-600 shrink-0" />
+            Virement Bancaire
           </span>
         );
       default:
         return (
-          <span className="px-2 py-0.5 text-xs font-medium rounded bg-slate-100 text-slate-700">
+          <span className="px-2 py-0.5 text-xs font-medium rounded-lg bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
             {method}
           </span>
         );
@@ -478,11 +650,16 @@ export default function CashAndClosurePage() {
               />
             </div>
 
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="hidden sm:inline">Temps Réel Actif</span>
+            </div>
+
             <button
-              onClick={loadData}
+              onClick={() => loadData(selectedTourId)}
               disabled={loading}
-              className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition border border-slate-200"
-              title="Rafraîchir les données"
+              className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition border border-slate-200 cursor-pointer"
+              title="Rafraîchir les données manuellement"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
             </button>
@@ -492,7 +669,7 @@ export default function CashAndClosurePage() {
         </div>
 
         {/* Tab navigation */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex border-t border-slate-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex border-t border-slate-100 flex-wrap">
           <button
             onClick={() => setActiveTab("caisse")}
             className={`py-2 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition ${
@@ -519,9 +696,25 @@ export default function CashAndClosurePage() {
             data-cy="tab-decharge"
           >
             <FileText className="w-3.5 h-3.5" />
-            08. Décharge & Clôture de Tournée
+            08. Décharge au Quai & Clôture de Tournée
             <span className="ml-1 px-1.5 py-0.5 text-[10px] rounded-full bg-slate-200 text-slate-700 font-medium">
               {tours.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("siege")}
+            className={`py-2 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition ${
+              activeTab === "siege"
+                ? "border-purple-600 text-purple-700 bg-purple-50/50"
+                : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+            }`}
+            data-cy="tab-siege"
+          >
+            <Building2 className="w-3.5 h-3.5" />
+            09. Historique Encaissements au Siège
+            <span className="ml-1 px-1.5 py-0.5 text-[10px] rounded-full bg-blue-100 text-blue-800 font-bold">
+              {siegeParcels.length} ({formatMGA(cashMetrics.totalSiege)})
             </span>
           </button>
         </div>
@@ -570,82 +763,102 @@ export default function CashAndClosurePage() {
         {activeTab === "caisse" && (
           <div className="space-y-4" data-cy="view-caisse">
             {/* KPI Cards Bar */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="bg-white p-3 rounded-xl border border-slate-200/90 border-l-4 border-l-emerald-500 shadow-xs">
-                <div className="flex items-center justify-between text-slate-500 mb-1">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider">
-                    Total COD Encaissé / Dû
-                  </span>
-                  <Coins className="w-4 h-4 text-emerald-600" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+              {/* Card 1: Total COD Encaissé / Dû */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 border-l-4 border-l-emerald-500 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-slate-500 mb-1.5">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      Total COD Encaissé / Dû
+                    </span>
+                    <Coins className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono tabular-nums whitespace-nowrap">
+                    {formatMGA(cashMetrics.totalCOD)}
+                  </div>
                 </div>
-                <div className="text-base sm:text-lg font-bold text-slate-900 font-mono tabular-nums">
-                  {formatMGA(cashMetrics.totalCOD)}
-                </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Sur un volume de {cashMetrics.totalCount} colis COD
-                </p>
-              </div>
-
-              <div className="bg-white p-3 rounded-xl border border-slate-200/90 border-l-4 border-l-teal-500 shadow-xs">
-                <div className="flex items-center justify-between text-slate-500 mb-1">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider">
-                    Espèces Remises
-                  </span>
-                  <DollarSign className="w-4 h-4 text-teal-600" />
-                </div>
-                <div className="text-base sm:text-lg font-bold text-teal-700 font-mono tabular-nums">
-                  {formatMGA(cashMetrics.totalEspeces)}
-                </div>
-                <p className="text-[11px] text-slate-500 mt-1">Cash physique encaissé au Hub</p>
-              </div>
-
-              <div className="bg-white p-3 rounded-xl border border-slate-200/90 border-l-4 border-l-amber-500 shadow-xs">
-                <div className="flex items-center justify-between text-slate-500 mb-1">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider">
-                    Mobile Money Réconcilié
-                  </span>
-                  <Smartphone className="w-4 h-4 text-amber-600" />
-                </div>
-                <div className="text-base sm:text-lg font-bold text-amber-700 font-mono tabular-nums">
-                  {formatMGA(cashMetrics.totalMobile)}
-                </div>
-                <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500 font-mono tabular-nums">
-                  <span>MV: {formatNumber(cashMetrics.totalMvola)}</span>
-                  <span>•</span>
-                  <span>Air: {formatNumber(cashMetrics.totalAirtel)}</span>
-                  <span>•</span>
-                  <span>Org: {formatNumber(cashMetrics.totalOrange)}</span>
+                <div className="mt-2 text-[11px] text-slate-500 flex items-center justify-between border-t border-slate-100 pt-1.5">
+                  <span>Sur {cashMetrics.totalCount} colis COD</span>
+                  <span className="font-semibold text-emerald-700">100% rapproché</span>
                 </div>
               </div>
 
-              <div className="bg-white p-3 rounded-xl border border-slate-200/90 border-l-4 border-l-indigo-500 shadow-xs">
-                <div className="flex items-center justify-between text-slate-500 mb-1">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider">
-                    À Valider en Caisse
+              {/* Card 2: Espèces Remises */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 border-l-4 border-l-teal-500 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-slate-500 mb-1.5">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      Espèces Remises au Hub
+                    </span>
+                    <DollarSign className="w-4 h-4 text-teal-600" />
+                  </div>
+                  <div className="text-xl sm:text-2xl font-black text-teal-700 font-mono tabular-nums whitespace-nowrap">
+                    {formatMGA(cashMetrics.totalEspeces)}
+                  </div>
+                </div>
+                <div className="mt-2 text-[11px] text-slate-500 border-t border-slate-100 pt-1.5">
+                  Billetage compté & vérifié
+                </div>
+              </div>
+
+              {/* Card 3: Mobile Money Réconcilié */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 border-l-4 border-l-amber-500 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-slate-500 mb-1.5">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      Mobile Money Réconcilié
+                    </span>
+                    <Smartphone className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <div className="text-xl sm:text-2xl font-black text-amber-700 font-mono tabular-nums whitespace-nowrap">
+                    {formatMGA(cashMetrics.totalMobile)}
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center gap-1.5 text-[10px] text-slate-600 font-mono tabular-nums border-t border-slate-100 pt-1.5 flex-wrap">
+                  <span className="px-1.5 py-0.5 bg-yellow-50 text-yellow-800 rounded font-bold border border-yellow-200">
+                    MV: {formatNumber(cashMetrics.totalMvola)}
                   </span>
-                  <Clock className="w-4 h-4 text-indigo-600" />
+                  <span className="px-1.5 py-0.5 bg-red-50 text-red-800 rounded font-bold border border-red-200">
+                    Air: {formatNumber(cashMetrics.totalAirtel)}
+                  </span>
+                  <span className="px-1.5 py-0.5 bg-orange-50 text-orange-800 rounded font-bold border border-orange-200">
+                    Org: {formatNumber(cashMetrics.totalOrange)}
+                  </span>
                 </div>
-                <div className="text-base sm:text-lg font-bold text-indigo-700 font-mono tabular-nums">
-                  {formatMGA(cashMetrics.pendingValidation)}
+              </div>
+
+              {/* Card 4: À Valider en Caisse vs Scellé */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 border-l-4 border-l-indigo-500 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-slate-500 mb-1.5">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      À Valider en Caisse
+                    </span>
+                    <Clock className="w-4 h-4 text-indigo-600" />
+                  </div>
+                  <div className="text-xl sm:text-2xl font-black text-indigo-700 font-mono tabular-nums whitespace-nowrap">
+                    {formatMGA(cashMetrics.pendingValidation)}
+                  </div>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  {cashMetrics.closedCount} colis déjà scellés en caisse
-                </p>
+                <div className="mt-2 text-[11px] text-slate-500 flex items-center justify-between border-t border-slate-100 pt-1.5">
+                  <span className="text-amber-700 font-bold">{cashMetrics.pendingCount} à sceller</span>
+                  <span className="text-emerald-700 font-bold">{cashMetrics.closedCount} scellés</span>
+                </div>
               </div>
             </div>
 
             {/* Action & Filter Toolbar */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex flex-wrap items-center gap-3 flex-1">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2.5 flex-1">
                 {/* Search */}
-                <div className="relative min-w-[240px] flex-1 max-w-md">
-                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <div className="relative min-w-[220px] flex-1 max-w-sm">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                   <input
                     type="text"
-                    placeholder="N° BDR, Destinataire, Vendeur..."
+                    placeholder="N° BDR, Destinataire, Expéditeur..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
                     data-cy="search-cash-input"
                   />
                 </div>
@@ -654,37 +867,53 @@ export default function CashAndClosurePage() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none"
+                  className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 focus:bg-white focus:outline-none cursor-pointer"
                   data-cy="status-cash-filter"
                 >
-                  <option value="ALL">Tous les statuts COD</option>
-                  <option value="A_VALIDER">À Valider (Encaissés)</option>
-                  <option value="CLOTURE_CAISSE">Déjà Clôturés en Caisse</option>
-                  <option value="EN_COURS">En Cours de Tournée</option>
+                  <option value="ALL">Tous les statuts ({codParcels.length})</option>
+                  <option value="A_VALIDER">⚡ À Valider en Caisse ({cashMetrics.pendingCount})</option>
+                  <option value="CLOTURE_CAISSE">🔒 Déjà Scellés en Caisse ({cashMetrics.closedCount})</option>
+                  <option value="EN_COURS">🛵 En Cours de Tournée ({cashMetrics.inTourCount})</option>
+                  <option value="SOUS_TRAITE">🚌 Sous-traités Gare (Province)</option>
+                  <option value="REPORTE">⏳ Reportés</option>
+                  <option value="ANNULE_RETOUR">❌ Annulés / Refus</option>
                 </select>
 
                 {/* Payment Method Filter */}
                 <select
                   value={paymentFilter}
                   onChange={(e) => setPaymentFilter(e.target.value)}
-                  className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none"
+                  className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 focus:bg-white focus:outline-none cursor-pointer"
                   data-cy="payment-cash-filter"
                 >
-                  <option value="ALL">Tous les modes de règlement</option>
-                  <option value="ESPECES">Espèces uniquement</option>
-                  <option value="MVOLA">MVola</option>
-                  <option value="AIRTEL">Airtel Money</option>
-                  <option value="ORANGE_MONEY">Orange Money</option>
+                  <option value="ALL">Tous les règlements</option>
+                  <option value="ESPECES">💵 Espèces physiques</option>
+                  <option value="MVOLA">📱 MVola (Telma)</option>
+                  <option value="AIRTEL">📱 Airtel Money</option>
+                  <option value="ORANGE_MONEY">📱 Orange Money</option>
+                  <option value="VIREMENT">🏦 Virement Bancaire</option>
+                </select>
+
+                {/* Lieu d'encaissement Filter */}
+                <select
+                  value={encaissementLieuFilter}
+                  onChange={(e) => setEncaissementLieuFilter(e.target.value)}
+                  className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 focus:bg-white focus:outline-none cursor-pointer"
+                  data-cy="encaissement-lieu-filter"
+                >
+                  <option value="ALL">Tous les lieux de recouvrement</option>
+                  <option value="SIEGE">🏢 Récupéré au Siège ({formatMGA(cashMetrics.totalSiege)})</option>
+                  <option value="LIVREUR">🛵 Récupéré par Livreur ({formatMGA(cashMetrics.totalLivreur)})</option>
                 </select>
               </div>
 
               {/* Bulk Actions */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 shrink-0">
                 {selectedParcelIds.length > 0 && (
                   <button
                     onClick={handleBulkValidate}
                     disabled={isSubmittingBulk}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-md transition flex items-center gap-2"
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-2 cursor-pointer"
                     data-cy="btn-bulk-validate-cash"
                   >
                     <CheckCircle2 className="w-4 h-4" />
@@ -697,65 +926,69 @@ export default function CashAndClosurePage() {
             {/* Parcels Table */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse" data-cy="cash-parcels-table">
+                <table className="min-w-[1260px] w-full text-left border-collapse" data-cy="cash-parcels-table">
                   <thead>
-                    <tr className="bg-slate-50 text-slate-500 text-xs uppercase font-bold tracking-wider border-b border-slate-200">
-                      <th className="p-4 w-12 text-center">
+                    <tr className="bg-slate-50 text-slate-500 text-[11px] uppercase font-bold tracking-wider border-b border-slate-200">
+                      <th className="p-3.5 w-12 text-center">
                         <input
                           type="checkbox"
                           checked={
                             filteredParcels.length > 0 &&
                             filteredParcels
                               .filter((p) =>
-                                ["ENCAISSE", "LIVRE_ENCAISSE", "LIVRE"].includes(p.status)
+                                ["ENCAISSE", "LIVRE_ENCAISSE", "LIVRE", "SOUS_TRAITE"].includes(p.status)
                               )
                               .every((p) => selectedParcelIds.includes(p.id))
                           }
                           onChange={handleToggleSelectAll}
                           className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
                           data-cy="select-all-cash-checkbox"
+                          title="Sélectionner tous les colis éligibles à la clôture"
                         />
                       </th>
-                      <th className="p-4">N° BDR & Suivi</th>
-                      <th className="p-4">Expéditeur & Destinataire</th>
-                      <th className="p-4">Axe & Type</th>
-                      <th className="p-4">Mode Règlement</th>
-                      <th className="p-4 text-right">Marchandise</th>
-                      <th className="p-4 text-right">Frais Port</th>
-                      <th className="p-4 text-right">Total COD</th>
-                      <th className="p-4 text-center">Statut</th>
-                      <th className="p-4 text-center">Action Caisse</th>
+                      <th className="p-3.5 w-32 whitespace-nowrap">N° BDR & Suivi</th>
+                      <th className="p-3.5 min-w-[210px]">Expéditeur & Destinataire</th>
+                      <th className="p-3.5 w-40 whitespace-nowrap">Axe & Type</th>
+                      <th className="p-3.5 w-36 whitespace-nowrap text-center">Lieu Encaissement</th>
+                      <th className="p-3.5 w-36 whitespace-nowrap">Mode Règlement</th>
+                      <th className="p-3.5 w-28 whitespace-nowrap text-right">Marchandise</th>
+                      <th className="p-3.5 w-24 whitespace-nowrap text-right">Frais Port</th>
+                      <th className="p-3.5 w-28 whitespace-nowrap text-right">Total COD</th>
+                      <th className="p-3.5 w-44 whitespace-nowrap text-center">Statut Atomique</th>
+                      <th className="p-3.5 w-36 whitespace-nowrap text-center">Action Caisse</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
                     {filteredParcels.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="p-12 text-center text-slate-400">
+                        <td colSpan={11} className="p-12 text-center text-slate-400">
                           <Coins className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-                          <p className="font-semibold text-slate-600">Aucun colis COD trouvé</p>
+                          <p className="font-semibold text-slate-600">Aucun colis COD trouvé pour ces critères</p>
                           <p className="text-xs text-slate-400 mt-1">
-                            Modifiez vos critères de recherche ou sélectionnez une autre date.
+                            Ajustez vos filtres ou sélectionnez une autre date.
                           </p>
                         </td>
                       </tr>
                     ) : (
                       filteredParcels.map((parcel) => {
-                        const isSelectable = [
-                          "ENCAISSE",
-                          "LIVRE_ENCAISSE",
-                          "LIVRE",
-                        ].includes(parcel.status);
+                        const isSelectable =
+                          ["ENCAISSE", "LIVRE_ENCAISSE", "LIVRE", "SOUS_TRAITE"].includes(parcel.status);
                         const isSelected = selectedParcelIds.includes(parcel.id);
+                        const isClosed = parcel.status === "CLOTURE_CAISSE";
 
                         return (
                           <tr
                             key={parcel.id}
-                            className={`hover:bg-slate-50/80 transition ${
-                              isSelected ? "bg-emerald-50/40" : ""
+                            className={`transition ${
+                              isClosed
+                                ? "bg-slate-100/70 text-slate-400 opacity-60 hover:bg-slate-100/90 select-none"
+                                : isSelected
+                                ? "bg-emerald-50/40 hover:bg-slate-50/80"
+                                : "hover:bg-slate-50/80"
                             }`}
                             data-cy={`cash-parcel-row-${parcel.id}`}
                           >
-                            <td className="p-4 text-center">
+                            <td className="p-3.5 text-center">
                               {isSelectable ? (
                                 <input
                                   type="checkbox"
@@ -764,58 +997,128 @@ export default function CashAndClosurePage() {
                                   className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
                                   data-cy={`select-cash-parcel-${parcel.id}`}
                                 />
+                              ) : isClosed ? (
+                                <span title="Validé et scellé en caisse centrale" className="inline-block">
+                                  <Lock className="w-3.5 h-3.5 text-slate-400 mx-auto" />
+                                </span>
                               ) : (
-                                <span className="text-slate-300">•</span>
+                                <span className="text-slate-300 text-xs">•</span>
                               )}
                             </td>
-                            <td className="p-4 font-mono font-bold text-slate-900">
-                              BDR-{parcel.tracking_number}
+                            <td className="p-3.5 whitespace-nowrap font-mono">
+                              <span
+                                className={`block text-xs ${
+                                  isClosed ? "font-semibold text-slate-500" : "font-bold text-slate-900"
+                                }`}
+                              >
+                                BDR-{parcel.tracking_number}
+                              </span>
+                              <span className="text-[10px] text-slate-400 block">
+                                {parcel.reception_date}
+                              </span>
                             </td>
-                            <td className="p-4">
-                              <div className="font-semibold text-slate-800">
+                            <td className="p-3.5">
+                              <div
+                                className={`text-xs ${
+                                  isClosed ? "font-medium text-slate-500" : "font-bold text-slate-900"
+                                }`}
+                              >
                                 {parcel.recipient_name}
                               </div>
-                              <div className="text-xs text-slate-500 font-mono">
+                              <div className="text-[11px] text-slate-400 font-mono">
                                 {parcel.recipient_phone_formatted || parcel.recipient_phone}
                               </div>
                               {parcel.sender_name && (
-                                <div className="text-[11px] text-blue-600 mt-0.5">
+                                <div
+                                  className={`text-[10px] font-medium truncate max-w-[200px] ${
+                                    isClosed ? "text-slate-400" : "text-blue-600"
+                                  }`}
+                                  title={parcel.sender_name}
+                                >
                                   Exp: {parcel.sender_name}
                                 </div>
                               )}
                             </td>
-                            <td className="p-4">
-                              <span className="px-2 py-0.5 text-xs font-semibold rounded bg-slate-100 text-slate-700">
-                                {parcel.axis}
+                            <td className="p-3.5 whitespace-nowrap">
+                              <div className={`flex flex-col gap-1 items-start ${isClosed ? "opacity-60 grayscale-[30%]" : ""}`}>
+                                <AxisBadge axis={parcel.axis} />
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-600 uppercase border border-slate-200">
+                                  {parcel.flux_type}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-3.5 text-center whitespace-nowrap">
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-xs font-bold border inline-flex items-center gap-1 ${
+                                  isClosed
+                                    ? "bg-slate-100 text-slate-500 border-slate-200"
+                                    : parcel.encaissement_lieu === "SIEGE"
+                                    ? "bg-blue-50 text-blue-800 border-blue-200"
+                                    : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                }`}
+                              >
+                                {parcel.encaissement_lieu === "SIEGE" ? "🏢 Au Siège" : "🛵 Par Livreur"}
                               </span>
                             </td>
-                            <td className="p-4">{getPaymentBadge(parcel.payment_method)}</td>
-                            <td className="p-4 text-right font-medium text-slate-600">
+                            <td className={`p-3.5 whitespace-nowrap ${isClosed ? "opacity-60 grayscale-[30%]" : ""}`}>
+                              {getPaymentBadge(parcel.payment_method)}
+                            </td>
+                            <td className={`p-3.5 text-right font-mono font-medium whitespace-nowrap text-xs ${isClosed ? "text-slate-400" : "text-slate-600"}`}>
                               {formatMGA(parcel.merchandise_amount)}
                             </td>
-                            <td className="p-4 text-right font-medium text-slate-600">
+                            <td className={`p-3.5 text-right font-mono font-medium whitespace-nowrap text-xs ${isClosed ? "text-slate-400" : "text-slate-600"}`}>
                               {formatMGA(parcel.delivery_fee)}
                             </td>
-                            <td className="p-4 text-right font-mono font-black text-slate-900">
-                              {formatMGA(parcel.total_to_collect)}
+                            <td className="p-3.5 text-right whitespace-nowrap">
+                              <span
+                                className={`font-mono px-2 py-0.5 rounded-lg border inline-block text-xs ${
+                                  isClosed
+                                    ? "font-semibold text-slate-400 bg-slate-100/70 border-slate-200"
+                                    : "font-black text-slate-900 bg-slate-100 border-slate-200/80"
+                                }`}
+                              >
+                                {formatMGA(parcel.total_to_collect)}
+                              </span>
                             </td>
-                            <td className="p-4 text-center">{getStatusBadge(parcel.status)}</td>
-                            <td className="p-4 text-center">
+                            <td className={`p-3.5 text-center whitespace-nowrap ${isClosed ? "opacity-75" : ""}`}>
+                              <StatusBadge status={parcel.status} encaissement_lieu={parcel.encaissement_lieu} />
+                            </td>
+                            <td className="p-3.5 text-center whitespace-nowrap">
                               {parcel.status === "CLOTURE_CAISSE" ? (
-                                <span className="text-xs text-emerald-600 font-bold flex items-center justify-center gap-1">
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                  Scellé
+                                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-300 whitespace-nowrap shadow-2xs">
+                                  <Lock className="w-3.5 h-3.5 text-slate-400" />
+                                  Scellé en Caisse
                                 </span>
                               ) : isSelectable ? (
                                 <button
                                   onClick={() => handleValidateSingleParcel(parcel.id)}
-                                  className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm transition"
+                                  disabled={isSubmittingBulk}
+                                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
                                   data-cy={`btn-validate-cash-${parcel.id}`}
                                 >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
                                   Valider Caisse
                                 </button>
+                              ) : parcel.status === "EN_COURS" || parcel.status === "ASSIGNE" ? (
+                                <span className="text-[11px] text-sky-600 font-medium italic flex items-center justify-center gap-1">
+                                  <Truck className="w-3.5 h-3.5" /> En cours tournée
+                                </span>
+                              ) : parcel.status === "EN_DEPOT" ? (
+                                <span className="text-[11px] text-amber-600 font-medium italic flex items-center justify-center gap-1">
+                                  <Package className="w-3.5 h-3.5" /> En stock Hub
+                                </span>
+                              ) : parcel.status === "REPORTE" ? (
+                                <span className="text-[11px] text-orange-600 font-medium flex items-center justify-center gap-1">
+                                  <Clock className="w-3.5 h-3.5" /> Reporté ({parcel.reschedule_date || "À planifier"})
+                                </span>
+                              ) : parcel.status === "ANNULE_RETOUR" ? (
+                                <span className="text-[11px] text-rose-600 font-medium flex items-center justify-center gap-1">
+                                  <XCircle className="w-3.5 h-3.5" /> Refus / Annulé
+                                </span>
                               ) : (
-                                <span className="text-xs text-slate-400 italic">En attente</span>
+                                <span className="text-xs text-slate-400 font-medium">
+                                  -
+                                </span>
                               )}
                             </td>
                           </tr>
@@ -845,44 +1148,50 @@ export default function CashAndClosurePage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {tours.map((t) => {
                     const isSelected = selectedTourId === t.id;
+                    const isClosed = t.status === "CLOTURE";
                     return (
                       <div
                         key={t.id}
                         onClick={() => setSelectedTourId(t.id)}
                         className={`p-4 rounded-xl border cursor-pointer transition flex items-center justify-between ${
                           isSelected
-                            ? "bg-blue-50/70 border-blue-500 ring-2 ring-blue-500/20"
+                            ? isClosed
+                              ? "bg-slate-100/90 border-slate-400 ring-2 ring-slate-400/20"
+                              : "bg-blue-50/70 border-blue-500 ring-2 ring-blue-500/20"
+                            : isClosed
+                            ? "bg-slate-100/60 border-slate-200/80 opacity-70 hover:bg-slate-100"
                             : "bg-slate-50/50 border-slate-200 hover:bg-slate-100"
                         }`}
                         data-cy={`select-tour-card-${t.id}`}
                       >
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-900">
+                            <span className={`font-bold ${isClosed ? "text-slate-600" : "text-slate-900"}`}>
                               Tournée #{t.id}
                             </span>
                             <span
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                t.status === "CLOTURE"
-                                  ? "bg-emerald-100 text-emerald-800"
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
+                                isClosed
+                                  ? "bg-slate-200 text-slate-700 border border-slate-300"
                                   : t.status === "EN_COURS"
                                   ? "bg-sky-100 text-sky-800"
                                   : "bg-indigo-100 text-indigo-800"
                               }`}
                             >
+                              {isClosed && <Lock className="w-2.5 h-2.5" />}
                               {t.status}
                             </span>
                           </div>
-                          <p className="text-xs text-slate-600 font-medium mt-1">
+                          <p className="text-xs text-slate-500 font-medium mt-1">
                             Livreur: {t.courier_name || `ID #${t.courier_id}`}
                           </p>
-                          <p className="text-[11px] text-slate-500 font-mono">
+                          <p className="text-[11px] text-slate-400 font-mono">
                             {t.courier_vehicle || "Deux-roues standard"}
                           </p>
                         </div>
                         <div className="text-right">
                           <span className="text-xs text-slate-400 block">Dû estimé</span>
-                          <span className="font-mono font-bold text-slate-800 text-sm">
+                          <span className={`font-mono font-bold text-sm ${isClosed ? "text-slate-500" : "text-slate-800"}`}>
                             {formatMGA(t.theoretical_total || 0)}
                           </span>
                         </div>
@@ -906,15 +1215,23 @@ export default function CashAndClosurePage() {
                         Décharge Financière — Tournée #{selectedTourDetail.id}
                       </h3>
                       <span
-                        className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                        className={`text-xs font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1.5 ${
                           selectedTourDetail.status === "CLOTURE"
                             ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
                             : "bg-sky-100 text-sky-800 border border-sky-300"
                         }`}
                       >
-                        {selectedTourDetail.status === "CLOTURE"
-                          ? "Tournée Déjà Clôturée"
-                          : "En Cours de Clôture"}
+                        {selectedTourDetail.status === "CLOTURE" ? (
+                          <>
+                            <Lock className="w-3 h-3 text-emerald-700" />
+                            Tournée Déjà Clôturée & Scellée
+                          </>
+                        ) : (
+                          <>
+                            <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" />
+                            En Cours de Clôture
+                          </>
+                        )}
                       </span>
                     </div>
                     <p className="text-xs text-slate-500 mt-0.5">
@@ -961,15 +1278,113 @@ export default function CashAndClosurePage() {
                       </p>
                     </div>
 
+                    {/* Tour Siège Reconciliation Banner & Detailed Breakdown */}
+                    {tourFinancials.siegeParcels.length > 0 && (
+                      <div className="p-4 bg-blue-50/90 border border-blue-200 rounded-2xl shadow-xs space-y-3" data-cy="tour-siege-reconciliation-card">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div className="flex items-center gap-2.5">
+                            <span className="p-1.5 bg-blue-600 text-white rounded-lg">
+                              <Building2 className="w-4 h-4" />
+                            </span>
+                            <div>
+                              <h4 className="text-xs font-bold uppercase tracking-wider text-blue-900">
+                                Historique Encaissements au Siège pour cette Tournée
+                              </h4>
+                              <p className="text-xs text-blue-700">
+                                {tourFinancials.siegeParcels.length} colis réglé(s) directement au siège ({formatMGA(tourFinancials.siegeTotal)}).
+                              </p>
+                            </div>
+                          </div>
+                          <span className="px-2.5 py-1 bg-blue-100 text-blue-800 border border-blue-200 rounded-full text-xs font-bold font-mono">
+                            Ne PAS réclamer au livreur
+                          </span>
+                        </div>
+
+                        {/* Tableau historique détaillé des colis Siège de la tournée */}
+                        <div className="bg-white rounded-xl border border-blue-200 overflow-hidden text-xs">
+                          <table className="w-full text-left">
+                            <thead className="bg-blue-100/60 text-blue-900 text-[10px] font-bold uppercase border-b border-blue-200">
+                              <tr>
+                                <th className="p-2.5">N° BDR</th>
+                                <th className="p-2.5">Destinataire</th>
+                                <th className="p-2.5">Règlement Siège</th>
+                                <th className="p-2.5 text-right">Marchandise</th>
+                                <th className="p-2.5 text-right">Frais Port</th>
+                                <th className="p-2.5 text-right">Total COD Siège</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-blue-100">
+                              {tourFinancials.siegeParcels.map((sp) => (
+                                <tr key={sp.id} className="hover:bg-blue-50/50">
+                                  <td className="p-2.5 font-mono font-bold text-blue-900 whitespace-nowrap">
+                                    BDR-{sp.tracking_number}
+                                  </td>
+                                  <td className="p-2.5">
+                                    <span className="font-semibold block">{sp.recipient_name}</span>
+                                    <span className="text-[10px] text-slate-400 font-mono">{sp.recipient_phone}</span>
+                                  </td>
+                                  <td className="p-2.5 whitespace-nowrap">{getPaymentBadge(sp.payment_method)}</td>
+                                  <td className="p-2.5 text-right font-mono font-medium text-slate-600 whitespace-nowrap">
+                                    {formatMGA(sp.merchandise_amount)}
+                                  </td>
+                                  <td className="p-2.5 text-right font-mono font-medium text-slate-600 whitespace-nowrap">
+                                    {formatMGA(sp.delivery_fee)}
+                                  </td>
+                                  <td className="p-2.5 text-right font-mono font-black text-blue-900 whitespace-nowrap">
+                                    {formatMGA(sp.total_to_collect)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="space-y-4">
+                      {selectedTourDetail.status === "CLOTURE" && (
+                        <div className="p-3 bg-slate-100 border border-slate-300 rounded-xl flex items-center gap-2 text-xs text-slate-600 font-semibold mb-1 shadow-2xs">
+                          <Lock className="w-4 h-4 text-slate-500 shrink-0" />
+                          <span>
+                            <strong>Tournée Clôturée & Scellée :</strong> Les montants réconciliés sont figés en caisse et archivés en lecture seule.
+                          </span>
+                        </div>
+                      )}
+
                       {/* 1. Espèces physiques */}
-                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                      <div
+                        className={`p-4 rounded-xl border transition-all ${
+                          selectedTourDetail.status === "CLOTURE"
+                            ? "bg-slate-100/80 border-slate-300/80 opacity-75"
+                            : "bg-slate-50 border-slate-200"
+                        }`}
+                      >
                         <div className="flex items-center justify-between mb-2">
-                          <label className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                            <DollarSign className="w-4 h-4 text-emerald-600" />
+                          <label
+                            className={`text-sm font-bold flex items-center gap-2 ${
+                              selectedTourDetail.status === "CLOTURE"
+                                ? "text-slate-500"
+                                : "text-slate-800"
+                            }`}
+                          >
+                            <DollarSign
+                              className={`w-4 h-4 ${
+                                selectedTourDetail.status === "CLOTURE"
+                                  ? "text-slate-400"
+                                  : "text-emerald-600"
+                              }`}
+                            />
                             1. Espèces Physiques Comptées au Hub (MGA)
                           </label>
-                          <span className="text-xs text-slate-500 font-mono">Billetage</span>
+                          <span
+                            className={`text-xs font-mono ${
+                              selectedTourDetail.status === "CLOTURE"
+                                ? "text-slate-400"
+                                : "text-slate-500"
+                            }`}
+                          >
+                            {selectedTourDetail.status === "CLOTURE" ? "🔒 Scellé" : "Billetage"}
+                          </span>
                         </div>
                         <input
                           type="number"
@@ -979,19 +1394,49 @@ export default function CashAndClosurePage() {
                           value={remittedCash === 0 ? "" : remittedCash}
                           onChange={(e) => setRemittedCash(Number(e.target.value) || 0)}
                           disabled={selectedTourDetail.status === "CLOTURE"}
-                          className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-lg text-lg font-mono font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          className={`w-full px-4 py-2.5 rounded-lg text-lg font-mono font-black border transition-all ${
+                            selectedTourDetail.status === "CLOTURE"
+                              ? "bg-slate-200/70 text-slate-500 border-slate-300 cursor-not-allowed shadow-none select-none"
+                              : "bg-white border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          }`}
                           data-cy="input-remitted-cash"
                         />
                       </div>
 
                       {/* 2. Mobile Money */}
-                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                      <div
+                        className={`p-4 rounded-xl border transition-all ${
+                          selectedTourDetail.status === "CLOTURE"
+                            ? "bg-slate-100/80 border-slate-300/80 opacity-75"
+                            : "bg-slate-50 border-slate-200"
+                        }`}
+                      >
                         <div className="flex items-center justify-between mb-2">
-                          <label className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                            <Smartphone className="w-4 h-4 text-yellow-600" />
+                          <label
+                            className={`text-sm font-bold flex items-center gap-2 ${
+                              selectedTourDetail.status === "CLOTURE"
+                                ? "text-slate-500"
+                                : "text-slate-800"
+                            }`}
+                          >
+                            <Smartphone
+                              className={`w-4 h-4 ${
+                                selectedTourDetail.status === "CLOTURE"
+                                  ? "text-slate-400"
+                                  : "text-yellow-600"
+                              }`}
+                            />
                             2. Paiements Mobile Money Vérifiés (MGA)
                           </label>
-                          <span className="text-xs text-slate-500 font-mono">MVola / Airtel / Orange</span>
+                          <span
+                            className={`text-xs font-mono ${
+                              selectedTourDetail.status === "CLOTURE"
+                                ? "text-slate-400"
+                                : "text-slate-500"
+                            }`}
+                          >
+                            {selectedTourDetail.status === "CLOTURE" ? "🔒 Scellé" : "MVola / Airtel / Orange"}
+                          </span>
                         </div>
                         <input
                           type="number"
@@ -1001,19 +1446,49 @@ export default function CashAndClosurePage() {
                           value={remittedMobile === 0 ? "" : remittedMobile}
                           onChange={(e) => setRemittedMobile(Number(e.target.value) || 0)}
                           disabled={selectedTourDetail.status === "CLOTURE"}
-                          className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-lg text-lg font-mono font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          className={`w-full px-4 py-2.5 rounded-lg text-lg font-mono font-black border transition-all ${
+                            selectedTourDetail.status === "CLOTURE"
+                              ? "bg-slate-200/70 text-slate-500 border-slate-300 cursor-not-allowed shadow-none select-none"
+                              : "bg-white border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          }`}
                           data-cy="input-remitted-mobile"
                         />
                       </div>
 
                       {/* 3. Frais de fret gares / Justificatifs */}
-                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                      <div
+                        className={`p-4 rounded-xl border transition-all ${
+                          selectedTourDetail.status === "CLOTURE"
+                            ? "bg-slate-100/80 border-slate-300/80 opacity-75"
+                            : "bg-slate-50 border-slate-200"
+                        }`}
+                      >
                         <div className="flex items-center justify-between mb-2">
-                          <label className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-purple-600" />
+                          <label
+                            className={`text-sm font-bold flex items-center gap-2 ${
+                              selectedTourDetail.status === "CLOTURE"
+                                ? "text-slate-500"
+                                : "text-slate-800"
+                            }`}
+                          >
+                            <FileText
+                              className={`w-4 h-4 ${
+                                selectedTourDetail.status === "CLOTURE"
+                                  ? "text-slate-400"
+                                  : "text-purple-600"
+                              }`}
+                            />
                             3. Dépenses & Fret Justifiés par Récépissés (MGA)
                           </label>
-                          <span className="text-xs text-slate-500 font-mono">Souches coopératives</span>
+                          <span
+                            className={`text-xs font-mono ${
+                              selectedTourDetail.status === "CLOTURE"
+                                ? "text-slate-400"
+                                : "text-slate-500"
+                            }`}
+                          >
+                            {selectedTourDetail.status === "CLOTURE" ? "🔒 Scellé" : "Souches coopératives"}
+                          </span>
                         </div>
                         <input
                           type="number"
@@ -1023,7 +1498,11 @@ export default function CashAndClosurePage() {
                           value={remittedExpenses === 0 ? "" : remittedExpenses}
                           onChange={(e) => setRemittedExpenses(Number(e.target.value) || 0)}
                           disabled={selectedTourDetail.status === "CLOTURE"}
-                          className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-lg text-lg font-mono font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          className={`w-full px-4 py-2.5 rounded-lg text-lg font-mono font-black border transition-all ${
+                            selectedTourDetail.status === "CLOTURE"
+                              ? "bg-slate-200/70 text-slate-500 border-slate-300 cursor-not-allowed shadow-none select-none"
+                              : "bg-white border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          }`}
                           data-cy="input-remitted-expenses"
                         />
                       </div>
@@ -1034,19 +1513,33 @@ export default function CashAndClosurePage() {
                   <div className="lg:col-span-5 flex flex-col justify-between space-y-6 bg-slate-50 p-6 rounded-2xl border border-slate-200">
                     <div>
                       <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">
-                        Bilan de la Tournée
+                        Bilan de la Tournée au Quai
                       </h4>
 
                       <div className="space-y-3 font-mono text-sm">
-                        <div className="flex items-center justify-between text-slate-600 pb-2 border-b border-slate-200">
-                          <span>Total Théorique Dû :</span>
-                          <span className="font-bold text-slate-900">
-                            {formatMGA(theoreticalTotal)}
+                        <div className="flex items-center justify-between text-slate-500 text-xs">
+                          <span>1. Total Brut Tournée (Livrées) :</span>
+                          <span className="font-bold">{formatMGA(tourFinancials.grossTotal)}</span>
+                        </div>
+
+                        {tourFinancials.siegeTotal > 0 && (
+                          <div className="flex items-center justify-between text-blue-700 text-xs pb-1">
+                            <span>2. − Déjà Encaissé au Siège (Exclu) :</span>
+                            <span className="font-bold">−{formatMGA(tourFinancials.siegeTotal)}</span>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between text-slate-800 pb-2 border-b border-slate-200">
+                          <span className="font-sans font-bold text-xs">
+                            = Net Exigé du Livreur au Quai :
+                          </span>
+                          <span className="font-black text-slate-900 text-base">
+                            {formatMGA(tourFinancials.courierTheoreticalDue)}
                           </span>
                         </div>
 
                         <div className="flex items-center justify-between text-slate-600">
-                          <span>Total Remis (1+2+3) :</span>
+                          <span>Total Remis au Quai (1+2+3) :</span>
                           <span className="font-bold text-slate-900">
                             {formatMGA(totalRemitted)}
                           </span>
@@ -1054,7 +1547,7 @@ export default function CashAndClosurePage() {
 
                         <div className="flex items-center justify-between pt-3 border-t-2 border-slate-300 text-base">
                           <span className="font-sans font-bold text-slate-800">
-                            Écart de Caisse :
+                            Écart de Décharge au Quai :
                           </span>
                           <span
                             className={`font-black text-lg ${
@@ -1119,14 +1612,37 @@ export default function CashAndClosurePage() {
                     {/* Action button */}
                     <div>
                       {selectedTourDetail.status === "CLOTURE" ? (
-                        <div className="w-full py-3 bg-slate-200 text-slate-500 font-bold text-center rounded-xl text-sm">
-                          Cette tournée est déjà clôturée et scellée
+                        <div className="space-y-2">
+                          <div className="w-full py-3 bg-emerald-50 border border-emerald-300 text-emerald-800 font-bold text-center rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-2xs select-none">
+                            <Lock className="w-4 h-4 text-emerald-600" />
+                            Tournée Déjà Clôturée & Scellée
+                          </div>
+                          <button
+                            onClick={() =>
+                              setReceiptData({
+                                tour: selectedTourDetail,
+                                cash: selectedTourDetail.actual_remitted || 0,
+                                mobile: 0,
+                                expenses: 0,
+                                discrepancy: selectedTourDetail.discrepancy || 0,
+                                closedAt: selectedTourDetail.closed_at || new Date().toISOString(),
+                                grossTotal: tourFinancials.grossTotal,
+                                siegeTotal: tourFinancials.siegeTotal,
+                                siegeParcels: tourFinancials.siegeParcels,
+                              })
+                            }
+                            className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 border border-slate-300 shadow-2xs cursor-pointer"
+                            data-cy="btn-reprint-receipt"
+                          >
+                            <Printer className="w-4 h-4 text-slate-600" />
+                            Voir / Imprimer le Reçu de Décharge
+                          </button>
                         </div>
                       ) : (
                         <button
                           onClick={handleConfirmCloseTour}
                           disabled={isClosingTour}
-                          className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-xs transition flex items-center justify-center gap-2"
+                          className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
                           data-cy="btn-confirm-close-tour"
                         >
                           <CheckCircle2 className="w-4 h-4 text-emerald-400" />
@@ -1141,56 +1657,244 @@ export default function CashAndClosurePage() {
 
                 {/* Tour Parcels Breakdown */}
                 <div className="border-t border-slate-200 p-6">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">
-                    Colis Pris en Charge dans cette Tournée (
-                    {selectedTourDetail.parcels?.length || 0})
-                  </h4>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs border-collapse">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Colis Pris en Charge dans cette Tournée (
+                      {selectedTourDetail.parcels?.length || 0})
+                    </h4>
+                    {selectedTourDetail.status === "CLOTURE" && (
+                      <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1">
+                        <Lock className="w-3 h-3" /> Historique Tournée Scellée
+                      </span>
+                    )}
+                  </div>
+                  <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-2xs">
+                    <table className="min-w-[1000px] w-full text-left text-xs border-collapse">
                       <thead>
                         <tr className="bg-slate-50 text-slate-500 uppercase font-bold tracking-wider border-b border-slate-200">
-                          <th className="p-3">BDR</th>
-                          <th className="p-3">Destinataire</th>
-                          <th className="p-3">Statut</th>
-                          <th className="p-3">Mode Règlement</th>
-                          <th className="p-3 text-right">Marchandise</th>
-                          <th className="p-3 text-right">Frais Port</th>
-                          <th className="p-3 text-right">Total Dû</th>
+                          <th className="p-3 w-28 whitespace-nowrap">N° BDR</th>
+                          <th className="p-3 min-w-[180px]">Destinataire</th>
+                          <th className="p-3 w-40 whitespace-nowrap text-center">Statut Atomique</th>
+                          <th className="p-3 w-36 whitespace-nowrap text-center">Lieu Encaissement</th>
+                          <th className="p-3 w-36 whitespace-nowrap">Mode Règlement</th>
+                          <th className="p-3 w-28 whitespace-nowrap text-right">Marchandise</th>
+                          <th className="p-3 w-24 whitespace-nowrap text-right">Frais Port</th>
+                          <th className="p-3 w-32 whitespace-nowrap text-right">Total Dû Livreur</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {(selectedTourDetail.parcels || []).map((p) => (
-                          <tr key={p.id} className="hover:bg-slate-50">
-                            <td className="p-3 font-mono font-bold text-slate-800">
-                              BDR-{p.tracking_number}
-                            </td>
-                            <td className="p-3">
-                              <span className="font-semibold text-slate-800">
-                                {p.recipient_name}
-                              </span>
-                              <span className="block text-[11px] text-slate-400 font-mono">
-                                {p.recipient_phone}
-                              </span>
-                            </td>
-                            <td className="p-3">{getStatusBadge(p.status)}</td>
-                            <td className="p-3">{getPaymentBadge(p.payment_method)}</td>
-                            <td className="p-3 text-right font-mono">
-                              {formatMGA(p.merchandise_amount)}
-                            </td>
-                            <td className="p-3 text-right font-mono">
-                              {formatMGA(p.delivery_fee)}
-                            </td>
-                            <td className="p-3 text-right font-mono font-black text-slate-900">
-                              {formatMGA(p.total_to_collect)}
-                            </td>
-                          </tr>
-                        ))}
+                        {(selectedTourDetail.parcels || []).map((p) => {
+                          const isTourClosed = selectedTourDetail.status === "CLOTURE";
+                          return (
+                            <tr
+                              key={p.id}
+                              className={`transition ${
+                                isTourClosed
+                                  ? "bg-slate-50/70 text-slate-500 opacity-75 hover:bg-slate-100/60"
+                                  : "hover:bg-slate-50"
+                              }`}
+                            >
+                              <td
+                                className={`p-3 font-mono font-bold whitespace-nowrap ${
+                                  isTourClosed ? "text-slate-500" : "text-slate-900"
+                                }`}
+                              >
+                                BDR-{p.tracking_number}
+                              </td>
+                              <td className="p-3">
+                                <span
+                                  className={`block text-xs ${
+                                    isTourClosed ? "font-medium text-slate-600" : "font-semibold text-slate-900"
+                                  }`}
+                                >
+                                  {p.recipient_name}
+                                </span>
+                                <span className="block text-[11px] text-slate-400 font-mono">
+                                  {p.recipient_phone_formatted || p.recipient_phone}
+                                </span>
+                              </td>
+                              <td className={`p-3 text-center whitespace-nowrap ${isTourClosed ? "opacity-75" : ""}`}>
+                                <StatusBadge status={p.status} encaissement_lieu={p.encaissement_lieu} size="xs" />
+                              </td>
+                              <td className="p-3 text-center whitespace-nowrap">
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 ${
+                                    isTourClosed
+                                      ? "bg-slate-100 text-slate-500 border-slate-200"
+                                      : p.encaissement_lieu === "SIEGE"
+                                      ? "bg-blue-50 text-blue-800 border-blue-200"
+                                      : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                  }`}
+                                >
+                                  {p.encaissement_lieu === "SIEGE" ? "🏢 Au Siège" : "🛵 Par Livreur"}
+                                </span>
+                              </td>
+                              <td className={`p-3 whitespace-nowrap ${isTourClosed ? "opacity-75" : ""}`}>
+                                {getPaymentBadge(p.payment_method)}
+                              </td>
+                              <td className={`p-3 text-right font-mono font-medium whitespace-nowrap ${isTourClosed ? "text-slate-400" : "text-slate-600"}`}>
+                                {formatMGA(p.merchandise_amount)}
+                              </td>
+                              <td className={`p-3 text-right font-mono font-medium whitespace-nowrap ${isTourClosed ? "text-slate-400" : "text-slate-600"}`}>
+                                {formatMGA(p.delivery_fee)}
+                              </td>
+                              <td className="p-3 text-right whitespace-nowrap">
+                                {p.encaissement_lieu === "SIEGE" ? (
+                                  <div className="text-right">
+                                    <span className={`font-bold block font-mono text-xs ${isTourClosed ? "text-slate-400" : "text-blue-700"}`}>
+                                      0&nbsp;Ar
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 font-normal">
+                                      (Exclu : COD au siège)
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span
+                                    className={`px-2 py-0.5 rounded-md border inline-block font-mono text-xs ${
+                                      isTourClosed
+                                        ? "bg-slate-100/70 border-slate-200 text-slate-500 font-semibold"
+                                        : "bg-slate-100 border-slate-200/80 font-bold text-slate-900"
+                                    }`}
+                                  >
+                                    {formatMGA(p.total_to_collect)}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* TAB 3 : HISTORIQUE DES ENCAISSEMENTS AU SIÈGE */}
+        {activeTab === "siege" && (
+          <div className="space-y-4" data-cy="view-siege-history">
+            {/* KPI Banner Siège */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <span className="p-2 bg-blue-100 text-blue-700 rounded-xl">
+                    <Building2 className="w-5 h-5" />
+                  </span>
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900">
+                      Journal d'Audit des Encaissements au Siège
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      Historique des paiements perçus directement par la caisse centrale / virement / Mobile Money Siège (déduits de la décharge du livreur au quai).
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="text-right bg-blue-50 px-4 py-2.5 rounded-xl border border-blue-200">
+                <span className="text-[11px] font-bold text-blue-700 uppercase tracking-wider block">
+                  Total Encaissé au Siège ({selectedDate})
+                </span>
+                <span className="text-lg font-black font-mono text-blue-900">
+                  {formatMGA(cashMetrics.totalSiege)}
+                </span>
+              </div>
+            </div>
+
+            {/* Table des Encaissements au Siège */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-[1100px] w-full text-left border-collapse" data-cy="siege-parcels-table">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 text-[11px] uppercase font-bold tracking-wider border-b border-slate-200">
+                      <th className="p-3.5 w-32 whitespace-nowrap">N° BDR & Suivi</th>
+                      <th className="p-3.5 min-w-[200px]">Expéditeur & Destinataire</th>
+                      <th className="p-3.5 w-36 whitespace-nowrap">Axe & Type</th>
+                      <th className="p-3.5 w-36 whitespace-nowrap">Règlement Siège</th>
+                      <th className="p-3.5 w-28 whitespace-nowrap text-right">Marchandise</th>
+                      <th className="p-3.5 w-24 whitespace-nowrap text-right">Frais Port</th>
+                      <th className="p-3.5 w-28 whitespace-nowrap text-right">Total COD Siège</th>
+                      <th className="p-3.5 w-40 whitespace-nowrap text-center">Statut Atomique</th>
+                      <th className="p-3.5 w-36 whitespace-nowrap text-center">Action Caisse</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {siegeParcels.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="p-12 text-center text-slate-400">
+                          <Building2 className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                          <p className="font-semibold text-slate-600">Aucun encaissement au siège pour le {selectedDate}</p>
+                          <p className="text-xs text-slate-400 mt-1">
+                            Tous les colis réglés par virement ou direct au siège apparaissent automatiquement ici.
+                          </p>
+                        </td>
+                      </tr>
+                    ) : (
+                      siegeParcels.map((sp) => (
+                        <tr key={sp.id} className="hover:bg-slate-50/80 transition">
+                          <td className="p-3.5 whitespace-nowrap font-mono">
+                            <span className="font-bold text-slate-900 block text-xs">
+                              BDR-{sp.tracking_number}
+                            </span>
+                            <span className="text-[10px] text-slate-400 block">
+                              {sp.reception_date}
+                            </span>
+                          </td>
+                          <td className="p-3.5">
+                            <div className="font-bold text-slate-900 text-xs">
+                              {sp.recipient_name}
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-mono">
+                              {sp.recipient_phone_formatted || sp.recipient_phone}
+                            </div>
+                            {sp.sender_name && (
+                              <div className="text-[10px] text-blue-600 font-medium truncate max-w-[200px]" title={sp.sender_name}>
+                                Exp: {sp.sender_name}
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-3.5 whitespace-nowrap">
+                            <AxisBadge axis={sp.axis} />
+                          </td>
+                          <td className="p-3.5 whitespace-nowrap">{getPaymentBadge(sp.payment_method)}</td>
+                          <td className="p-3.5 text-right font-mono font-medium text-slate-600 whitespace-nowrap text-xs">
+                            {formatMGA(sp.merchandise_amount)}
+                          </td>
+                          <td className="p-3.5 text-right font-mono font-medium text-slate-600 whitespace-nowrap text-xs">
+                            {formatMGA(sp.delivery_fee)}
+                          </td>
+                          <td className="p-3.5 text-right whitespace-nowrap">
+                            <span className="font-mono font-black text-blue-900 px-2 py-0.5 rounded-lg bg-blue-50 border border-blue-200 inline-block text-xs">
+                              {formatMGA(sp.total_to_collect)}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-center whitespace-nowrap">
+                            <StatusBadge status={sp.status} encaissement_lieu="SIEGE" />
+                          </td>
+                          <td className="p-3.5 text-center whitespace-nowrap">
+                            {sp.status === "CLOTURE_CAISSE" ? (
+                              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap shadow-2xs">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                Scellé en Caisse
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => handleValidateSingleParcel(sp.id)}
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                Valider Caisse
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
       </main>
@@ -1203,12 +1907,21 @@ export default function CashAndClosurePage() {
         >
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 my-8">
             <div className="text-center pb-4 border-b border-dashed border-slate-300">
+              {company.logo_url && (
+                <div className="flex justify-center mb-2">
+                  <img
+                    src={company.logo_url}
+                    alt="Logo"
+                    className="h-10 w-auto max-w-[140px] object-contain"
+                  />
+                </div>
+              )}
               <h3 className="text-lg font-black tracking-wider text-slate-900">
-                ⚡ TMS EXPRESS MADAGASCAR
+                {company.company_name || company.app_name || "TMS EXPRESS"}
               </h3>
-              <p className="text-xs text-slate-500 font-medium">Hub Central Tsiazotafo • Antananarivo</p>
+              <p className="text-xs text-slate-500 font-medium">{company.address || "Hub Central Tsiazotafo • Antananarivo"}</p>
               <p className="text-xs font-bold text-slate-800 mt-2 uppercase">
-                Bordereau de Décharge de Tournée
+                Bordereau de Décharge au Quai
               </p>
               <p className="text-xs font-mono text-slate-400">
                 Tournée #{receiptData.tour.id} • Date : {receiptData.tour.tour_date}
@@ -1230,26 +1943,39 @@ export default function CashAndClosurePage() {
                 <span className="text-slate-500">Véhicule :</span>
                 <span>{receiptData.tour.courier_vehicle || "Scooter"}</span>
               </div>
-              <div className="border-t border-slate-200 pt-2 flex justify-between">
-                <span className="text-slate-500">Total Théorique Dû :</span>
-                <span className="font-bold">
-                  {formatMGA(receiptData.tour.theoretical_total || 0)}
-                </span>
+
+              {/* Rapprochement Siège vs Quai sur le Reçu */}
+              <div className="border-t border-slate-200 pt-2 flex justify-between text-slate-500">
+                <span>Total Brut Livré :</span>
+                <span>{formatMGA(receiptData.grossTotal || receiptData.tour.theoretical_total || 0)}</span>
+              </div>
+
+              {(receiptData.siegeTotal || 0) > 0 && (
+                <div className="flex justify-between text-blue-700 bg-blue-50 px-2 py-1 rounded">
+                  <span>− Encaissé au Siège (Exclu Livreur) :</span>
+                  <span className="font-bold">−{formatMGA(receiptData.siegeTotal || 0)}</span>
+                </div>
+              )}
+
+              <div className="flex justify-between font-bold text-slate-900 border-b border-slate-200 pb-2">
+                <span>Net Dû au Quai par le Livreur :</span>
+                <span className="text-sm">{formatMGA(receiptData.tour.theoretical_total || 0)}</span>
+              </div>
+
+              <div className="flex justify-between">
+                <span className="text-slate-500">Espèces Physiques Remises :</span>
+                <span className="font-bold">{formatMGA(receiptData.cash)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Espèces Physiques :</span>
-                <span>{formatMGA(receiptData.cash)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Preuves Mobile Money :</span>
+                <span className="text-slate-500">Preuves Mobile Money Livreur :</span>
                 <span>{formatMGA(receiptData.mobile)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Frais Fret / Dépenses :</span>
+                <span className="text-slate-500">Frais Fret / Dépenses Justifiées :</span>
                 <span>{formatMGA(receiptData.expenses)}</span>
               </div>
               <div className="border-t-2 border-dashed border-slate-400 pt-2 flex justify-between text-sm font-black">
-                <span>Écart de Caisse :</span>
+                <span>Écart de Décharge au Quai :</span>
                 <span
                   className={
                     receiptData.discrepancy === 0

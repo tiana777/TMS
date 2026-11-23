@@ -185,13 +185,24 @@ class TourUseCases:
 
         courier_phone_vo = PhoneNumber(courier_orm.telephone) if courier_orm and courier_orm.telephone else None
 
-        discrepancy = int(tour_orm.total_reel_verse - tour_orm.total_theorique_caisse)
+        # Dynamically calculate theoretical total for live tour to reflect real-time status of parcels
+        domain_tour = self.tour_repo._to_domain(tour_orm)
+        domain_tour.parcels = [self.parcel_repo._to_domain(po) for po in parcel_orms]
+        if tour_orm.statut != TourStatus.CLOTURE.value:
+            theor_amount = domain_tour.calculate_theoretical_total().amount
+            if tour_orm.total_theorique_caisse != theor_amount:
+                tour_orm.total_theorique_caisse = theor_amount
+                self.db.commit()
+        else:
+            theor_amount = int(tour_orm.total_theorique_caisse)
+
+        discrepancy = int(tour_orm.total_reel_verse - theor_amount)
         return TourDetailResponseDTO(
             id=tour_orm.id,
             tour_date=tour_orm.date_tournee,
             courier_id=tour_orm.livreur_id,
             status=tour_orm.statut,
-            theoretical_total=int(tour_orm.total_theorique_caisse),
+            theoretical_total=theor_amount,
             actual_remitted=int(tour_orm.total_reel_verse),
             discrepancy=discrepancy,
             closed_at=tour_orm.cloture_a.isoformat() if tour_orm.cloture_a else None,
@@ -270,7 +281,7 @@ class TourUseCases:
         if not tour:
             raise BusinessRuleViolationException(f"Tournée introuvable (ID: {tour_id})")
 
-        # Load delivered parcels
+        # Load delivered / handled parcels
         delivered_orms = self.db.query(ParcelORM).filter(
             ParcelORM.tournee_id == tour_id,
             ParcelORM.statut.in_([
@@ -278,6 +289,7 @@ class TourUseCases:
                 ParcelStatus.ENCAISSE.value,
                 ParcelStatus.LIVRE_ENCAISSE.value,
                 ParcelStatus.CLOTURE_CAISSE.value,
+                ParcelStatus.SOUS_TRAITE.value,
             ]),
         ).all()
         tour.parcels = [self.parcel_repo._to_domain(po) for po in delivered_orms]
@@ -337,6 +349,8 @@ class TourUseCases:
 
         tour.status = TourStatus.CLOTURE
         tour.closed_at = datetime.now(timezone.utc)
+        tour.actual_remitted = remitted
+        tour.theoretical_total = theor
         saved = self.tour_repo.save(tour)
         return self._to_tour_dto(saved)
 

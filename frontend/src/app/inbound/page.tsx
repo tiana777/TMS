@@ -16,14 +16,23 @@ import {
   Package,
   Layers,
   Sparkles,
+  Copy,
+  FileText,
+  RotateCcw,
+  Check,
+  Download,
+  Barcode,
+  Clock,
+  Bus,
 } from "lucide-react";
-import { detectMalagasyPhone } from "../../lib/phone";
+import { detectMalagasyPhone, sanitizePhoneInput } from "../../lib/phone";
 import { detectAxisClient, registerCustomZone, registerProvinceAxisClient } from "../../lib/axis";
-import { fetchVendors, createParcelBatch, addZoneToAxis, fetchAxes, createAxis } from "../../lib/api";
+import { fetchVendors, createParcelBatch, addZoneToAxis, fetchAxes, createAxis, createVendor, fetchPartners } from "../../lib/api";
 import { OperatorBadge } from "../../components/OperatorBadge";
 import { AxisBadge } from "../../components/AxisBadge";
-import { FluxType, LogisticAxis, SenderType, Vendor } from "../../types";
+import { FluxType, LogisticAxis, SenderType, Vendor, Partner } from "../../types";
 import { RECEPTIONIST_AGENTS, ReceptionistAgent, UserRole } from "../../components/HeaderUserRole";
+import { useCompany } from "../../context/CompanyContext";
 
 interface InboundRow {
   id: string;
@@ -34,13 +43,41 @@ interface InboundRow {
   axis: LogisticAxis;
   isAxisFallback: boolean;
   isManualAxis?: boolean;
+  isManualFee?: boolean;
   fluxType: FluxType;
   merchandiseAmount: number;
   deliveryFee: number;
   observation: string;
+  encaissementLieu?: "LIVREUR" | "SIEGE";
+  timeMode?: "INTERVAL" | "SIMPLE";
+}
+
+function extractTimeRange(val: string): { start: string; end: string } {
+  if (!val) return { start: "", end: "" };
+  const m = val.match(/(\d{1,2})[h:](\d{2})?\s*[-–à]\s*(\d{1,2})[h:](\d{2})?/i);
+  if (m) {
+    const sH = m[1].padStart(2, "0");
+    const sM = m[2] || "00";
+    const eH = m[3].padStart(2, "0");
+    const eM = m[4] || "00";
+    return { start: `${sH}:${sM}`, end: `${eH}:${eM}` };
+  }
+  return { start: "", end: "" };
+}
+
+function extractSimpleTime(val: string): string {
+  if (!val) return "";
+  const m = val.match(/\b(\d{1,2})[h:](\d{2})?\b/i);
+  if (m) {
+    const h = m[1].padStart(2, "0");
+    const mn = m[2] || "00";
+    return `${h}:${mn}`;
+  }
+  return "";
 }
 
 export default function InboundPage() {
+  const { company } = useCompany();
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [senderType, setSenderType] = useState<SenderType>("CYBERMARCHAND");
   const [selectedVendorId, setSelectedVendorId] = useState<number | null>(null);
@@ -50,6 +87,8 @@ export default function InboundPage() {
   const [senderPhone, setSenderPhone] = useState<string>("");
   const [senderAddress, setSenderAddress] = useState<string>("");
   const [contactPerson, setContactPerson] = useState<string>("");
+
+  const isSenderSpecified = Boolean(senderName.trim());
 
   const [rows, setRows] = useState<InboundRow[]>([
     {
@@ -65,6 +104,7 @@ export default function InboundPage() {
       merchandiseAmount: 0,
       deliveryFee: 3000,
       observation: "",
+      encaissementLieu: "LIVREUR",
     },
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -80,19 +120,98 @@ export default function InboundPage() {
   const [modalError, setModalError] = useState<string | null>(null);
   const [zoneSuccessMessage, setZoneSuccessMessage] = useState<string | null>(null);
 
-  // Receptionist Desk & Role State (5 Cloisonnés Flows)
-  const [currentUserRole, setCurrentUserRole] = useState<UserRole>("SUPERVISEUR");
+  // Receptionist Desk & Role State (Synchronisé avec l'authentification officielle)
+  const [currentUserRole, setCurrentUserRole] = useState<UserRole>("SUPER_ADMIN");
+  const [currentUserName, setCurrentUserName] = useState<string>("Super Administrateur");
   const [activeReceptionist, setActiveReceptionist] = useState<ReceptionistAgent | null>(null);
+
+  // Vendor Quick Registration & Print modes
+  const [isSavingVendor, setIsSavingVendor] = useState<boolean>(false);
+  const [printViewMode, setPrintViewMode] = useState<"BDR" | "LABELS">("BDR");
+  const [showSenderSuggestions, setShowSenderSuggestions] = useState<boolean>(false);
+
+  // Modal state for adding a new sender / vendor
+  const [isNewSenderModalOpen, setIsNewSenderModalOpen] = useState<boolean>(false);
+  const [newVendorName, setNewVendorName] = useState<string>("");
+  const [newVendorType, setNewVendorType] = useState<SenderType>("CYBERMARCHAND");
+  const [newVendorPhone, setNewVendorPhone] = useState<string>("");
+  const [newVendorAddress, setNewVendorAddress] = useState<string>("");
+  const [newVendorContact, setNewVendorContact] = useState<string>("");
+  const [newVendorError, setNewVendorError] = useState<string | null>(null);
+  const [isSubmittingNewVendor, setIsSubmittingNewVendor] = useState<boolean>(false);
+
+  const openNewSenderModal = (nameOverride?: string) => {
+    setNewVendorType(senderType);
+    setNewVendorName(nameOverride !== undefined ? nameOverride.trim() : senderName.trim());
+    setNewVendorPhone(senderPhone.trim());
+    setNewVendorAddress(senderAddress.trim());
+    setNewVendorContact(contactPerson.trim());
+    setNewVendorError(null);
+    setIsNewSenderModalOpen(true);
+  };
+
+  const handleConfirmAddNewVendor = async () => {
+    const cleanName = newVendorName.trim();
+    if (!cleanName) {
+      setNewVendorError("Le nom ou raison sociale de l'expéditeur est obligatoire.");
+      return;
+    }
+
+    if (newVendorPhone.trim()) {
+      const phoneDetect = detectMalagasyPhone(newVendorPhone);
+      if (!phoneDetect.isValid) {
+        setNewVendorError("Numéro de téléphone malgache invalide (10 chiffres : 032, 033, 034, 035, 036, 037, 038) ou laissez vide.");
+        return;
+      }
+    }
+
+    setIsSubmittingNewVendor(true);
+    setNewVendorError(null);
+    try {
+      const created = await createVendor({
+        nom: cleanName,
+        type_expediteur: newVendorType,
+        telephone: newVendorPhone.trim() || undefined,
+        adresse: newVendorAddress.trim() || undefined,
+        contact_responsable: newVendorContact.trim() || undefined,
+        modalite_paiement: newVendorType === "ENTREPRISE" ? "FACTURE_MENSUELLE" : "COMPTANT",
+      });
+
+      setVendors((prev) => [...prev, created]);
+      setSenderType(newVendorType);
+      applyVendorData(created);
+
+      setZoneSuccessMessage(`Expéditeur "${created.nom}" (${created.type_expediteur}) enregistré et sélectionné avec succès !`);
+      setTimeout(() => setZoneSuccessMessage(null), 5000);
+
+      setIsNewSenderModalOpen(false);
+      setNewVendorName("");
+      setNewVendorPhone("");
+      setNewVendorAddress("");
+      setNewVendorContact("");
+    } catch (err: any) {
+      setNewVendorError(err.message || "Erreur lors de l'enregistrement de l'expéditeur.");
+    } finally {
+      setIsSubmittingNewVendor(false);
+    }
+  };
 
   useEffect(() => {
     const syncRole = () => {
       if (typeof window === "undefined") return;
-      const role = (localStorage.getItem("tms_user_role") as UserRole) || "SUPERVISEUR";
+      const role = (localStorage.getItem("tms_user_role") as UserRole) || "SUPER_ADMIN";
+      const username = localStorage.getItem("tms_username") || "admin";
+      const nom = localStorage.getItem("tms_user_nom");
+
       setCurrentUserRole(role);
-      const username = localStorage.getItem("tms_username");
-      if (role === "RECEPTIONNISTE" || username) {
+      setCurrentUserName(nom || (username === "directeur" ? "Directeur des Opérations" : "Super Administrateur"));
+
+      if (role === "RECEPTIONNISTE" || username.startsWith("agent") || username.startsWith("recep_")) {
         const found = RECEPTIONIST_AGENTS.find((a) => a.username === username) || RECEPTIONIST_AGENTS[0];
-        setActiveReceptionist(found);
+        setActiveReceptionist({
+          ...found,
+          nom: nom || found.nom,
+        });
       } else {
         setActiveReceptionist(null);
       }
@@ -107,35 +226,100 @@ export default function InboundPage() {
     };
   }, []);
 
-  const handleSelectGuichet = (agent: ReceptionistAgent) => {
-    setActiveReceptionist(agent);
-    setCurrentUserRole("RECEPTIONNISTE");
-    localStorage.setItem("tms_user_role", "RECEPTIONNISTE");
-    localStorage.setItem("tms_username", agent.username);
-    localStorage.setItem("tms_user_id", agent.id.toString());
-    localStorage.setItem("tms_user_nom", agent.nom);
-    localStorage.setItem("tms_assigned_flux", agent.flux);
-    window.dispatchEvent(new Event("tms_role_change"));
+  const duplicateRow = (index: number) => {
+    const source = rows[index];
+    if (!source) return;
+    const duplicated: InboundRow = {
+      ...source,
+      id: `row-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      recipientName: "",
+      recipientPhone: "",
+    };
+    setRows((prev) => {
+      const copy = [...prev];
+      copy.splice(index + 1, 0, duplicated);
+      return copy;
+    });
+  };
 
-    // Adapt empty row defaults to the newly selected receptionist flux
-    const isProv = agent.flux === "PROVINCE";
-    setRows((prev) =>
-      prev.map((r, i) => {
-        if (!r.recipientName && !r.deliveryAddress) {
-          return {
-            ...r,
-            fluxType: agent.flux as FluxType,
-            axis: isProv ? ("AXE_PROVINCE" as LogisticAxis) : r.axis,
-            deliveryFee: isProv ? 10000 : r.deliveryFee,
-            merchandiseAmount: agent.flux === "SIMPLE" ? 0 : r.merchandiseAmount,
-          };
-        }
-        return r;
-      })
-    );
+  const addMultipleRows = (count: number) => {
+    const newRows: InboundRow[] = Array.from({ length: count }, (_, i) => ({
+      id: `row-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 5)}`,
+      recipientName: "",
+      recipientPhone: "",
+      designation: "",
+      deliveryAddress: "",
+      axis: "AXE_CENTRE_1" as LogisticAxis,
+      isAxisFallback: true,
+      isManualAxis: false,
+      fluxType: "COD" as FluxType,
+      merchandiseAmount: 0,
+      deliveryFee: 3000,
+      observation: "",
+      encaissementLieu: "LIVREUR",
+    }));
+    setRows((prev) => [...prev, ...newRows]);
+  };
 
-    if (agent.flux === "ENTREPRISE") {
-      setSenderType("ENTREPRISE");
+  const resetRows = () => {
+    if (typeof window !== "undefined" && window.confirm("Voulez-vous vraiment réinitialiser la grille et repartir avec 1 colis vierge ?")) {
+      setRows([
+        {
+          id: `row-${Date.now()}`,
+          recipientName: "",
+          recipientPhone: "",
+          designation: "",
+          deliveryAddress: "",
+          axis: "AXE_CENTRE_1" as LogisticAxis,
+          isAxisFallback: true,
+          isManualAxis: false,
+          fluxType: "COD" as FluxType,
+          merchandiseAmount: 0,
+          deliveryFee: 3000,
+          observation: "",
+          encaissementLieu: "LIVREUR",
+        },
+      ]);
+    }
+  };
+
+  const isCurrentSenderRegistered = Boolean(
+    selectedVendorId ||
+    vendors.some(
+      (v) => v.nom.toLowerCase().trim() === senderName.toLowerCase().trim() && senderName.trim().length > 0
+    )
+  );
+
+  const senderNameTrimmed = senderName.trim().toLowerCase();
+  const matchingVendors = senderNameTrimmed
+    ? vendors.filter((v) => v.nom.toLowerCase().includes(senderNameTrimmed))
+    : [];
+  const isExactVendorMatch = vendors.some(
+    (v) => v.nom.toLowerCase().trim() === senderNameTrimmed
+  );
+
+  const handleQuickRegisterVendor = async () => {
+    const cleanName = senderName.trim();
+    if (!cleanName) return;
+    setIsSavingVendor(true);
+    setErrorMessage(null);
+    try {
+      const created = await createVendor({
+        nom: cleanName,
+        type_expediteur: senderType,
+        telephone: senderPhone.trim() || undefined,
+        adresse: senderAddress.trim() || undefined,
+        contact_responsable: contactPerson.trim() || undefined,
+        modalite_paiement: "COMPTANT",
+      });
+      setVendors((prev) => [...prev, created]);
+      setSelectedVendorId(created.id);
+      setZoneSuccessMessage(`Nouveau partenaire "${created.nom}" (${senderType}) enregistré avec succès dans le CRM !`);
+      setTimeout(() => setZoneSuccessMessage(null), 5000);
+    } catch (err: any) {
+      setErrorMessage(err.message || "Erreur lors de l'enregistrement du partenaire.");
+    } finally {
+      setIsSavingVendor(false);
     }
   };
 
@@ -192,6 +376,30 @@ export default function InboundPage() {
   // Registered Province Axes state for dynamic manual entry and autocomplete
   const [provinceAxes, setProvinceAxes] = useState<{ id?: number; code: string; libelle: string }[]>([]);
 
+  // 7 Gares Routières et Coopératives Nationales officielles du Référentiel
+  const DEFAULT_PARTNERS: Partner[] = [
+    { id: 6, nom: "Besady Plus", type: "COOPERATIVE", gare_rattachement: "Andohatapenaka", contact: "033 15 444 77" },
+    { id: 4, nom: "Cotisse Transport", type: "COOPERATIVE", gare_rattachement: "Ambodivona", contact: "032 11 025 00" },
+    { id: 1, nom: "Gare Routière Ambodivona", type: "GARE", gare_rattachement: "Ambodivona", contact: "034 00 111 22" },
+    { id: 3, nom: "Gare Routière Andohatapenaka (Maki)", type: "GARE", gare_rattachement: "Andohatapenaka", contact: "033 00 333 44" },
+    { id: 2, nom: "Gare Routière Fasan'ny Karana", type: "GARE", gare_rattachement: "Fasan'ny Karana", contact: "032 00 222 33" },
+    { id: 5, nom: "Kofmad Transport", type: "COOPERATIVE", gare_rattachement: "Fasan'ny Karana", contact: "034 22 555 88" },
+    { id: 7, nom: "Trans Texpress", type: "COOPERATIVE", gare_rattachement: "Ambodivona", contact: "034 88 999 00" },
+  ];
+
+  const [partners, setPartners] = useState<Partner[]>(DEFAULT_PARTNERS);
+
+  const loadPartners = async () => {
+    try {
+      const data = await fetchPartners();
+      if (Array.isArray(data) && data.length > 0) {
+        setPartners(data);
+      }
+    } catch (e) {
+      console.warn("Could not load partners", e);
+    }
+  };
+
   const loadProvinceAxes = async () => {
     try {
       const data = await fetchAxes("PROVINCE");
@@ -210,7 +418,44 @@ export default function InboundPage() {
       // Sender fields remain strictly empty on first load (user request)
     });
     loadProvinceAxes();
+    loadPartners();
   }, []);
+
+  const selectPartnerOrGare = (idx: number, partner: Partner) => {
+    let targetAxis: LogisticAxis = "AXE_PROVINCE";
+    const gare = (partner.gare_rattachement || "").toLowerCase();
+    const nom = partner.nom.toLowerCase();
+
+    if (gare.includes("ambodivona") || nom.includes("ambodivona")) {
+      targetAxis = "AXE_PROVINCE_AMBODIVONA" as LogisticAxis;
+    } else if (gare.includes("fasan") || nom.includes("fasan")) {
+      targetAxis = "AXE_PROVINCE_FASAN_NY_KARANA" as LogisticAxis;
+    } else if (gare.includes("andohatapenaka") || nom.includes("andohatapenaka")) {
+      targetAxis = "AXE_PROVINCE_ANDOHATAPENAKA" as LogisticAxis;
+    }
+
+    setRows((prev) => {
+      const copy = [...prev];
+      if (copy[idx]) {
+        const currentAddr = (copy[idx].deliveryAddress || "").trim();
+        let newAddress = currentAddr;
+        if (!currentAddr || currentAddr.toLowerCase().startsWith("gare") || currentAddr.toLowerCase().includes("province")) {
+          const gareSuffix = partner.gare_rattachement ? ` (Gare ${partner.gare_rattachement})` : "";
+          newAddress = `${partner.nom}${gareSuffix}`;
+        }
+
+        copy[idx] = {
+          ...copy[idx],
+          axis: targetAxis,
+          fluxType: "PROVINCE",
+          isManualAxis: true,
+          isAxisFallback: false,
+          deliveryAddress: newAddress,
+        };
+      }
+      return copy;
+    });
+  };
 
   const getProvinceDisplayName = (axisCode?: string) => {
     if (!axisCode) return "";
@@ -336,12 +581,15 @@ export default function InboundPage() {
 
   const handleSenderNameChange = (val: string) => {
     setSenderName(val);
+    setShowSenderSuggestions(true);
     // Dynamic autocomplete: if typed name matches an existing registered vendor
     const match = vendors.find(
       (v) => v.nom.toLowerCase().trim() === val.toLowerCase().trim()
     );
     if (match) {
       applyVendorData(match);
+    } else if (selectedVendorId) {
+      setSelectedVendorId(null);
     }
   };
 
@@ -351,8 +599,6 @@ export default function InboundPage() {
   };
 
   const addRow = () => {
-    const currentFlux = activeReceptionist ? activeReceptionist.flux : "COD";
-    const isProv = currentFlux === "PROVINCE";
     setRows((prev) => [
       ...prev,
       {
@@ -360,13 +606,13 @@ export default function InboundPage() {
         recipientName: "",
         recipientPhone: "",
         designation: "",
-        deliveryAddress: isProv ? "Gare Routière " : "",
-        axis: isProv ? ("AXE_PROVINCE" as LogisticAxis) : ("AXE_CENTRE_1" as LogisticAxis),
-        isAxisFallback: !isProv,
-        isManualAxis: isProv,
-        fluxType: currentFlux as FluxType,
+        deliveryAddress: "",
+        axis: "AXE_CENTRE_1" as LogisticAxis,
+        isAxisFallback: true,
+        isManualAxis: false,
+        fluxType: "COD" as FluxType,
         merchandiseAmount: 0,
-        deliveryFee: isProv ? 10000 : 3000,
+        deliveryFee: 3000,
         observation: "",
       },
     ]);
@@ -382,10 +628,10 @@ export default function InboundPage() {
       const copy = [...prev];
       const target = { ...copy[index], [field]: value };
 
-      // Auto-detect axis and fee when address changes (Tarification manuelle / négociée CDC)
+      // Auto-detect axis and fee when address changes (Tarification automatique CDC 5.3 / manuelle si modifiée)
       if (field === "deliveryAddress") {
         const detection = detectAxisClient(value);
-        if (!target.deliveryFee || target.deliveryFee === 0) {
+        if (!target.isManualFee) {
           target.deliveryFee = detection.fee;
         }
         if (!target.isManualAxis) {
@@ -395,6 +641,11 @@ export default function InboundPage() {
             target.fluxType = "PROVINCE";
           }
         }
+      }
+
+      // If user directly changes deliveryFee, mark as manual fee override
+      if (field === "deliveryFee") {
+        target.isManualFee = true;
       }
 
       // If user directly changes axis, mark as manual override
@@ -466,12 +717,6 @@ export default function InboundPage() {
         setErrorMessage(`Ligne #${i + 1} : L'adresse / lieu de livraison est obligatoire.`);
         return;
       }
-      if (!r.observation || !r.observation.trim()) {
-        setErrorMessage(
-          `Ligne #${i + 1} : La plage horaire ou remarque spéciale de livraison est obligatoire.`
-        );
-        return;
-      }
     }
 
     setIsSubmitting(true);
@@ -503,6 +748,7 @@ export default function InboundPage() {
         receptionniste_id: activeUserId,
         receptionniste_nom: activeUserNom,
         observation: r.observation ? r.observation.trim() : undefined,
+        encaissement_lieu: r.encaissementLieu || "LIVREUR",
       }));
 
       const results = await createParcelBatch(payload);
@@ -520,95 +766,18 @@ export default function InboundPage() {
   );
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-12">
-      {/* 5 Guichets Réceptionnistes (Flux Cloisonnés) */}
-      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-5 rounded-2xl shadow-lg border border-slate-700/60 space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur border border-white/20 flex items-center justify-center text-2xl shadow-inner">
-              {activeReceptionist ? activeReceptionist.icon : "📋"}
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-black uppercase tracking-wider text-blue-300">
-                  {activeReceptionist ? activeReceptionist.badge : "Guichet Inbound Général"}
-                </span>
-                {activeReceptionist && (
-                  <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-sm ${activeReceptionist.badgeBg} ${activeReceptionist.badgeText}`}>
-                    Flux Assigné : {activeReceptionist.flux}
-                  </span>
-                )}
-                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-2 py-0.5 rounded-full font-bold">
-                  ● Guichet Actif
-                </span>
-              </div>
-              <h1 className="text-lg font-black text-white mt-0.5">
-                {activeReceptionist
-                  ? `${activeReceptionist.nom} — ${activeReceptionist.fluxLabel}`
-                  : "Accueil Quai Central • Enregistrement Entrant"}
-              </h1>
-              <p className="text-xs text-slate-300">
-                {activeReceptionist?.flux === "COD" &&
-                  "Encaissement obligatoire contre-remboursement (COD) auprès des destinataires urbains Grand Tanà."}
-                {activeReceptionist?.flux === "SIMPLE" &&
-                  "Course simple et port payé d'avance : encaissement marchandise nul (0 Ar), seuls les frais s'appliquent."}
-                {activeReceptionist?.flux === "PROVINCE" &&
-                  "Acheminement régional national via les gares routières (Ambodivona, Fasan'ny Karana, Andohatapenaka)."}
-                {activeReceptionist?.flux === "RETOUR" &&
-                  "Gestion quai des retours clients, échanges de références, avaries et réexpéditions SAV."}
-                {activeReceptionist?.flux === "ENTREPRISE" &&
-                  "Prise en charge des flux réguliers d'entreprises, plis confidentiels, contrats et facturation périodique."}
-                {!activeReceptionist && "Sélectionnez votre guichet ci-dessous pour cloisonner le flux opérationnel."}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 self-start lg:self-auto">
-            <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
-              Changer de Guichet :
-            </span>
-            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-1.5">
-              {RECEPTIONIST_AGENTS.map((agent) => {
-                const isSelected = activeReceptionist?.username === agent.username;
-                return (
-                  <button
-                    key={agent.username}
-                    type="button"
-                    data-cy={`guichet-tab-${agent.username}`}
-                    onClick={() => handleSelectGuichet(agent)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
-                      isSelected
-                        ? "bg-white text-slate-900 shadow-md ring-2 ring-blue-400 font-black scale-105"
-                        : "bg-white/10 hover:bg-white/20 text-slate-200 border border-white/10"
-                    }`}
-                  >
-                    <span>{agent.icon}</span>
-                    <span>{agent.badge}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-
+    <div className="max-w-7xl mx-auto space-y-5 pb-12">
       {/* Header & Title */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs no-print">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
-              Écran 01 • Réception Quai & Inbound
-            </span>
-            <h2 className="text-2xl font-black text-slate-900 mt-1">
-              Prise en Charge Multi-Donneurs d'Ordre & Colis
+            <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+              <span className="text-blue-600">📦</span> Réception Quai & Inbound
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Saisie aérée des colis avec désignation de la marchandise, adresses multilignes sans coupure et autocomplétion expéditeur.
-            </p>
           </div>
 
           {/* Sender Type Selector Tabs */}
-          <div className="flex bg-slate-100 p-1.5 rounded-xl border border-slate-200 gap-1 self-start md:self-auto">
+          <div className="flex bg-slate-100 p-1.5 rounded-xl border border-slate-200 gap-1 self-start sm:self-auto">
             <button
               type="button"
               data-testid="type-cybermarchand"
@@ -648,97 +817,204 @@ export default function InboundPage() {
           </div>
         </div>
 
-        {/* Sender Contact Information Bar with Autocomplete */}
+        {/* Sender Contact Information Bar */}
         <div className="mt-5 pt-5 border-t border-slate-100 bg-slate-50/80 p-5 rounded-xl border border-slate-200 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-blue-600" /> Coordonnées de l'Expéditeur
-              (Vides par défaut, autocomplétion intelligente)
             </span>
-            {selectedVendorId && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedVendorId(null);
-                  setSenderName("");
-                  setSenderPhone("");
-                  setSenderAddress("");
-                  setContactPerson("");
-                }}
-                className="text-[11px] font-semibold text-slate-500 hover:text-red-600 transition-colors"
-              >
-                ✕ Vider les champs expéditeur
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              {selectedVendorId && (
+                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100/70 px-2.5 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1">
+                  <Check className="w-3 h-3 text-emerald-600" /> Partenaire Référencé (#{selectedVendorId})
+                </span>
+              )}
+              {selectedVendorId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedVendorId(null);
+                    setSenderName("");
+                    setSenderPhone("");
+                    setSenderAddress("");
+                    setContactPerson("");
+                  }}
+                  className="text-[11px] font-semibold text-slate-500 hover:text-red-600 transition-colors cursor-pointer"
+                >
+                  ✕ Vider les champs expéditeur
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* Sender Name with Datalist Autocomplete */}
+            {/* Sender Name with Smart Auto-Suggestions */}
             <div className="relative">
               <label className="text-[11px] font-bold text-slate-700 block mb-1">
                 Nom / Raison Sociale Expéditeur *
               </label>
-              <input
-                type="text"
-                list="sender-suggestions"
-                data-testid="sender-name-input"
-                value={senderName}
-                onChange={(e) => handleSenderNameChange(e.target.value)}
-                placeholder="Tapez le nom ou choisissez ci-dessous..."
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              />
-              <datalist id="sender-suggestions">
-                {vendors.map((v) => (
-                  <option key={v.id} value={v.nom}>
-                    {v.type_expediteur} • {v.telephone}
-                  </option>
-                ))}
-              </datalist>
+              <div className="relative">
+                <input
+                  type="text"
+                  data-testid="sender-name-input"
+                  value={senderName}
+                  onFocus={() => {
+                    if (senderName.trim().length > 0) setShowSenderSuggestions(true);
+                  }}
+                  onBlur={() => {
+                    setTimeout(() => setShowSenderSuggestions(false), 250);
+                  }}
+                  onChange={(e) => handleSenderNameChange(e.target.value)}
+                  placeholder="Tapez le nom de l'expéditeur..."
+                  className="w-full px-3 py-2 pr-7 bg-white border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+                {senderName && (
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => {
+                      setSenderName("");
+                      setSelectedVendorId(null);
+                      setShowSenderSuggestions(false);
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer p-0.5"
+                    title="Effacer le nom"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Auto-Suggestion Floating Dropdown */}
+              {showSenderSuggestions && senderName.trim().length > 0 && (
+                <div
+                  data-testid="sender-suggestions-popup"
+                  className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-40 max-h-60 overflow-y-auto divide-y divide-slate-100 animate-in fade-in duration-100"
+                >
+                  {matchingVendors.length > 0 ? (
+                    <>
+                      <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                        <span>Expéditeurs existants ({matchingVendors.length})</span>
+                        <span className="text-[9px] text-blue-600 font-semibold">Cliquer pour auto-compléter</span>
+                      </div>
+                      {matchingVendors.map((v) => (
+                        <button
+                          key={v.id}
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            applyVendorData(v);
+                            setShowSenderSuggestions(false);
+                          }}
+                          className="w-full text-left px-3 py-2 hover:bg-blue-50 transition flex items-center justify-between cursor-pointer group"
+                        >
+                          <div className="min-w-0 pr-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-bold text-slate-800 group-hover:text-blue-700 truncate">
+                                {v.nom}
+                              </span>
+                              <span className="text-[9px] px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded font-semibold flex-shrink-0">
+                                {v.type_expediteur}
+                              </span>
+                            </div>
+                            {v.adresse && (
+                              <p className="text-[10px] text-slate-400 truncate">
+                                📍 {v.adresse}
+                              </p>
+                            )}
+                          </div>
+                          {v.telephone && (
+                            <span className="text-[11px] font-mono text-slate-500 font-semibold flex-shrink-0">
+                              {v.telephone}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </>
+                  ) : (
+                    <div className="p-3 text-center text-xs text-slate-500">
+                      Aucun expéditeur enregistré ne correspond à &quot;{senderName.trim()}&quot;
+                    </div>
+                  )}
+
+                  {/* Option to add as new vendor if not exact match */}
+                  {!isExactVendorMatch && (
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setShowSenderSuggestions(false);
+                        openNewSenderModal(senderName);
+                      }}
+                      className="w-full text-left px-3 py-2.5 bg-blue-50/90 hover:bg-blue-100 text-blue-700 transition flex items-center gap-2 text-xs font-bold cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                      <span>➕ Ajouter &quot;{senderName.trim()}&quot; comme nouveau...</span>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* Sender Phone */}
+            {/* Sender Phone (Facultatif) */}
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                  <Phone className="w-3 h-3 text-slate-400" /> Téléphone Expéditeur
+                  <Phone className="w-3 h-3 text-slate-400" /> Téléphone Expéditeur <span className="font-normal text-slate-400 text-[10px]">(Facultatif)</span>
                 </label>
-                {senderPhone && <OperatorBadge operator={senderPhoneDetect.operator} isSmall />}
+                <div className="flex items-center gap-1">
+                  {senderPhone && (
+                    <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                      senderPhone.length === 10
+                        ? "text-emerald-700 bg-emerald-50 border-emerald-200 font-bold"
+                        : "text-amber-700 bg-amber-50 border-amber-200"
+                    }`}>
+                      {senderPhone.length}/10 {senderPhone.length === 10 ? "✓" : ""}
+                    </span>
+                  )}
+                  {senderPhone && <OperatorBadge operator={senderPhoneDetect.operator} isSmall />}
+                </div>
               </div>
               <input
-                type="text"
+                type="tel"
+                maxLength={10}
                 data-testid="sender-phone-input"
                 value={senderPhone}
-                onChange={(e) => setSenderPhone(e.target.value)}
-                placeholder="034 00 000 00"
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                onChange={(e) => setSenderPhone(sanitizePhoneInput(e.target.value))}
+                placeholder="0340000000"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
               />
             </div>
 
-            {/* Sender Address */}
+            {/* Sender Address (Facultatif) */}
             <div>
               <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1 mb-1">
-                <MapPin className="w-3 h-3 text-slate-400" /> Adresse / Quartier Expéditeur
+                <MapPin className="w-3 h-3 text-slate-400" /> Adresse / Quartier <span className="font-normal text-slate-400 text-[10px]">(Facultatif)</span>
               </label>
               <input
                 type="text"
                 data-testid="sender-address-input"
                 value={senderAddress}
                 onChange={(e) => setSenderAddress(e.target.value)}
-                placeholder="Quartier de ramassage ou siège..."
+                placeholder="Quartier ou repère (optionnel)..."
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
               />
             </div>
 
-            {/* Fast Quick-Select Dropdown */}
+            {/* Fast Quick-Select Dropdown with "Ajouter Nouveau" */}
             <div>
-              <label className="text-[11px] font-bold text-slate-700 mb-1 block">
-                Sélection Rapide Référencée :
+              <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                Sélection Expéditeur Référencé :
               </label>
               <select
                 data-testid="vendor-select"
                 value={selectedVendorId || ""}
                 onChange={(e) => {
                   const val = e.target.value;
+                  if (val === "__ADD_NEW__") {
+                    openNewSenderModal(senderName);
+                    return;
+                  }
                   if (!val) {
                     setSelectedVendorId(null);
                     setSenderName("");
@@ -754,33 +1030,21 @@ export default function InboundPage() {
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
               >
                 <option value="">-- Choisir un expéditeur enregistré --</option>
-                {availableVendorsForType.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.nom} ({v.type_expediteur})
-                  </option>
-                ))}
+                <option value="__ADD_NEW__" className="font-bold text-blue-700 bg-blue-50">
+                  {senderName.trim() && !isCurrentSenderRegistered
+                    ? `➕ + Ajouter "${senderName.trim()}" comme nouveau...`
+                    : `➕ + Ajouter un nouvel expéditeur...`}
+                </option>
+                <optgroup label={`Expéditeurs ${senderType} enregistrés (${availableVendorsForType.length})`}>
+                  {availableVendorsForType.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.nom}
+                    </option>
+                  ))}
+                </optgroup>
               </select>
             </div>
           </div>
-
-          {/* Autocomplete Quick Pills for Registered Senders */}
-          {availableVendorsForType.length > 0 && (
-            <div className="pt-2 flex flex-wrap items-center gap-2">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                Suggestions rapides :
-              </span>
-              {availableVendorsForType.slice(0, 4).map((v) => (
-                <button
-                  key={v.id}
-                  type="button"
-                  onClick={() => applyVendorData(v)}
-                  className="px-2.5 py-1 bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-700 transition-all shadow-2xs"
-                >
-                  ⚡ {v.nom}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
@@ -838,23 +1102,85 @@ export default function InboundPage() {
       )}
 
       {/* Main Form: Spacious, Non-Overflowing Multi-Colis Form */}
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Package className="w-5 h-5 text-blue-600" />
-            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-              Détails des Colis à Réceptionner ({rows.length})
-            </h3>
+      <form onSubmit={handleSubmit} className="space-y-4 no-print">
+        {/* Banner if sender name is missing */}
+        {!isSenderSpecified && (
+          <div className="bg-amber-50/90 border border-amber-200/90 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-900 shadow-xs animate-in fade-in">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-amber-100 text-amber-700 rounded-xl flex-shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-900">
+                  Expéditeur non renseigné
+                </h4>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Veuillez d'abord renseigner au moins le <strong>Nom / Raison Sociale de l'expéditeur</strong> ci-dessus pour débloquer la saisie des colis.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const el = document.querySelector('input[data-testid="sender-name-input"]') as HTMLInputElement;
+                if (el) {
+                  el.focus();
+                  el.scrollIntoView({ behavior: "smooth", block: "center" });
+                }
+              }}
+              className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs transition flex-shrink-0 cursor-pointer text-center"
+            >
+              Renseigner l'Expéditeur ↑
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={addRow}
-            data-testid="add-row-btn"
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
-          >
-            <Plus className="w-4 h-4" /> Ajouter un Colis
-          </button>
-        </div>
+        )}
+
+        {/* Parcel Form Section: Disabled & Greyed-out when sender is not specified */}
+        <fieldset
+          disabled={!isSenderSpecified}
+          className={`space-y-4 transition-all duration-200 ${
+            !isSenderSpecified
+              ? "opacity-40 grayscale pointer-events-none select-none cursor-not-allowed"
+              : "opacity-100"
+          }`}
+        >
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Package className="w-5 h-5 text-blue-600" />
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                  Détails des Colis à Réceptionner ({rows.length})
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Renseignez la marchandise, le destinataire et le quartier de livraison
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Action Buttons */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={addRow}
+                data-testid="add-row-btn"
+                disabled={!isSenderSpecified}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Plus className="w-4 h-4" /> Ajouter un colis
+              </button>
+              {rows.length > 1 && (
+                <button
+                  type="button"
+                  onClick={resetRows}
+                  disabled={!isSenderSpecified}
+                  className="inline-flex items-center gap-1 px-2.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-semibold transition-all cursor-pointer border border-rose-200 disabled:opacity-50"
+                  title="Vider la grille et repartir avec 1 colis vierge"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" /> Réinitialiser
+                </button>
+              )}
+            </div>
+          </div>
 
         {/* Parcels Cards List (No Horizontal Scroll / No Text Cutting) */}
         <div className="space-y-4">
@@ -879,15 +1205,27 @@ export default function InboundPage() {
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                     <span className="text-xs font-extrabold text-slate-800">
                       Total Dû : <span className="text-blue-700">{formatAriary(rowTotal)}</span>
                     </span>
+
+                    {/* Button Duplicate Row */}
+                    <button
+                      type="button"
+                      onClick={() => duplicateRow(idx)}
+                      title="Dupliquer ce colis avec la même marchandise, le même tarif et les mêmes consignes"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold transition cursor-pointer"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Dupliquer</span>
+                    </button>
+
                     {rows.length > 1 && (
                       <button
                         type="button"
                         onClick={() => removeRow(idx)}
-                        className="inline-flex items-center gap-1 text-slate-400 hover:text-red-600 text-xs font-semibold transition-colors"
+                        className="inline-flex items-center gap-1 px-2 py-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" /> Supprimer
                       </button>
@@ -918,16 +1256,28 @@ export default function InboundPage() {
                       <label className="text-[11px] font-bold text-slate-700 block">
                         Téléphone Dest. (10 chiffres) *
                       </label>
-                      {row.recipientPhone && (
-                        <OperatorBadge operator={phoneDetect.operator} isSmall />
-                      )}
+                      <div className="flex items-center gap-1">
+                        {row.recipientPhone && (
+                          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                            row.recipientPhone.length === 10
+                              ? "text-emerald-700 bg-emerald-50 border-emerald-200 font-bold"
+                              : "text-amber-700 bg-amber-50 border-amber-200"
+                          }`}>
+                            {row.recipientPhone.length}/10 {row.recipientPhone.length === 10 ? "✓" : ""}
+                          </span>
+                        )}
+                        {row.recipientPhone && (
+                          <OperatorBadge operator={phoneDetect.operator} isSmall />
+                        )}
+                      </div>
                     </div>
                     <input
-                      type="text"
+                      type="tel"
+                      maxLength={10}
                       data-testid={`input-phone-${idx}`}
                       value={row.recipientPhone}
-                      onChange={(e) => updateRow(idx, "recipientPhone", e.target.value)}
-                      placeholder="034 00 000 00"
+                      onChange={(e) => updateRow(idx, "recipientPhone", sanitizePhoneInput(e.target.value))}
+                      placeholder="0340000000"
                       className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     />
                   </div>
@@ -955,13 +1305,17 @@ export default function InboundPage() {
                     <select
                       value={row.fluxType}
                       onChange={(e) => updateRow(idx, "fluxType", e.target.value as FluxType)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      className="w-full px-3 py-2 border rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-slate-50 border-slate-300"
                     >
-                      <option value="COD">COD (Marchandise + Livraison)</option>
-                      <option value="SIMPLE">Course Simple (Port Payé)</option>
-                      <option value="RETOUR">Retour SAV / Échange</option>
-                      <option value="PROVINCE">Fret Province (Gare Routière)</option>
+                      <option value="COD">💵 COD (Contre-Remboursement)</option>
+                      <option value="SIMPLE">📄 Course Simple (Port Payé)</option>
+                      <option value="PROVINCE">🚐 Fret Province (Gares Routières)</option>
+                      <option value="RETOUR">🔄 Retour SAV / Échange</option>
+                      <option value="ENTREPRISE">🏢 Compte Entreprise / B2B</option>
                     </select>
+                    <p className="text-[10px] text-slate-500 italic mt-0.5">
+                      Polyvalent : l&apos;agent peut saisir n&apos;importe quel flux.
+                    </p>
                   </div>
 
                   {/* Delivery Address (Multi-line Textarea with Natural Wrapping, col-span-6) */}
@@ -1010,18 +1364,44 @@ export default function InboundPage() {
                       )}
                     </div>
                     {row.fluxType === "PROVINCE" ? (
-                      <div className="space-y-1.5">
+                      <div className="space-y-2">
+                        {/* Dropdown select for Province Axes & Gares */}
                         <div className="relative">
-                          <input
-                            type="text"
-                            list="province-axes-datalist"
-                            data-testid={`input-province-axis-${idx}`}
-                            data-cy={`input-province-axis-${idx}`}
-                            value={getProvinceDisplayName(row.axis)}
-                            onChange={(e) => handleProvinceAxisInputChange(idx, e.target.value)}
-                            placeholder="Tapez l'axe de province (ex: Toamasina, Majunga...)"
-                            className="w-full px-3 py-2 bg-purple-50/50 border border-purple-300 rounded-xl text-xs font-bold text-purple-900 focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                          />
+                          <select
+                            data-testid={`select-province-axis-${idx}`}
+                            data-cy={`select-province-axis-${idx}`}
+                            value={row.axis}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === "SWITCH_TO_URBAN") {
+                                updateRow(idx, "fluxType", "COD");
+                                updateRow(idx, "axis", "AXE_CENTRE_1");
+                              } else {
+                                selectProvinceAxis(idx, val);
+                              }
+                            }}
+                            className="w-full px-3 py-2 bg-purple-50 border border-purple-300 rounded-xl text-xs font-bold text-purple-950 focus:ring-2 focus:ring-purple-500 focus:outline-none shadow-xs"
+                          >
+                            <option value="" disabled>-- Sélectionner l'Axe de Province / Gare --</option>
+                            <optgroup label="🏢 Gares Routières d'Antananarivo (Hubs)">
+                              <option value="AXE_PROVINCE_AMBODIVONA">🏢 Gare Routière Ambodivona (RN2 Est - Tamatave)</option>
+                              <option value="AXE_PROVINCE_FASAN_NY_KARANA">🏢 Gare Routière Fasan'ny Karana (RN7 Sud - Fianar, Tuléar)</option>
+                              <option value="AXE_PROVINCE_ANDOHATAPENAKA">🏢 Gare Routière Andohatapenaka Maki (RN4 Ouest / RN6 - Majunga, Diégo)</option>
+                              <option value="AXE_PROVINCE">🚌 Gares Routières & Régions (Général)</option>
+                            </optgroup>
+                            <optgroup label="📍 Grandes Villes & Régions (National)">
+                              <option value="AXE_PROVINCE_TOAMASINA">Axe Toamasina / Tamatave (RN2 Est)</option>
+                              <option value="AXE_PROVINCE_MAHAJANGA">Axe Mahajanga / Majunga (RN4 Ouest)</option>
+                              <option value="AXE_PROVINCE_ANTSIRABE">Axe Antsirabe (RN7)</option>
+                              <option value="AXE_PROVINCE_FIANARANTSOA">Axe Fianarantsoa (RN7 Sud)</option>
+                              <option value="AXE_PROVINCE_TOLIARA">Axe Toliara / Tuléar (RN7 Grand Sud)</option>
+                              <option value="AXE_PROVINCE_ANTSIRANANA">Axe Antsiranana / Diégo (RN6 Nord)</option>
+                              <option value="AXE_PROVINCE_MORONDAVA">Axe Morondava / Menabe (RN34/35)</option>
+                              <option value="AXE_PROVINCE_SAMBAVA">Axe Sambava / Antalaha (SAVA)</option>
+                              <option value="AXE_PROVINCE_ALAOTRA">Axe Ambatondrazaka (Alaotra RN44)</option>
+                            </optgroup>
+                            <option value="SWITCH_TO_URBAN">← Revenir aux axes urbains (Grand Tanà)</option>
+                          </select>
                         </div>
 
                         {/* Inline Button to register new province axis if not yet in database */}
@@ -1041,29 +1421,50 @@ export default function InboundPage() {
                           </div>
                         )}
 
-                        {/* Quick Autocomplete Suggestions Chips */}
-                        {provinceAxes.length > 0 && (
-                          <div className="flex items-center gap-1 flex-wrap pt-0.5">
-                            <span className="text-[9px] text-slate-400 font-semibold uppercase">Suggestions :</span>
-                            {provinceAxes.map((pAx) => {
-                              const isSelected = row.axis === pAx.code;
+                        {/* Suggestions basées sur les 7 Gares & Coopératives Nationales officielles */}
+                        <div className="space-y-1.5 pt-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-purple-900 uppercase tracking-wider flex items-center gap-1">
+                              <Bus className="w-3 h-3 text-purple-600" /> Gares & Coopératives Référencées (7) :
+                            </span>
+                            <span className="text-[9px] text-purple-600 font-medium">1-clic pour affecter</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {partners.map((partner) => {
+                              const isSelected =
+                                (row.axis === "AXE_PROVINCE_AMBODIVONA" && (partner.nom.includes("Ambodivona") || partner.nom === "Cotisse Transport" || partner.nom === "Trans Texpress")) ||
+                                (row.axis === "AXE_PROVINCE_FASAN_NY_KARANA" && (partner.nom.includes("Fasan") || partner.nom === "Kofmad Transport")) ||
+                                (row.axis === "AXE_PROVINCE_ANDOHATAPENAKA" && (partner.nom.includes("Andohatapenaka") || partner.nom === "Besady Plus")) ||
+                                (row.deliveryAddress && row.deliveryAddress.toLowerCase().includes(partner.nom.toLowerCase()));
+
+                              const isCoop = partner.type === "COOPERATIVE";
+
                               return (
                                 <button
-                                  key={pAx.code}
+                                  key={partner.id || partner.nom}
                                   type="button"
-                                  onClick={() => selectProvinceAxis(idx, pAx.code)}
-                                  className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border transition ${
+                                  onClick={() => selectPartnerOrGare(idx, partner)}
+                                  title={`${partner.nom} (${partner.type}) • ${partner.gare_rattachement || "Gare"} • Tél : ${partner.contact || "Standard"}`}
+                                  className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition cursor-pointer flex items-center gap-1 shadow-2xs ${
                                     isSelected
-                                      ? "bg-purple-600 text-white border-purple-600 shadow-2xs"
-                                      : "bg-white text-purple-700 border-purple-200 hover:bg-purple-50"
+                                      ? "bg-purple-700 text-white border-purple-700 ring-2 ring-purple-300"
+                                      : isCoop
+                                      ? "bg-purple-50 text-purple-900 border-purple-200 hover:bg-purple-100 hover:border-purple-300"
+                                      : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
                                   }`}
                                 >
-                                  🚌 {pAx.libelle.replace("Axe Province ", "").replace("AXE PROVINCE ", "")}
+                                  <span>{isCoop ? "🚐" : "🏢"}</span>
+                                  <span>{partner.nom}</span>
+                                  {partner.gare_rattachement && (
+                                    <span className={`text-[9px] font-normal ${isSelected ? "text-purple-200" : "text-purple-600"}`}>
+                                      ({partner.gare_rattachement.replace("Gare Routière ", "").replace("Gare ", "")})
+                                    </span>
+                                  )}
                                 </button>
                               );
                             })}
                           </div>
-                        )}
+                        </div>
 
                         <div className="flex items-center justify-between pt-0.5">
                           <button
@@ -1072,7 +1473,7 @@ export default function InboundPage() {
                               updateRow(idx, "fluxType", "COD");
                               updateRow(idx, "axis", "AXE_CENTRE_1");
                             }}
-                            className="text-[10px] text-slate-500 hover:text-blue-600 underline"
+                            className="text-[10px] text-slate-500 hover:text-blue-600 underline cursor-pointer"
                           >
                             ← Revenir aux axes urbains
                           </button>
@@ -1088,11 +1489,11 @@ export default function InboundPage() {
                         value={row.axis}
                         onChange={(e) => {
                           const val = e.target.value;
-                          if (val === "SWITCH_TO_PROVINCE") {
-                            updateRow(idx, "fluxType", "PROVINCE");
-                            updateRow(idx, "isManualAxis", true);
+                          if (val.startsWith("AXE_PROVINCE") || provinceAxes.some((p) => p.code === val)) {
+                            selectProvinceAxis(idx, val);
                           } else {
                             updateRow(idx, "axis", val as LogisticAxis);
+                            updateRow(idx, "fluxType", "COD");
                           }
                         }}
                         className={`w-full px-3 py-2 bg-white border rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none transition ${
@@ -1112,8 +1513,17 @@ export default function InboundPage() {
                           <option value="AXE_IAVOLOHA">8. Axe Iavoloha (RN7 Sud & Tanjombato)</option>
                           <option value="AXE_ALASORA">9. Axe Alasora (Mandroseza & By-pass)</option>
                         </optgroup>
-                        <optgroup label="🚚 Expéditions Régionales">
-                          <option value="SWITCH_TO_PROVINCE">➔ Expédition Province (Saisie Manuelle & Autocomplétion)...</option>
+                        <optgroup label="🚚 Expéditions Gares Routières & Province">
+                          <option value="AXE_PROVINCE_AMBODIVONA">🏢 Gare Routière Ambodivona (RN2 Est - Cotisse, Trans Texpress)</option>
+                          <option value="AXE_PROVINCE_FASAN_NY_KARANA">🏢 Gare Routière Fasan'ny Karana (RN7 Sud - Kofmad)</option>
+                          <option value="AXE_PROVINCE_ANDOHATAPENAKA">🏢 Gare Routière Andohatapenaka Maki (RN4 Ouest - Besady Plus)</option>
+                          <option value="AXE_PROVINCE">🚌 Gares Routières & Régions (Général)</option>
+                          <option value="AXE_PROVINCE_TOAMASINA">Axe Toamasina / Tamatave</option>
+                          <option value="AXE_PROVINCE_MAHAJANGA">Axe Mahajanga / Majunga</option>
+                          <option value="AXE_PROVINCE_ANTSIRABE">Axe Antsirabe</option>
+                          <option value="AXE_PROVINCE_FIANARANTSOA">Axe Fianarantsoa</option>
+                          <option value="AXE_PROVINCE_TOLIARA">Axe Toliara / Tuléar</option>
+                          <option value="AXE_PROVINCE_ANTSIRANANA">Axe Antsiranana / Diégo</option>
                         </optgroup>
                       </select>
                     )}
@@ -1190,69 +1600,200 @@ export default function InboundPage() {
                         placeholder="3000"
                         className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold text-right focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       />
+                      {/* One-click Tariff Pills */}
+                      <div className="flex items-center gap-1 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => updateRow(idx, "deliveryFee", 3000)}
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition cursor-pointer ${
+                            row.deliveryFee === 3000
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
+                              : "bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                          }`}
+                          title="Tarif CUA standard (1er au 6ème Arr.)"
+                        >
+                          3k
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateRow(idx, "deliveryFee", 4000)}
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition cursor-pointer ${
+                            row.deliveryFee === 4000
+                              ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
+                              : "bg-white text-blue-700 border-blue-200 hover:bg-blue-50"
+                          }`}
+                          title="Tarif Péri-Urbain (1ère Couronne)"
+                        >
+                          4k
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateRow(idx, "deliveryFee", 5000)}
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition cursor-pointer ${
+                            row.deliveryFee === 5000
+                              ? "bg-purple-600 text-white border-purple-600 shadow-2xs"
+                              : "bg-white text-purple-700 border-purple-200 hover:bg-purple-50"
+                          }`}
+                          title="Tarif Grande Couronne / Périphérie"
+                        >
+                          5k
+                        </button>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Plage Horaire & Remarques Spéciales (md:col-span-12) */}
-                  <div className="md:col-span-12 space-y-1">
-                    <label className="text-[11px] font-bold text-slate-700 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <span>⏰ Plage Horaire / Remarque Spéciale Livraison *</span>
-                        <span className="text-[10px] text-amber-700 font-semibold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                          Obligatoire
+                  {/* Sélecteur Horaire de Livraison (Facultatif : Intervalle ou Heure Simple) */}
+                  <div className="md:col-span-12 space-y-1.5 pt-2 border-t border-slate-100">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-3.5 h-3.5 text-blue-600" />
+                        <span className="text-[11px] font-bold text-slate-700">Horaire de livraison</span>
+                        <span className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                          Facultatif
                         </span>
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-normal">
-                        Ex: Matin avant 12h, Après 14h, Appeler 15min avant, Au bureau...
-                      </span>
-                    </label>
-                    <input
-                      type="text"
-                      data-testid={`input-observation-${idx}`}
-                      value={row.observation}
-                      onChange={(e) => updateRow(idx, "observation", e.target.value)}
-                      placeholder="Indiquez impérativement la plage horaire ou consigne spéciale pour le livreur..."
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none bg-slate-50/50"
-                    />
+                      </div>
 
-                    {/* Quick tags for easy one-click input */}
-                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                      <span className="text-[10px] text-slate-400 font-semibold uppercase">Raccourcis :</span>
-                      <button
-                        type="button"
-                        onClick={() => updateRow(idx, "observation", "⚡ URGENT - Livraison immédiate")}
-                        className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition cursor-pointer"
-                      >
-                        ⚡ URGENT
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateRow(idx, "observation", "Matin (08h - 12h)")}
-                        className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition cursor-pointer"
-                      >
-                        ⏰ Matin (8h-12h)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateRow(idx, "observation", "Après-midi (13h - 17h)")}
-                        className="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition cursor-pointer"
-                      >
-                        ⏰ Après-midi (13h-17h)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateRow(idx, "observation", "📞 Appeler 15 min avant d'arriver")}
-                        className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition cursor-pointer"
-                      >
-                        📞 Appeler avant
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateRow(idx, "observation", "📅 Livraison planifiée pour demain")}
-                        className="px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition cursor-pointer"
-                      >
-                        📅 Planifié Demain
-                      </button>
+                      {/* Mode Switch: Intervalle vs Heure simple */}
+                      <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => updateRow(idx, "timeMode", "INTERVAL")}
+                          className={`px-2.5 py-0.5 rounded-md font-semibold transition cursor-pointer ${
+                            (row.timeMode || "INTERVAL") === "INTERVAL"
+                              ? "bg-white text-blue-700 shadow-2xs"
+                              : "text-slate-600 hover:text-slate-900"
+                          }`}
+                        >
+                          Intervalle (Plage)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateRow(idx, "timeMode", "SIMPLE")}
+                          className={`px-2.5 py-0.5 rounded-md font-semibold transition cursor-pointer ${
+                            row.timeMode === "SIMPLE"
+                              ? "bg-white text-blue-700 shadow-2xs"
+                              : "text-slate-600 hover:text-slate-900"
+                          }`}
+                        >
+                          Heure simple
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 bg-slate-50/70 p-2 rounded-xl border border-slate-200">
+                      {(row.timeMode || "INTERVAL") === "INTERVAL" ? (
+                        <>
+                          {/* Time Interval Inputs */}
+                          <div className="flex items-center gap-1.5 text-xs text-slate-700 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 shadow-2xs">
+                            <span className="text-[11px] text-slate-400 font-medium">De</span>
+                            <input
+                              type="time"
+                              value={extractTimeRange(row.observation).start}
+                              onChange={(e) => {
+                                const currentEnd = extractTimeRange(row.observation).end || "12:00";
+                                const newStart = e.target.value;
+                                updateRow(idx, "observation", newStart ? `${newStart} - ${currentEnd}` : "");
+                              }}
+                              className="text-xs font-semibold text-slate-800 bg-transparent focus:outline-none cursor-pointer"
+                            />
+                            <span className="text-[11px] text-slate-400 font-medium">à</span>
+                            <input
+                              type="time"
+                              value={extractTimeRange(row.observation).end}
+                              onChange={(e) => {
+                                const currentStart = extractTimeRange(row.observation).start || "08:00";
+                                const newEnd = e.target.value;
+                                updateRow(idx, "observation", newEnd ? `${currentStart} - ${newEnd}` : "");
+                              }}
+                              className="text-xs font-semibold text-slate-800 bg-transparent focus:outline-none cursor-pointer"
+                            />
+                          </div>
+
+                          {/* Quick interval presets */}
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {[
+                              { label: "08h - 12h", value: "08:00 - 12:00" },
+                              { label: "12h - 14h", value: "12:00 - 14:00" },
+                              { label: "14h - 17h", value: "14:00 - 17:00" },
+                              { label: "17h - 19h", value: "17:00 - 19:00" },
+                            ].map((preset) => {
+                              const isSelected = row.observation === preset.value;
+                              return (
+                                <button
+                                  key={preset.value}
+                                  type="button"
+                                  onClick={() => updateRow(idx, "observation", preset.value)}
+                                  className={`px-2 py-1 rounded-md text-[11px] font-semibold border transition cursor-pointer ${
+                                    isSelected
+                                      ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
+                                      : "bg-white text-slate-700 border-slate-200 hover:bg-blue-50 hover:text-blue-700"
+                                  }`}
+                                >
+                                  {preset.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {/* Simple Hour Input */}
+                          <div className="flex items-center gap-1.5 text-xs text-slate-700 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 shadow-2xs">
+                            <span className="text-[11px] text-slate-400 font-medium">Heure</span>
+                            <input
+                              type="time"
+                              value={extractSimpleTime(row.observation)}
+                              onChange={(e) => updateRow(idx, "observation", e.target.value)}
+                              className="text-xs font-semibold text-slate-800 bg-transparent focus:outline-none cursor-pointer"
+                            />
+                          </div>
+
+                          {/* Quick simple hour presets */}
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {["09:00", "11:00", "14:00", "16:00"].map((time) => {
+                              const isSelected = row.observation === time;
+                              return (
+                                <button
+                                  key={time}
+                                  type="button"
+                                  onClick={() => updateRow(idx, "observation", time)}
+                                  className={`px-2 py-1 rounded-md text-[11px] font-semibold border transition cursor-pointer ${
+                                    isSelected
+                                      ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
+                                      : "bg-white text-slate-700 border-slate-200 hover:bg-blue-50 hover:text-blue-700"
+                                  }`}
+                                >
+                                  {time.replace(":", "h")}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
+
+                      {/* Observation text input (accessible for Cypress & custom notes, facultatif) */}
+                      <div className="flex-1 min-w-[200px]">
+                        <input
+                          type="text"
+                          data-testid={`input-observation-${idx}`}
+                          value={row.observation}
+                          onChange={(e) => updateRow(idx, "observation", e.target.value)}
+                          placeholder="Horaire ou remarque (optionnel)..."
+                          className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                        />
+                      </div>
+
+                      {/* Clear button if observation is set */}
+                      {row.observation && (
+                        <button
+                          type="button"
+                          onClick={() => updateRow(idx, "observation", "")}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                          title="Effacer l'horaire"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1270,8 +1811,8 @@ export default function InboundPage() {
           <button
             type="submit"
             data-testid="submit-batch-btn"
-            disabled={isSubmitting}
-            className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-all shadow-md disabled:opacity-50"
+            disabled={isSubmitting || !isSenderSpecified}
+            className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-all shadow-md disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
           >
             {isSubmitting ? (
               <>
@@ -1284,22 +1825,24 @@ export default function InboundPage() {
             )}
           </button>
         </div>
+        </fieldset>
       </form>
 
       {/* Success Modal / Card for Generated BDRs */}
       {createdParcels && (
         <div
           data-testid="success-modal"
-          className="bg-white p-6 rounded-2xl border-2 border-emerald-500 shadow-xl space-y-4"
+          className="bg-white p-6 rounded-2xl border-2 border-emerald-500 shadow-xl space-y-6"
         >
-          <div className="flex items-center justify-between">
+          {/* Header Action Bar (Hidden during print) */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print pb-4 border-b border-slate-200">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl">
                 <CheckCircle className="w-6 h-6" />
               </div>
               <div>
                 <h3 className="font-bold text-lg text-slate-900">
-                  Réception Validée : {createdParcels.length} Colis Enregistrés !
+                  Réception Validée : {createdParcels.length} Colis Enregistrés avec Succès !
                 </h3>
                 <p className="text-xs text-slate-500">
                   Expéditeur : <strong className="text-slate-800">{senderName}</strong> ({senderType}) • Téléphone : {senderPhone || "N/A"}
@@ -1307,19 +1850,49 @@ export default function InboundPage() {
               </div>
             </div>
 
-            <button
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-xl shadow"
-            >
-              <Printer className="w-4 h-4" /> Imprimer les Étiquettes Barcode
-            </button>
+            {/* Toggle Print Format & Print Button */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setPrintViewMode("BDR")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    printViewMode === "BDR"
+                      ? "bg-white text-blue-700 shadow-xs border border-slate-200"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" /> Bon de Réception A4
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrintViewMode("LABELS")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    printViewMode === "LABELS"
+                      ? "bg-white text-blue-700 shadow-xs border border-slate-200"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Barcode className="w-3.5 h-3.5" /> Étiquettes Barcode (80mm)
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow cursor-pointer transition"
+              >
+                <Printer className="w-4 h-4" /> Imprimer ({printViewMode === "BDR" ? "Bon A4" : "Étiquettes 80mm"})
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2">
+          {/* Cards Overview Grid (Web view, hidden when printing BDR) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2 no-print">
             {createdParcels.map((p) => (
               <div
                 key={p.id}
-                className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5"
+                className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 hover:border-slate-300 transition"
               >
                 <div className="flex items-center justify-between">
                   <span className="font-mono font-black text-sm text-blue-700">
@@ -1349,7 +1922,7 @@ export default function InboundPage() {
                 </div>
                 {(p.receptionniste_nom || activeReceptionist) && (
                   <div className="text-[10px] text-slate-500 font-semibold flex items-center justify-between pt-0.5">
-                    <span className="text-slate-400">Pris en charge par :</span>
+                    <span className="text-slate-400">Agent Réception Quai :</span>
                     <span className="text-blue-700 font-bold">
                       {p.receptionniste_nom || activeReceptionist?.nom}
                     </span>
@@ -1359,30 +1932,210 @@ export default function InboundPage() {
             ))}
           </div>
 
-          <div className="text-right pt-2">
+          {/* Printable Official Document 1 : Bon de Réception A4 */}
+          {printViewMode === "BDR" && (
+            <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 space-y-6">
+              {/* Entête Officielle de l'Entreprise & Identifiants Fiscaux Facture */}
+              <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4">
+                <div>
+                  <div className="flex items-center gap-3">
+                    {company.logo_url ? (
+                      <img
+                        src={company.logo_url}
+                        alt="Logo Entreprise"
+                        className="h-10 w-auto max-w-[120px] object-contain rounded"
+                      />
+                    ) : (
+                      <span className="text-2xl">🚚</span>
+                    )}
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl font-black tracking-tight text-slate-900">{company.company_name || company.app_name}</span>
+                        <span className="text-[10px] font-bold bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Hub Quai Central</span>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-1 font-semibold">
+                    {company.address || "Antananarivo 101, Madagascar"} • Tél : {company.phone || "+261 34 00 000 00"}
+                  </p>
+                  <p className="text-[11px] text-slate-700 mt-0.5 font-mono">
+                    <span className="font-bold text-slate-900">NIF :</span> {company.nif} • <span className="font-bold text-slate-900">STAT :</span> {company.stat}
+                    {company.rcs && <> • <span className="font-bold text-slate-900">RCS :</span> {company.rcs}</>}
+                    {company.cif && <> • <span className="font-bold text-slate-900">CIF :</span> {company.cif}</>}
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    {company.email || "contact@tmsexpress.mg"} • {company.website || "www.tmsexpress.mg"}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="inline-block px-3 py-1 bg-slate-900 text-white font-black text-xs uppercase tracking-wider rounded">
+                    BON DE RÉCEPTION (BDR)
+                  </span>
+                  <p className="text-xs font-mono font-bold text-slate-700 mt-1">
+                    Date : {new Date().toLocaleDateString("fr-FR")} • {new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                  <p className="text-xs text-slate-600 font-medium">
+                    Agent Quai : <strong>{activeReceptionist ? activeReceptionist.nom : currentUserName}</strong>
+                  </p>
+                </div>
+              </div>
+
+              {/* Informations Expéditeur */}
+              <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+                <div>
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block mb-0.5">Expéditeur / Donneur d'Ordre</span>
+                  <p className="text-sm font-bold text-slate-900">{senderName}</p>
+                  <p className="text-slate-600">Type : {senderType} • Tél : {senderPhone || "Non renseigné"}</p>
+                  {senderAddress && <p className="text-slate-500">Adresse / Siège : {senderAddress}</p>}
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block mb-0.5">Récapitulatif du Lot</span>
+                  <p className="text-sm font-bold text-slate-900">{createdParcels.length} Colis Enregistrés</p>
+                  <p className="text-slate-600">Statut initial : <span className="font-bold text-amber-700">EN_DEPOT</span></p>
+                </div>
+              </div>
+
+              {/* Tableau Détaillé des Colis */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border border-slate-200 rounded-xl overflow-hidden">
+                  <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="p-2.5">#</th>
+                      <th className="p-2.5">N° Bordereau</th>
+                      <th className="p-2.5">Destinataire</th>
+                      <th className="p-2.5">Téléphone</th>
+                      <th className="p-2.5">Lieu / Quartier</th>
+                      <th className="p-2.5">Axe</th>
+                      <th className="p-2.5 text-right">Marchandise</th>
+                      <th className="p-2.5 text-right">Frais Livr.</th>
+                      <th className="p-2.5 text-right">Total à Encaisser</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {createdParcels.map((p, i) => (
+                      <tr key={p.id} className="hover:bg-slate-50">
+                        <td className="p-2.5 font-bold text-slate-400">{i + 1}</td>
+                        <td className="p-2.5 font-mono font-bold text-blue-700">BDR-{p.tracking_number}</td>
+                        <td className="p-2.5 font-semibold text-slate-800">{p.recipient_name}</td>
+                        <td className="p-2.5 font-mono text-slate-600">{p.recipient_phone_formatted || p.recipient_phone}</td>
+                        <td className="p-2.5 text-slate-600 max-w-[180px] truncate">{p.delivery_address}</td>
+                        <td className="p-2.5 text-slate-600 font-medium">{p.axis}</td>
+                        <td className="p-2.5 text-right font-mono font-medium text-slate-700">
+                          {(p.merchandise_amount || 0).toLocaleString("fr-FR")} Ar
+                        </td>
+                        <td className="p-2.5 text-right font-mono font-medium text-slate-700">
+                          {(p.delivery_fee || 0).toLocaleString("fr-FR")} Ar
+                        </td>
+                        <td className="p-2.5 text-right font-mono font-bold text-slate-900">
+                          {p.total_to_collect_formatted || `${((p.merchandise_amount || 0) + (p.delivery_fee || 0)).toLocaleString("fr-FR")} Ar`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-slate-100 font-bold border-t-2 border-slate-300">
+                    <tr>
+                      <td colSpan={6} className="p-2.5 text-right uppercase text-slate-700">Totaux Récapitulatifs :</td>
+                      <td className="p-2.5 text-right font-mono text-blue-800">{totalMerchandise.toLocaleString("fr-FR")} Ar</td>
+                      <td className="p-2.5 text-right font-mono text-indigo-800">{totalFees.toLocaleString("fr-FR")} Ar</td>
+                      <td className="p-2.5 text-right font-mono text-emerald-800 font-black">{totalToCollect.toLocaleString("fr-FR")} Ar</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Cadres de Signature */}
+              <div className="grid grid-cols-2 gap-8 pt-6 border-t border-slate-200">
+                <div className="border border-dashed border-slate-300 rounded-xl p-4 text-center h-28 flex flex-col justify-between">
+                  <span className="text-[11px] font-bold uppercase text-slate-500">Signature & Cachet de l'Expéditeur</span>
+                  <span className="text-[10px] text-slate-400">« Bon pour accord et remise des colis ci-dessus »</span>
+                </div>
+                <div className="border border-dashed border-slate-300 rounded-xl p-4 text-center h-28 flex flex-col justify-between">
+                  <span className="text-[11px] font-bold uppercase text-slate-500">Tampon Quai & Signature Réceptionniste</span>
+                  <span className="text-[10px] text-slate-400">{company.company_name || company.app_name} • Hub Central</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Printable Thermal Stickers 2 : Format 80 mm */}
+          {printViewMode === "LABELS" && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {createdParcels.map((p, i) => (
+                  <div
+                    key={p.id}
+                    className="p-4 bg-white rounded-xl border-2 border-slate-800 font-sans space-y-2 text-xs shadow-xs"
+                  >
+                    <div className="flex items-center justify-between border-b-2 border-slate-800 pb-1.5">
+                      <span className="font-black text-sm text-slate-900 tracking-wider">{company.app_name}</span>
+                      <span className="font-mono font-black text-xs bg-slate-900 text-white px-2 py-0.5 rounded">
+                        #{i + 1}/{createdParcels.length}
+                      </span>
+                    </div>
+
+                    <div className="text-center py-1 bg-slate-50 rounded border border-slate-200">
+                      <div className="font-mono font-black text-lg tracking-wider text-blue-900">
+                        BDR-{p.tracking_number}
+                      </div>
+                      <div className="text-[10px] text-slate-400 tracking-widest font-mono">
+                        ||| | |||| | ||| |||| | ||||| | |||
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px] border-b border-slate-200 pb-1.5">
+                      <div>
+                        <span className="text-[9px] uppercase font-bold text-slate-400 block">Axe Logistique</span>
+                        <strong className="text-slate-900 font-extrabold">{p.axis}</strong>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[9px] uppercase font-bold text-slate-400 block">Total COD</span>
+                        <strong className="text-sm font-black text-emerald-700">{p.total_to_collect_formatted}</strong>
+                      </div>
+                    </div>
+
+                    <div className="text-[11px] space-y-0.5">
+                      <p className="font-bold text-slate-900">{p.recipient_name} • {p.recipient_phone_formatted || p.recipient_phone}</p>
+                      <p className="text-slate-600 break-words">{p.delivery_address}</p>
+                      {p.designation && <p className="text-slate-500 italic text-[10px]">Marchandise : {p.designation}</p>}
+                      {p.observation && <p className="text-amber-800 font-semibold text-[10px]">⚠️ {p.observation}</p>}
+                    </div>
+
+                    <div className="pt-1 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-400">
+                      <span>Exp : {senderName}</span>
+                      <span>{new Date().toLocaleDateString("fr-FR")}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Bottom Action to Reset or Continue */}
+          <div className="text-right pt-2 no-print flex items-center justify-between border-t border-slate-100">
+            <span className="text-xs text-slate-500">
+              Les colis sont désormais prêts pour le module <strong className="text-blue-700">Dispatching & Tournées</strong>.
+            </span>
             <button
               onClick={() => {
                 setCreatedParcels(null);
-                const currentFlux = activeReceptionist ? activeReceptionist.flux : "COD";
-                const isProv = currentFlux === "PROVINCE";
                 setRows([
                   {
                     id: "row-1",
                     recipientName: "",
                     recipientPhone: "",
                     designation: "",
-                    deliveryAddress: isProv ? "Gare Routière " : "",
-                    axis: isProv ? ("AXE_PROVINCE" as LogisticAxis) : ("AXE_CENTRE_1" as LogisticAxis),
-                    isAxisFallback: !isProv,
-                    isManualAxis: isProv,
-                    fluxType: currentFlux as FluxType,
+                    deliveryAddress: "",
+                    axis: "AXE_CENTRE_1" as LogisticAxis,
+                    isAxisFallback: true,
+                    isManualAxis: false,
+                    fluxType: "COD" as FluxType,
                     merchandiseAmount: 0,
-                    deliveryFee: isProv ? 10000 : 3000,
+                    deliveryFee: 3000,
                     observation: "",
                   },
                 ]);
               }}
-              className="text-xs font-bold text-blue-600 hover:underline"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
             >
               Enregistrer un autre lot ➔
             </button>
@@ -1545,6 +2298,194 @@ export default function InboundPage() {
               >
                 <span>✓</span>
                 <span>Enregistrer & Rattacher</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal : Ajouter un Nouveau Donneur d'Ordre / Expéditeur */}
+      {isNewSenderModalOpen && (
+        <div
+          data-cy="modal-add-sender"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+        >
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+            {/* Header */}
+            <div className="p-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-slate-800 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center font-bold text-lg">
+                  {newVendorType === "CYBERMARCHAND" ? "🏪" : newVendorType === "PARTICULIER" ? "👤" : "🏢"}
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold tracking-wide">Ajouter un Nouvel Expéditeur</h3>
+                  <p className="text-[11px] text-blue-100">Enregistrer un donneur d'ordre partenaire dans le CRM</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsNewSenderModalOpen(false)}
+                className="text-white/80 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition cursor-pointer"
+                data-cy="btn-close-add-sender-modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Form */}
+            <div className="p-5 space-y-4">
+              {/* Type d'expéditeur */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Typologie d'Expéditeur *
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewVendorType("CYBERMARCHAND")}
+                    className={`p-2 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                      newVendorType === "CYBERMARCHAND"
+                        ? "bg-blue-50 text-blue-800 border-blue-500 ring-2 ring-blue-400"
+                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <Store className="w-3.5 h-3.5" /> Cybermarchand
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewVendorType("PARTICULIER")}
+                    className={`p-2 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                      newVendorType === "PARTICULIER"
+                        ? "bg-emerald-50 text-emerald-800 border-emerald-500 ring-2 ring-emerald-400"
+                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <User className="w-3.5 h-3.5" /> Particulier
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewVendorType("ENTREPRISE")}
+                    className={`p-2 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                      newVendorType === "ENTREPRISE"
+                        ? "bg-indigo-50 text-indigo-800 border-indigo-500 ring-2 ring-indigo-400"
+                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <Building2 className="w-3.5 h-3.5" /> Entreprise
+                  </button>
+                </div>
+              </div>
+
+              {/* Nom / Raison Sociale */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Nom complet / Raison Sociale *
+                </label>
+                <input
+                  type="text"
+                  data-cy="input-modal-sender-name"
+                  value={newVendorName}
+                  onChange={(e) => setNewVendorName(e.target.value)}
+                  placeholder="Ex: Boutique Chic Tanà, Cabinet Juridique..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Téléphone & Opérateur */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    Numéro de Téléphone <span className="font-normal text-slate-400">(Facultatif)</span>
+                  </label>
+                  <div className="flex items-center gap-1">
+                    {newVendorPhone && (
+                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                        newVendorPhone.length === 10
+                          ? "text-emerald-700 bg-emerald-50 border-emerald-200 font-bold"
+                          : "text-amber-700 bg-amber-50 border-amber-200"
+                      }`}>
+                        {newVendorPhone.length}/10 {newVendorPhone.length === 10 ? "✓" : ""}
+                      </span>
+                    )}
+                    {newVendorPhone && (
+                      <OperatorBadge operator={detectMalagasyPhone(newVendorPhone).operator} isSmall />
+                    )}
+                  </div>
+                </div>
+                <input
+                  type="tel"
+                  maxLength={10}
+                  data-cy="input-modal-sender-phone"
+                  value={newVendorPhone}
+                  onChange={(e) => setNewVendorPhone(sanitizePhoneInput(e.target.value))}
+                  placeholder="0340000000 (optionnel)"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Adresse / Quartier */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Adresse / Quartier de Ramassage <span className="font-normal text-slate-400">(Facultatif)</span>
+                </label>
+                <input
+                  type="text"
+                  data-cy="input-modal-sender-address"
+                  value={newVendorAddress}
+                  onChange={(e) => setNewVendorAddress(e.target.value)}
+                  placeholder="Ex: Box 14 Pavillon Analakely, Lot II M... (optionnel)"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Contact Référent */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Contact Référent / Responsable <span className="font-normal text-slate-400">(Facultatif)</span>
+                </label>
+                <input
+                  type="text"
+                  data-cy="input-modal-sender-contact"
+                  value={newVendorContact}
+                  onChange={(e) => setNewVendorContact(e.target.value)}
+                  placeholder="Ex: Madame Rasoa, Monsieur Jean... (optionnel)"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              {newVendorError && (
+                <p className="text-xs font-semibold text-rose-600 bg-rose-50 p-2.5 rounded-xl border border-rose-200">
+                  {newVendorError}
+                </p>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                data-cy="btn-cancel-add-sender"
+                onClick={() => setIsNewSenderModalOpen(false)}
+                className="px-3.5 py-1.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                data-cy="btn-submit-add-new-sender"
+                onClick={handleConfirmAddNewVendor}
+                disabled={isSubmittingNewVendor}
+                className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isSubmittingNewVendor ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Enregistrement...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-3.5 h-3.5" /> Enregistrer & Sélectionner
+                  </>
+                )}
               </button>
             </div>
           </div>

@@ -305,7 +305,7 @@ def detect_new_axis(address: str) -> str:
                 return code
     return "AXE_CENTRE_1"
 
-def apply_real_axes_migration():
+def apply_real_axes_migration(seed_samples: bool = False):
     session = SessionLocal()
     try:
         with engine.connect() as conn:
@@ -380,8 +380,9 @@ def apply_real_axes_migration():
         session.commit()
         print("Couriers updated.")
 
-        # 4. Ensure each urban axis has active parcels in EN_DEPOT for operational dispatching
-        seed_sample_depot_parcels(session)
+        # 4. Optionally ensure each urban axis has active parcels in EN_DEPOT
+        if seed_samples:
+            seed_sample_depot_parcels(session)
 
     finally:
         session.close()

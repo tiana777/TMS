@@ -40,6 +40,11 @@ def seed_master_data():
             conn.execute(text("ALTER TABLE colis ADD COLUMN IF NOT EXISTS reversement_id INTEGER REFERENCES reversements_vendeurs(id);"))
             conn.execute(text("ALTER TABLE colis ADD COLUMN IF NOT EXISTS statut_reversement VARCHAR(30) DEFAULT 'NON_REVERSE';"))
             conn.execute(text("ALTER TABLE utilisateurs ADD COLUMN IF NOT EXISTS assigned_flux VARCHAR(30);"))
+            conn.execute(text("ALTER TABLE utilisateurs DROP CONSTRAINT IF EXISTS utilisateurs_role_check;"))
+            conn.execute(text("""
+                ALTER TABLE utilisateurs ADD CONSTRAINT utilisateurs_role_check 
+                CHECK (role IN ('RECEPTIONNISTE', 'SUPERVISEUR', 'SUPER_ADMIN', 'LIVREUR'));
+            """))
             conn.execute(text("ALTER TABLE colis ADD COLUMN IF NOT EXISTS receptionniste_id INTEGER REFERENCES utilisateurs(id);"))
             conn.execute(text("ALTER TABLE colis ADD COLUMN IF NOT EXISTS receptionniste_nom VARCHAR(100);"))
             conn.commit()
@@ -49,100 +54,69 @@ def seed_master_data():
 
     session = SessionLocal()
     try:
-        # 1. Seed or Update Users & the 5 Receptionists
-        base_users = [
+        # 1. Seed Exact Users: 1 Super Admin, 1 Directeur, 4 Agents
+        exact_users = [
             UserORM(
                 username="admin",
                 email="admin@tmsexpress.mg",
                 role="SUPER_ADMIN",
-                nom_complet="Direction Générale TMS",
+                nom_complet="Super Administrateur",
                 mot_de_passe_hash=hash_password("admin123"),
                 actif=1,
             ),
             UserORM(
-                username="superviseur",
-                email="superviseur@tmsexpress.mg",
-                role="SUPERVISEUR",
-                nom_complet="Chef de Quai Dispatcher",
-                mot_de_passe_hash=hash_password("super123"),
+                username="directeur",
+                email="directeur@tmsexpress.mg",
+                role="SUPER_ADMIN",
+                nom_complet="Directeur des Opérations",
+                mot_de_passe_hash=hash_password("directeur123"),
                 actif=1,
             ),
             UserORM(
-                username="reception",
-                email="reception@tmsexpress.mg",
+                username="agent1",
+                email="agent1@tmsexpress.mg",
                 role="RECEPTIONNISTE",
-                nom_complet="Agent Accueil Inbound (Général)",
-                mot_de_passe_hash=hash_password("recep123"),
-                assigned_flux="COD",
+                nom_complet="Aina Razafy",
+                mot_de_passe_hash=hash_password("agent123"),
+                actif=1,
+            ),
+            UserORM(
+                username="agent2",
+                email="agent2@tmsexpress.mg",
+                role="RECEPTIONNISTE",
+                nom_complet="Faly Rabe",
+                mot_de_passe_hash=hash_password("agent123"),
+                actif=1,
+            ),
+            UserORM(
+                username="agent3",
+                email="agent3@tmsexpress.mg",
+                role="RECEPTIONNISTE",
+                nom_complet="Hery Andrianina",
+                mot_de_passe_hash=hash_password("agent123"),
+                actif=1,
+            ),
+            UserORM(
+                username="agent4",
+                email="agent4@tmsexpress.mg",
+                role="RECEPTIONNISTE",
+                nom_complet="Voahirana Rasoanaivo",
+                mot_de_passe_hash=hash_password("agent123"),
                 actif=1,
             ),
         ]
-        for u in base_users:
+        for u in exact_users:
             existing = session.query(UserORM).filter(UserORM.username == u.username).first()
             if not existing:
                 session.add(u)
-            elif u.username == "reception" and not existing.assigned_flux:
-                existing.assigned_flux = "COD"
-        session.commit()
-
-        # 5 Receptionists with separated flows
-        receptionists_5 = [
-            {
-                "username": "recep_cod",
-                "email": "recep.cod@tmsexpress.mg",
-                "role": "RECEPTIONNISTE",
-                "nom_complet": "Aina (Guichet 1 - COD Urbain)",
-                "mot_de_passe_hash": hash_password("recep123"),
-                "assigned_flux": "COD",
-                "actif": 1,
-            },
-            {
-                "username": "recep_simple",
-                "email": "recep.simple@tmsexpress.mg",
-                "role": "RECEPTIONNISTE",
-                "nom_complet": "Faly (Guichet 2 - Port Payé)",
-                "mot_de_passe_hash": hash_password("recep123"),
-                "assigned_flux": "SIMPLE",
-                "actif": 1,
-            },
-            {
-                "username": "recep_province",
-                "email": "recep.prov@tmsexpress.mg",
-                "role": "RECEPTIONNISTE",
-                "nom_complet": "Hery (Guichet 3 - Province & Gares)",
-                "mot_de_passe_hash": hash_password("recep123"),
-                "assigned_flux": "PROVINCE",
-                "actif": 1,
-            },
-            {
-                "username": "recep_retour",
-                "email": "recep.sav@tmsexpress.mg",
-                "role": "RECEPTIONNISTE",
-                "nom_complet": "Voahirana (Guichet 4 - SAV & Retours)",
-                "mot_de_passe_hash": hash_password("recep123"),
-                "assigned_flux": "RETOUR",
-                "actif": 1,
-            },
-            {
-                "username": "recep_b2b",
-                "email": "recep.b2b@tmsexpress.mg",
-                "role": "RECEPTIONNISTE",
-                "nom_complet": "Mamy (Guichet 5 - Entreprises & B2B)",
-                "mot_de_passe_hash": hash_password("recep123"),
-                "assigned_flux": "ENTREPRISE",
-                "actif": 1,
-            },
-        ]
-        for r in receptionists_5:
-            user = session.query(UserORM).filter(UserORM.username == r["username"]).first()
-            if not user:
-                session.add(UserORM(**r))
             else:
-                user.nom_complet = r["nom_complet"]
-                user.assigned_flux = r["assigned_flux"]
-                user.email = r["email"]
+                existing.nom_complet = u.nom_complet
+                existing.role = u.role
+                existing.email = u.email
+                existing.mot_de_passe_hash = u.mot_de_passe_hash
+                existing.actif = 1
         session.commit()
-        print("Users and 5 Receptionists seeded.")
+        print("6 Exact Users seeded (1 Super Admin, 1 Directeur, 4 Agents).")
 
         # 2. Seed the 9 Real Logistic Axes & Zones from Excel
         from backend.app.infrastructure.database.seed_real_urban_axes import apply_real_axes_migration

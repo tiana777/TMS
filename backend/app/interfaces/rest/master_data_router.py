@@ -4,9 +4,11 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from backend.app.core.config import settings
 from backend.app.infrastructure.database.connection import get_db
 from backend.app.infrastructure.persistence.models import (
     AxisORM,
+    CompanySettingsORM,
     PartnerORM,
     UserORM,
     VendorORM,
@@ -388,6 +390,36 @@ def create_partner(data: CreatePartnerInputDTO, db: Session = Depends(get_db)):
     )
 
 
+@router.put("/partners/{partner_id}", response_model=PartnerResponseDTO)
+def update_partner(partner_id: int, data: CreatePartnerInputDTO, db: Session = Depends(get_db)):
+    p = db.query(PartnerORM).filter(PartnerORM.id == partner_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Partenaire introuvable")
+    p.nom = data.nom.strip()
+    p.contact = data.contact.strip() if data.contact else None
+    p.type = data.type
+    p.gare_rattachement = data.gare_rattachement.strip() if data.gare_rattachement else None
+    db.commit()
+    db.refresh(p)
+    return PartnerResponseDTO(
+        id=p.id,
+        nom=p.nom,
+        contact=p.contact,
+        type=p.type,
+        gare_rattachement=p.gare_rattachement,
+    )
+
+
+@router.delete("/partners/{partner_id}")
+def delete_partner(partner_id: int, db: Session = Depends(get_db)):
+    p = db.query(PartnerORM).filter(PartnerORM.id == partner_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Partenaire introuvable")
+    p.actif = 0
+    db.commit()
+    return {"success": True, "message": f"Partenaire '{p.nom}' supprimé avec succès."}
+
+
 @router.post("/axes/{axis_id}/zones", response_model=AxisResponseDTO)
 def add_zone_to_axis(
     axis_id: int,
@@ -449,4 +481,151 @@ def remove_zone_from_axis(
         actif=axis.actif,
         zones=[z.nom for z in axis.zones],
         zones_detail=zones_detail,
+    )
+
+
+# -------------------------------------------------------------------------------
+# Configuration Dynamique Entreprise & Facturation (Nom Application, NIF, STAT...)
+# -------------------------------------------------------------------------------
+class CompanySettingsDTO(BaseModel):
+    id: int
+    app_name: str
+    company_name: str
+    nif: str
+    stat: str
+    rcs: Optional[str] = None
+    cif: Optional[str] = None
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    website: Optional[str] = None
+    currency: str = "MGA"
+    footer_text: Optional[str] = None
+    logo_url: Optional[str] = None
+
+
+class UpdateCompanySettingsInputDTO(BaseModel):
+    app_name: Optional[str] = None
+    company_name: Optional[str] = None
+    nif: Optional[str] = None
+    stat: Optional[str] = None
+    rcs: Optional[str] = None
+    cif: Optional[str] = None
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    website: Optional[str] = None
+    currency: Optional[str] = None
+    footer_text: Optional[str] = None
+    logo_url: Optional[str] = None
+
+
+@router.get("/company-settings", response_model=CompanySettingsDTO)
+def get_company_settings(db: Session = Depends(get_db)):
+    """Récupère les informations dynamiques de l'entreprise et de l'application."""
+    cs = db.query(CompanySettingsORM).first()
+    if not cs:
+        cs = CompanySettingsORM(
+            app_name=settings.PROJECT_NAME + " " + settings.VERSION,
+            company_name=settings.COMPANY_NAME,
+            nif=settings.COMPANY_NIF,
+            stat=settings.COMPANY_STAT,
+            rcs=settings.COMPANY_RCS,
+            cif=settings.COMPANY_CIF,
+            address=settings.COMPANY_ADDRESS,
+            phone=settings.COMPANY_PHONE,
+            email=settings.COMPANY_EMAIL,
+            website=settings.COMPANY_WEBSITE,
+            currency=settings.CURRENCY,
+            footer_text="Merci pour votre confiance. Envois garantis et tracés.",
+        )
+        db.add(cs)
+        db.commit()
+        db.refresh(cs)
+    return CompanySettingsDTO(
+        id=cs.id,
+        app_name=cs.app_name,
+        company_name=cs.company_name,
+        nif=cs.nif,
+        stat=cs.stat,
+        rcs=cs.rcs,
+        cif=cs.cif,
+        address=cs.address,
+        phone=cs.phone,
+        email=cs.email,
+        website=cs.website,
+        currency=cs.currency,
+        footer_text=cs.footer_text,
+        logo_url=cs.logo_url,
+    )
+
+
+@router.patch("/company-settings", response_model=CompanySettingsDTO)
+def update_company_settings(
+    data: UpdateCompanySettingsInputDTO,
+    db: Session = Depends(get_db),
+    current_user: UserORM = Depends(require_roles(["SUPER_ADMIN", "SUPERVISEUR"])),
+):
+    """Met à jour les informations dynamiques de l'entreprise et de l'application."""
+    cs = db.query(CompanySettingsORM).first()
+    if not cs:
+        cs = CompanySettingsORM(
+            app_name=settings.PROJECT_NAME + " " + settings.VERSION,
+            company_name=settings.COMPANY_NAME,
+            nif=settings.COMPANY_NIF,
+            stat=settings.COMPANY_STAT,
+            rcs=settings.COMPANY_RCS,
+            cif=settings.COMPANY_CIF,
+            address=settings.COMPANY_ADDRESS,
+            phone=settings.COMPANY_PHONE,
+            email=settings.COMPANY_EMAIL,
+            website=settings.COMPANY_WEBSITE,
+            currency=settings.CURRENCY,
+        )
+        db.add(cs)
+
+    if data.app_name is not None and data.app_name.strip():
+        cs.app_name = data.app_name.strip()
+    if data.company_name is not None and data.company_name.strip():
+        cs.company_name = data.company_name.strip()
+    if data.nif is not None and data.nif.strip():
+        cs.nif = data.nif.strip()
+    if data.stat is not None and data.stat.strip():
+        cs.stat = data.stat.strip()
+    if data.rcs is not None:
+        cs.rcs = data.rcs.strip()
+    if data.cif is not None:
+        cs.cif = data.cif.strip()
+    if data.address is not None:
+        cs.address = data.address.strip()
+    if data.phone is not None:
+        cs.phone = data.phone.strip()
+    if data.email is not None:
+        cs.email = data.email.strip()
+    if data.website is not None:
+        cs.website = data.website.strip()
+    if data.currency is not None:
+        cs.currency = data.currency.strip()
+    if data.footer_text is not None:
+        cs.footer_text = data.footer_text.strip()
+    if data.logo_url is not None:
+        cs.logo_url = data.logo_url.strip() if data.logo_url else None
+
+    db.commit()
+    db.refresh(cs)
+    return CompanySettingsDTO(
+        id=cs.id,
+        app_name=cs.app_name,
+        company_name=cs.company_name,
+        nif=cs.nif,
+        stat=cs.stat,
+        rcs=cs.rcs,
+        cif=cs.cif,
+        address=cs.address,
+        phone=cs.phone,
+        email=cs.email,
+        website=cs.website,
+        currency=cs.currency,
+        footer_text=cs.footer_text,
+        logo_url=cs.logo_url,
     )

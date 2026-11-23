@@ -241,6 +241,21 @@ export function detectAxisClient(address: string): {
   }
 
   // 1. Province Priority (Gares Routières, Coopératives et Villes Régionales)
+  const isAmbodivona = ["ambodivona", "cotisse", "trans texpress", "tamatave", "toamasina", "moramanga", "brickaville", "ambatondrazaka"].some(k => lower.includes(k) || norm.includes(normalizeText(k)));
+  if (isAmbodivona) {
+    return { axis: "AXE_PROVINCE_AMBODIVONA" as LogisticAxis, isFallback: false, fee: 10000 };
+  }
+
+  const isFasanNyKarana = ["fasan'ny karana", "fasan ny karana", "fasankarana", "kofmad", "antsirabe", "fianarantsoa", "toliara", "tulear", "ambositra", "ambalavao", "ihosy", "morondava"].some(k => lower.includes(k) || norm.includes(normalizeText(k)));
+  if (isFasanNyKarana) {
+    return { axis: "AXE_PROVINCE_FASAN_NY_KARANA" as LogisticAxis, isFallback: false, fee: 10000 };
+  }
+
+  const isAndohatapenaka = ["andohatapenaka", "maki", "besady", "mahajanga", "majunga", "diego", "antsiranana", "sambava", "antalaha", "nosy be", "nosy-be", "maevatanana", "ambato-boeni", "ambanja", "antsohihy"].some(k => lower.includes(k) || norm.includes(normalizeText(k)));
+  if (isAndohatapenaka) {
+    return { axis: "AXE_PROVINCE_ANDOHATAPENAKA" as LogisticAxis, isFallback: false, fee: 10000 };
+  }
+
   for (const kw of PROVINCE_KEYWORDS) {
     if (lower.includes(kw) || norm.includes(normalizeText(kw))) {
       return { axis: "AXE_PROVINCE", isFallback: false, fee: 10000 };
@@ -316,6 +331,18 @@ export const AXIS_METADATA: Record<string, { label: string; badgeColor: string }
   AXE_PROVINCE: {
     label: "Provinces & Gares Routières",
     badgeColor: "bg-purple-100 text-purple-800 border-purple-300",
+  },
+  AXE_PROVINCE_AMBODIVONA: {
+    label: "Gare Ambodivona (RN2 Est)",
+    badgeColor: "bg-purple-100 text-purple-800 border-purple-300",
+  },
+  AXE_PROVINCE_FASAN_NY_KARANA: {
+    label: "Gare Fasan'ny Karana (RN7 Sud)",
+    badgeColor: "bg-indigo-100 text-indigo-800 border-indigo-300",
+  },
+  AXE_PROVINCE_ANDOHATAPENAKA: {
+    label: "Gare Andohatapenaka Maki (RN4 Ouest)",
+    badgeColor: "bg-fuchsia-100 text-fuchsia-800 border-fuchsia-300",
   },
   AXE_PROV_RN2_EST: {
     label: "RN2 Est (Tamatave / Moramanga)",

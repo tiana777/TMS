@@ -45,7 +45,3 @@ cypress/screenshots/
 Thumbs.db
 [Ee]xpress/
 *.log
-
-# Keep powershell helpers
-!powershell.cmd
-!powershell.bat

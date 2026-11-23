@@ -3,6 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useCompany } from "@/context/CompanyContext";
 import {
   PackagePlus,
   FileSpreadsheet,
@@ -35,18 +36,32 @@ const navigation = [
 
 export const Sidebar: React.FC = () => {
   const pathname = usePathname();
+  const { company } = useCompany();
 
   return (
     <aside className="w-64 bg-white text-slate-800 flex flex-col h-screen sticky top-0 border-r border-slate-200/90 shadow-xs z-20">
       <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-        <div>
-          <h1 className="text-base font-bold tracking-tight text-slate-900 flex items-center gap-1.5">
-            <span className="text-blue-600">⚡</span> TMS EXPRESS
-          </h1>
-          <p className="text-[11px] text-slate-400 font-normal">Hub Central Tsiazotafo</p>
+        <div className="min-w-0 pr-1 flex items-center gap-2">
+          {company.logo_url ? (
+            <img
+              src={company.logo_url}
+              alt={company.app_name || "Logo"}
+              className="h-8 w-auto max-w-[48px] object-contain rounded flex-shrink-0"
+            />
+          ) : (
+            <span className="text-blue-600 flex-shrink-0 text-base">⚡</span>
+          )}
+          <div className="min-w-0">
+            <h1 className="text-sm font-black tracking-tight text-slate-900 truncate">
+              {company.app_name || "TMS EXPRESS"}
+            </h1>
+            <p className="text-[10px] text-slate-400 font-medium truncate">
+              {company.address || "Hub Central Antananarivo"}
+            </p>
+          </div>
         </div>
-        <span className="px-1.5 py-0.5 text-[10px] bg-blue-50 text-blue-700 font-semibold rounded border border-blue-200">
-          v5.0
+        <span className="px-1.5 py-0.5 text-[10px] bg-blue-50 text-blue-700 font-bold rounded border border-blue-200 flex-shrink-0">
+          {company.currency}
         </span>
       </div>
 

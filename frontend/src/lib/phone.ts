@@ -64,6 +64,16 @@ export function cleanMalagasyPhone(input: string): string {
 }
 
 /**
+ * Limits and sanitizes a phone input to at most 10 digits (digits only).
+ * Handles +261 / 00261 / 261 paste, strips letters/symbols, and strictly caps length at 10 digits.
+ */
+export function sanitizePhoneInput(input: string): string {
+  if (!input) return "";
+  const cleaned = cleanMalagasyPhone(input);
+  return cleaned.replace(/\D/g, "").slice(0, 10);
+}
+
+/**
  * Formats a 10-digit Malagasy phone string into '03X XX XXX XX'.
  */
 export function formatMalagasyPhone(input: string): string {

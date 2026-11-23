@@ -55,6 +55,10 @@ class ParcelType:
     partner_reference: Optional[str] = None
     driver_contact: Optional[str] = None
     vehicle_plate: Optional[str] = None
+    encaissement_lieu: Optional[str] = "LIVREUR"
+    repartition_vendeur: Optional[str] = None
+    montant_encaisse_livreur: Optional[float] = None
+    montant_encaisse_vendeur: Optional[float] = None
     remittance_id: Optional[int] = None
     remittance_status: str = "NON_REVERSE"
     receptionniste_id: Optional[int] = None

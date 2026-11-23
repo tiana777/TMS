@@ -64,11 +64,13 @@ describe("Module Inbound & Import - Simulation Automatique Cypress", () => {
     cy.get('[data-testid="type-entreprise"]').click();
     cy.wait(300);
 
-    // Click back to Cybermarchand for parcel entry and type sender info
+    // Click back to Cybermarchand for parcel entry and test auto-suggestion
     cy.get('[data-testid="type-cybermarchand"]').click();
     cy.wait(300);
-    cy.get('[data-testid="sender-name-input"]').clear().type("Mod'Tanà Boutique");
-    cy.get('[data-testid="sender-phone-input"]').clear().type("0345566778");
+    cy.get('[data-testid="sender-name-input"]').clear().type("Mod");
+    cy.get('[data-testid="sender-suggestions-popup"]').should("be.visible").and("contain", "Mod'Tanà Boutique");
+    cy.get('[data-testid="sender-suggestions-popup"]').contains("Mod'Tanà Boutique").click();
+    cy.get('[data-testid="sender-name-input"]').should("have.value", "Mod'Tanà Boutique");
 
     // 2. Fill Row 1 (Urban COD Itaosy)
     cy.wait(500);
@@ -81,6 +83,7 @@ describe("Module Inbound & Import - Simulation Automatique Cypress", () => {
 
     // Fill Designation of merchandise (user requirement: designation marchandise / colis)
     cy.get('[data-testid="input-designation-0"]').type("Chaussures & Vêtements Mode");
+    cy.get('[data-testid="input-observation-0"]').type("Livraison le matin avant 12h");
 
     // Type address and verify axis auto-detection to AXE_ITAOSY and auto fee 4 000 Ar
     cy.get('[data-testid="input-address-0"]').type("Itaosy Cité Seimad");
@@ -127,6 +130,7 @@ describe("Module Inbound & Import - Simulation Automatique Cypress", () => {
 
     // Fill Designation for row 2
     cy.get('[data-testid="input-designation-1"]').type("Carton de Quincaillerie");
+    cy.get('[data-testid="input-observation-1"]').type("Dépôt au quai Cotisse avant 15h");
 
     // Check real-time Orange badge appears
     cy.get('[data-testid="badge-operator-orange"]').should("be.visible").and("contain", "ORANGE");

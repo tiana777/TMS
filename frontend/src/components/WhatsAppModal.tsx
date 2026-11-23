@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { MessageSquare, Copy, Check, ExternalLink, X } from "lucide-react";
 import { Tour } from "@/types";
+import { useCompany } from "@/context/CompanyContext";
 
 interface WhatsAppModalProps {
   tour: Tour;
@@ -10,6 +11,7 @@ interface WhatsAppModalProps {
 }
 
 export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ tour, onClose }) => {
+  const { company } = useCompany();
   const [copied, setCopied] = useState(false);
 
   const parcels = tour.parcels || [];

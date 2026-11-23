@@ -23,6 +23,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Parcel, Vendor, Payout } from "@/types";
+import { sanitizePhoneInput } from "@/lib/phone";
 import {
   createPayout,
   createVendor,
@@ -233,7 +234,7 @@ export default function CRMVendorsPage() {
   const netDueToVendor = Math.max(0, totalCodCollected - totalDeliveryFees);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+    <div className={`space-y-6 max-w-7xl mx-auto pb-12 ${isStatementModalOpen ? "print:hidden" : ""}`}>
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex items-center gap-3">
@@ -631,11 +632,12 @@ export default function CRMVendorsPage() {
                     Téléphone Principal :
                   </label>
                   <input
-                    type="text"
-                    placeholder="034 XX XXX XX"
+                    type="tel"
+                    maxLength={10}
+                    placeholder="0340000000"
                     value={formPhone}
-                    onChange={(e) => setFormPhone(e.target.value)}
-                    className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-blue-500"
+                    onChange={(e) => setFormPhone(sanitizePhoneInput(e.target.value))}
+                    className="w-full text-xs font-mono border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-blue-500"
                   />
                 </div>
                 <div>
@@ -749,10 +751,12 @@ export default function CRMVendorsPage() {
                     Téléphone :
                   </label>
                   <input
-                    type="text"
+                    type="tel"
+                    maxLength={10}
+                    placeholder="0340000000"
                     value={formPhone}
-                    onChange={(e) => setFormPhone(e.target.value)}
-                    className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 outline-none"
+                    onChange={(e) => setFormPhone(sanitizePhoneInput(e.target.value))}
+                    className="w-full text-xs font-mono border border-slate-200 rounded-xl px-3 py-2 outline-none"
                   />
                 </div>
                 <div>
@@ -806,262 +810,310 @@ export default function CRMVendorsPage() {
 
       {/* MODAL 3 : Bordereau de Reversement & Relevé Financier */}
       {isStatementModalOpen && selectedVendor && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-2xl rounded-2xl border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-white text-slate-900">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 print:p-0 print:static print:inset-auto print:bg-transparent print:block print:overflow-visible">
+          <div className="bg-white w-full max-w-5xl rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[92vh] print:max-h-none print:h-auto print:overflow-visible print:border-none print:shadow-none print:rounded-none print:static print:w-full">
+            
+            {/* Header Modal Bar (Screen only) */}
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-white text-slate-900 print:hidden shrink-0">
               <div className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-blue-600" />
                 <h3 className="text-sm font-bold text-slate-900">
                   Bordereau Officiel de Reversement Financier
                 </h3>
               </div>
-              <button onClick={() => setIsStatementModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1">
+              <button
+                type="button"
+                onClick={() => setIsStatementModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                title="Fermer la fenêtre"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto space-y-6 text-xs">
-              {/* Header Statement */}
-              <div className="flex justify-between items-start border-b border-slate-200 pb-4">
+            {/* Document Content (Scrollable on Screen, Full Multi-page Flow on Print) */}
+            <div className="p-5 sm:p-6 overflow-y-auto space-y-5 text-xs print:p-0 print:overflow-visible print:space-y-3 print:text-[9px]">
+              
+              {/* Document Header (TMS EXPRESS Madagascar & Donneur d'Ordre) */}
+              <div className="flex justify-between items-start border-b border-slate-200 pb-4 print:pb-2.5 print:border-slate-300">
                 <div>
-                  <h4 className="text-sm font-black text-slate-900">TMS EXPRESS MADAGASCAR</h4>
-                  <p className="text-[11px] text-slate-500">Hub Central : Tsiazotafo / Analakely, Antananarivo</p>
-                  <p className="text-[11px] text-slate-500">Service Caisse Centrale & Rapprochements</p>
+                  <h4 className="text-base print:text-sm font-black text-slate-900 tracking-tight flex items-center gap-1.5">
+                    <span>⚡ TMS EXPRESS MADAGASCAR</span>
+                  </h4>
+                  <p className="text-[11px] print:text-[8.5px] text-slate-600">Hub Logistique Central • Tsiazotafo / Analakely, Antananarivo</p>
+                  <p className="text-[11px] print:text-[8.5px] text-slate-600">Service Caisse Centrale & Rapprochements Financiers</p>
+                  <p className="text-[10px] print:text-[8px] text-slate-400 mt-1">
+                    Émis le {new Date().toLocaleDateString("fr-FR")} à {new Date().toLocaleTimeString("fr-FR", { hour: '2-digit', minute: '2-digit' })}
+                  </p>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">Destinataire Donneur d'Ordre</span>
-                  <h4 className="text-sm font-black text-blue-900">{selectedVendor.nom}</h4>
-                  <p className="text-[11px] text-slate-600">{selectedVendor.adresse || "Antananarivo"}</p>
-                  <p className="text-[11px] text-slate-600">Tél : {selectedVendor.telephone}</p>
+                  <span className="text-[10px] print:text-[8px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Destinataire Donneur d'Ordre
+                  </span>
+                  <h4 className="text-base print:text-sm font-black text-blue-900 print:text-black">{selectedVendor.nom}</h4>
+                  <p className="text-[11px] print:text-[8.5px] text-slate-600">{selectedVendor.adresse || "Antananarivo"}</p>
+                  <p className="text-[11px] print:text-[8.5px] text-slate-600 font-mono">Tél : {selectedVendor.telephone}</p>
+                  <span className="inline-block mt-0.5 text-[9px] print:text-[7.5px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 print:border-slate-300">
+                    Modalité : {selectedVendor.modalite_paiement}
+                  </span>
                 </div>
               </div>
 
-              {/* Table of all parcels scheduled (delivered + not delivered) */}
+              {/* Parcels Table Section */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <h5 className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
-                    Relevé Complet des Colis Prévus (Urbains & Province)
+                  <h5 className="font-bold text-slate-800 uppercase tracking-wider text-[11px] print:text-[9px]">
+                    Relevé Détaillé des Colis Prévus (Urbains & Province)
                   </h5>
-                  <div className="flex items-center gap-2 text-[10px]">
-                    <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                  <div className="flex items-center gap-2 text-[10px] print:text-[8px]">
+                    <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold print:bg-transparent print:border-slate-300 print:text-black">
                       ✓ {deliveredParcels.length} Livré(s) & Encaissé(s)
                     </span>
-                    <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-semibold">
+                    <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-semibold print:bg-transparent print:border-slate-300 print:text-black">
                       ⚠️ {vendorParcels.length - deliveredParcels.length} Non Livré(s) (Report / Annulé)
                     </span>
                   </div>
                 </div>
 
-                <table className="w-full text-left text-xs border border-slate-200 rounded-lg overflow-hidden">
-                  <thead className="bg-slate-100 text-slate-600 font-bold uppercase text-[10px]">
-                    <tr>
-                      <th className="px-2.5 py-2">Bordereau</th>
-                      <th className="px-2.5 py-2">Destinataire & Tél</th>
-                      <th className="px-2.5 py-2">Destination / Axe</th>
-                      <th className="px-2.5 py-2">Statut & Motif</th>
-                      <th className="px-2.5 py-2 text-right">Marchandise</th>
-                      <th className="px-2.5 py-2 text-right">Frais TMS</th>
-                      <th className="px-2.5 py-2 text-right">Pris en Compte</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {vendorParcels.map((p) => {
-                      const isDelivered = ["LIVRE", "ENCAISSE", "LIVRE_ENCAISSE", "CLOTURE_CAISSE"].includes(p.status);
-                      const isProvince = p.flux_type === "PROVINCE" || p.axis.includes("PROV");
-                      const isDirectSenderPaid = p.payment_method === "MVOLA" && (
-                        (p.observation && p.observation.toLowerCase().includes("direct")) ||
-                        (p.incident_reason && p.incident_reason.toLowerCase().includes("direct"))
-                      );
+                {/* Table Container - Fits nicely on screen, 100% width on A4 print */}
+                <div className="overflow-x-auto rounded-xl border border-slate-200 print:border-slate-300 print:overflow-visible">
+                  <table className="w-full text-left text-xs print:text-[8.5px] border-collapse">
+                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-[10px] print:text-[8px] print:bg-slate-100 print:table-header-group">
+                      <tr className="border-b border-slate-200 print:border-slate-300">
+                        <th className="px-2.5 py-2 print:py-1 print:px-1.5 w-[14%] whitespace-nowrap">Bordereau</th>
+                        <th className="px-2.5 py-2 print:py-1 print:px-1.5 w-[18%]">Destinataire & Tél</th>
+                        <th className="px-2.5 py-2 print:py-1 print:px-1.5 w-[22%]">Destination / Axe</th>
+                        <th className="px-2.5 py-2 print:py-1 print:px-1.5 w-[16%]">Statut & Motif</th>
+                        <th className="px-2.5 py-2 print:py-1 print:px-1.5 w-[10%] text-right whitespace-nowrap">Marchandise</th>
+                        <th className="px-2.5 py-2 print:py-1 print:px-1.5 w-[8%] text-right whitespace-nowrap">Frais TMS</th>
+                        <th className="px-2.5 py-2 print:py-1 print:px-1.5 w-[12%] text-right whitespace-nowrap">À Reverser</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 print:divide-slate-200">
+                      {vendorParcels.map((p) => {
+                        const isDelivered = ["LIVRE", "ENCAISSE", "LIVRE_ENCAISSE", "CLOTURE_CAISSE"].includes(p.status);
+                        const isProvince = p.flux_type === "PROVINCE" || p.axis.includes("PROV");
+                        const isDirectSenderPaid = p.payment_method === "MVOLA" && (
+                          (p.observation && p.observation.toLowerCase().includes("direct")) ||
+                          (p.incident_reason && p.incident_reason.toLowerCase().includes("direct"))
+                        );
 
-                      return (
-                        <tr key={p.id} className={!isDelivered ? "bg-amber-50/30" : ""}>
-                          <td className="px-2.5 py-2 font-mono font-bold text-slate-900">
-                            {p.tracking_number}
-                          </td>
-                          <td className="px-2.5 py-2">
-                            <span className="font-semibold text-slate-800 block truncate max-w-[130px]">
-                              {p.recipient_name || "Client"}
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-mono">
-                              {p.recipient_phone}
-                            </span>
-                          </td>
-                          <td className="px-2.5 py-2">
-                            <span className="text-[11px] text-slate-700 block truncate max-w-[140px]" title={p.delivery_address}>
-                              {p.delivery_address}
-                            </span>
-                            <span className={`inline-block text-[9px] font-bold px-1 rounded ${
-                              isProvince ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"
-                            }`}>
-                              {isProvince ? "Province" : p.axis_label || p.axis}
-                            </span>
-                          </td>
-                          <td className="px-2.5 py-2">
-                            {isDelivered ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                                ✓ Livré & Encaissé
+                        return (
+                          <tr key={p.id} className={`${!isDelivered ? "bg-amber-50/30 print:bg-transparent" : ""} print:break-inside-avoid hover:bg-slate-50/50 transition-colors`}>
+                            <td className="px-2.5 py-2 print:py-1 print:px-1.5 font-mono font-bold text-slate-900 whitespace-nowrap text-xs print:text-[8.5px]">
+                              {p.tracking_number}
+                            </td>
+                            <td className="px-2.5 py-2 print:py-1 print:px-1.5">
+                              <span className="font-semibold text-slate-800 block text-xs print:text-[8.5px]">
+                                {p.recipient_name || "Client"}
                               </span>
-                            ) : (
-                              <div>
-                                <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border ${
-                                  p.status === "REPORTE"
-                                    ? "bg-amber-100 text-amber-800 border-amber-200"
-                                    : p.status === "ANNULE_RETOUR"
-                                    ? "bg-rose-100 text-rose-800 border-rose-200"
-                                    : "bg-slate-100 text-slate-700 border-slate-200"
-                                }`}>
-                                  {p.status_label || p.status}
-                                </span>
-                                {(p.incident_reason || p.reschedule_date) && (
-                                  <span className="text-[9px] text-slate-500 block italic mt-0.5 max-w-[140px] truncate" title={p.incident_reason || p.reschedule_date || ""}>
-                                    Motif: {p.incident_reason || `Reporté au ${p.reschedule_date}`}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-2.5 py-2 text-right font-medium text-slate-700">
-                            {p.merchandise_amount.toLocaleString("fr-FR")} Ar
-                          </td>
-                          <td className="px-2.5 py-2 text-right text-slate-600">
-                            {p.delivery_fee.toLocaleString("fr-FR")} Ar
-                          </td>
-                          <td className="px-2.5 py-2 text-right font-bold">
-                            {isDelivered ? (
-                              isDirectSenderPaid ? (
-                                <span className="text-amber-700 text-[10px]" title="Déjà payé direct expéditeur">
-                                  0 Ar (Direct Mvola)
+                              <span className="text-[10px] print:text-[7.5px] text-slate-500 font-mono whitespace-nowrap block">
+                                {p.recipient_phone}
+                              </span>
+                            </td>
+                            <td className="px-2.5 py-2 print:py-1 print:px-1.5">
+                              <span className="text-[11px] print:text-[8px] text-slate-700 block leading-tight" title={p.delivery_address}>
+                                {p.delivery_address}
+                              </span>
+                              <span className={`inline-block text-[9px] print:text-[7px] font-bold px-1 rounded mt-0.5 ${
+                                isProvince ? "bg-purple-100 text-purple-700 print:bg-transparent print:border print:border-slate-300 print:text-black" : "bg-blue-100 text-blue-700 print:bg-transparent print:border print:border-slate-300 print:text-black"
+                              }`}>
+                                {isProvince ? "Province" : p.axis_label || p.axis}
+                              </span>
+                            </td>
+                            <td className="px-2.5 py-2 print:py-1 print:px-1.5">
+                              {isDelivered ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] print:text-[7.5px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 whitespace-nowrap print:bg-transparent print:border-slate-300 print:text-black">
+                                  ✓ Livré & Encaissé
                                 </span>
                               ) : (
-                                <span className="text-emerald-700">
-                                  +{p.merchandise_amount.toLocaleString("fr-FR")} Ar
+                                <div>
+                                  <span className={`inline-flex items-center gap-1 text-[10px] print:text-[7.5px] font-bold px-1.5 py-0.5 rounded border whitespace-nowrap ${
+                                    p.status === "REPORTE"
+                                      ? "bg-amber-100 text-amber-800 border-amber-200 print:bg-transparent print:border-slate-300 print:text-black"
+                                      : p.status === "ANNULE_RETOUR"
+                                      ? "bg-rose-100 text-rose-800 border-rose-200 print:bg-transparent print:border-slate-300 print:text-black"
+                                      : "bg-slate-100 text-slate-700 border-slate-200 print:bg-transparent print:border-slate-300 print:text-black"
+                                  }`}>
+                                    {p.status_label || p.status}
+                                  </span>
+                                  {(p.incident_reason || p.reschedule_date) && (
+                                    <span className="text-[9px] print:text-[7px] text-slate-500 block italic mt-0.5" title={p.incident_reason || p.reschedule_date || ""}>
+                                      {p.incident_reason || `Reporté au ${p.reschedule_date}`}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-2.5 py-2 print:py-1 print:px-1.5 text-right font-medium text-slate-700 whitespace-nowrap text-xs print:text-[8.5px] font-mono">
+                              {p.merchandise_amount.toLocaleString("fr-FR")} Ar
+                            </td>
+                            <td className="px-2.5 py-2 print:py-1 print:px-1.5 text-right text-slate-600 whitespace-nowrap text-xs print:text-[8.5px] font-mono">
+                              {p.delivery_fee.toLocaleString("fr-FR")} Ar
+                            </td>
+                            <td className="px-2.5 py-2 print:py-1 print:px-1.5 text-right font-bold whitespace-nowrap text-xs print:text-[8.5px] font-mono">
+                              {isDelivered ? (
+                                isDirectSenderPaid ? (
+                                  <span className="text-amber-700 print:text-black text-[10px] print:text-[8px]" title="Déjà payé direct expéditeur">
+                                    0 Ar (Direct Mvola)
+                                  </span>
+                                ) : (
+                                  <span className="text-emerald-700 print:text-black">
+                                    +{p.merchandise_amount.toLocaleString("fr-FR")} Ar
+                                  </span>
+                                )
+                              ) : (
+                                <span className="text-slate-400 print:text-slate-500 text-[10px] print:text-[7.5px] italic">
+                                  0 Ar (Non livré)
                                 </span>
-                              )
-                            ) : (
-                              <span className="text-slate-400 text-[10px] italic">
-                                0 Ar (Non livré)
-                              </span>
-                            )}
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {vendorParcels.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="px-3 py-4 text-center text-slate-400">
+                            Aucun colis enregistré pour cet expéditeur.
                           </td>
                         </tr>
-                      );
-                    })}
-                    {vendorParcels.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className="px-3 py-4 text-center text-slate-400">
-                          Aucun colis enregistré pour cet expéditeur.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               {/* Financial Recap Box */}
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
-                <div className="flex justify-between text-xs text-slate-500 pb-1 border-b border-slate-200">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 print:bg-white print:border-slate-300 print:p-2.5 print:space-y-1 print:break-inside-avoid">
+                <div className="flex justify-between text-xs print:text-[8.5px] text-slate-500 pb-1 border-b border-slate-200 print:border-slate-300">
                   <span>Volume Total Colis sur le Bordereau :</span>
-                  <span className="font-semibold text-slate-700">
+                  <span className="font-semibold text-slate-700 print:text-black">
                     {vendorParcels.length} colis ({deliveredParcels.length} livrés & encaissés, {vendorParcels.length - deliveredParcels.length} non livrés)
                   </span>
                 </div>
-                <div className="flex justify-between font-semibold text-slate-700">
+                <div className="flex justify-between font-semibold text-slate-700 print:text-black text-xs print:text-[8.5px]">
                   <span>Total Brut Valeur Marchandise Encaissée (seuls les colis livrés) :</span>
-                  <span>{totalCodCollected.toLocaleString("fr-FR")} Ar</span>
+                  <span className="font-mono font-bold">{totalCodCollected.toLocaleString("fr-FR")} Ar</span>
                 </div>
-                <div className="flex justify-between font-semibold text-slate-500">
+                <div className="flex justify-between font-semibold text-slate-500 print:text-black text-xs print:text-[8.5px]">
                   <span>Total Frais de Livraison TMS Déduits :</span>
-                  <span>- {totalDeliveryFees.toLocaleString("fr-FR")} Ar</span>
+                  <span className="font-mono font-bold text-rose-600 print:text-black">- {totalDeliveryFees.toLocaleString("fr-FR")} Ar</span>
                 </div>
-                <div className="flex justify-between font-black text-sm text-slate-900 pt-2 border-t border-slate-200">
-                  <span className="text-blue-900">NET À REVERSER AU DONNEUR D'ORDRE :</span>
-                  <span className="text-blue-900 text-base">{netDueToVendor.toLocaleString("fr-FR")} Ar</span>
+                <div className="flex justify-between font-black text-sm print:text-xs text-slate-900 print:text-black pt-2 border-t border-slate-200 print:border-slate-300">
+                  <span className="text-blue-900 print:text-black">NET À REVERSER AU DONNEUR D'ORDRE :</span>
+                  <span className="text-blue-900 print:text-black text-base print:text-sm font-mono font-black">{netDueToVendor.toLocaleString("fr-FR")} Ar</span>
                 </div>
               </div>
 
-              {/* Super Admin Payment Execution Section */}
-              {lastGeneratedPayout ? (
-                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-start gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                  <div>
-                    <h5 className="font-bold text-emerald-900 text-xs">
-                      Reversement Validé & Enregistré avec Succès !
+              {/* Official Signatures Box (Printed on A4 paper) */}
+              <div className="hidden print:grid grid-cols-2 gap-6 pt-3 mt-2 border-t border-slate-300 text-[9px] print:break-inside-avoid">
+                <div className="border border-slate-300 rounded-lg p-2.5 text-center h-24 flex flex-col justify-between">
+                  <p className="font-bold uppercase tracking-wider text-slate-800">
+                    Pour TMS EXPRESS Madagascar<br />
+                    <span className="font-normal text-[8px] text-slate-500">Visa Caisse Centrale & Trésorerie</span>
+                  </p>
+                  <div className="border-t border-dashed border-slate-300 pt-1 text-[7.5px] text-slate-400">
+                    Date, Visa & Signature autorisée
+                  </div>
+                </div>
+                <div className="border border-slate-300 rounded-lg p-2.5 text-center h-24 flex flex-col justify-between">
+                  <p className="font-bold uppercase tracking-wider text-slate-800">
+                    Pour le Donneur d'Ordre<br />
+                    <span className="font-normal text-[8.5px] text-slate-500">Bon pour accord & Décharge financière</span>
+                  </p>
+                  <div className="border-t border-dashed border-slate-300 pt-1 text-[7.5px] text-slate-400">
+                    Reçu le montant net • Nom & Signature
+                  </div>
+                </div>
+              </div>
+
+              {/* Super Admin Payment Execution Section (Screen only) */}
+              <div className="print:hidden">
+                {lastGeneratedPayout ? (
+                  <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-start gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <h5 className="font-bold text-emerald-900 text-xs">
+                        Reversement Validé & Enregistré avec Succès !
+                      </h5>
+                      <p className="text-[11px] text-emerald-700 mt-0.5">
+                        Bordereau Officiel : <strong className="font-mono">{lastGeneratedPayout.reference_reversement}</strong> — Montant : {lastGeneratedPayout.solde_net_verse_formatted} via {lastGeneratedPayout.mode_reglement}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
+                    <h5 className="font-bold text-slate-800 text-xs uppercase tracking-wider">
+                      Ordonnancement du Règlement (Super Admin - CDC §3.4)
                     </h5>
-                    <p className="text-[11px] text-emerald-700 mt-0.5">
-                      Bordereau Officiel : <strong className="font-mono">{lastGeneratedPayout.reference_reversement}</strong> — Montant : {lastGeneratedPayout.solde_net_verse_formatted} via {lastGeneratedPayout.mode_reglement}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
-                  <h5 className="font-bold text-slate-800 text-xs uppercase tracking-wider">
-                    Ordonnancement du Règlement (Super Admin - CDC §3.4)
-                  </h5>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
-                        Canal de Reversement
-                      </label>
-                      <select
-                        value={payoutMode}
-                        onChange={(e) => setPayoutMode(e.target.value)}
-                        className="w-full text-xs border border-slate-200 rounded-lg p-2 bg-white outline-none focus:border-blue-500 font-semibold"
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                          Canal de Reversement
+                        </label>
+                        <select
+                          value={payoutMode}
+                          onChange={(e) => setPayoutMode(e.target.value)}
+                          className="w-full text-xs border border-slate-200 rounded-lg p-2 bg-white outline-none focus:border-blue-500 font-semibold"
+                        >
+                          <option value="MVOLA">Mvola (Telma)</option>
+                          <option value="AIRTEL_MONEY">Airtel Money</option>
+                          <option value="ORANGE_MONEY">Orange Money</option>
+                          <option value="ESPECES">Espèces au Guichet</option>
+                          <option value="VIREMENT">Virement Bancaire</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                          Référence de Preuve / Transaction
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Ex: MV-20261109-0821"
+                          value={payoutReference}
+                          onChange={(e) => setPayoutReference(e.target.value)}
+                          className="w-full text-xs border border-slate-200 rounded-lg p-2 bg-white outline-none focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end pt-1">
+                      <button
+                        type="button"
+                        disabled={payoutSubmitting || deliveredParcels.length === 0}
+                        onClick={handleCreatePayout}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm"
                       >
-                        <option value="MVOLA">Mvola (Telma)</option>
-                        <option value="AIRTEL_MONEY">Airtel Money</option>
-                        <option value="ORANGE_MONEY">Orange Money</option>
-                        <option value="ESPECES">Espèces au Guichet</option>
-                        <option value="VIREMENT">Virement Bancaire</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
-                        Référence de Preuve / Transaction
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Ex: MV-20261109-0821"
-                        value={payoutReference}
-                        onChange={(e) => setPayoutReference(e.target.value)}
-                        className="w-full text-xs border border-slate-200 rounded-lg p-2 bg-white outline-none focus:border-blue-500"
-                      />
+                        <Wallet className="w-3.5 h-3.5" />
+                        <span>{payoutSubmitting ? "Validation..." : "Valider & Émettre le Reversement"}</span>
+                      </button>
                     </div>
                   </div>
-                  <div className="flex justify-end pt-1">
-                    <button
-                      type="button"
-                      disabled={payoutSubmitting || deliveredParcels.length === 0}
-                      onClick={handleCreatePayout}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm"
-                    >
-                      <Wallet className="w-3.5 h-3.5" />
-                      <span>{payoutSubmitting ? "Validation..." : "Valider & Émettre le Reversement"}</span>
-                    </button>
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
-            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+            {/* Modal Bottom Action Bar (Screen only - Hidden on Print) */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between print:hidden shrink-0">
               <span className="text-[11px] text-slate-500 italic">Émis le {new Date().toLocaleDateString("fr-FR")}</span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setIsStatementModalOpen(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition"
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition cursor-pointer"
                 >
                   Fermer
                 </button>
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="px-4 py-2 text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white rounded-xl transition flex items-center gap-1.5 shadow-sm"
+                  className="px-4 py-2 text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>Imprimer le Bordereau</span>
                 </button>
               </div>
             </div>
+
           </div>
         </div>
       )}

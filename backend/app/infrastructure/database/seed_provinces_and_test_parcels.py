@@ -2,7 +2,7 @@
 transport cooperatives and authentic test parcels for Madagascar national logistics network.
 """
 
-from datetime import datetime
+from datetime import datetime, date
 from backend.app.infrastructure.database.connection import SessionLocal, engine
 from backend.app.infrastructure.persistence.models import (
     AxisORM,
@@ -702,7 +702,7 @@ def seed_provinces_and_test_parcels():
             },
         ]
 
-        today_date = "2026-11-08"
+        today_date = date.today().strftime("%Y-%m-%d")
         created_count = 0
         updated_count = 0
 

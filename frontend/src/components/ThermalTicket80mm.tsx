@@ -3,6 +3,7 @@
 import React from "react";
 import { Printer, X } from "lucide-react";
 import { Tour } from "@/types";
+import { useCompany } from "@/context/CompanyContext";
 
 interface ThermalTicket80mmProps {
   tour: Tour;
@@ -10,6 +11,7 @@ interface ThermalTicket80mmProps {
 }
 
 export const ThermalTicket80mm: React.FC<ThermalTicket80mmProps> = ({ tour, onClose }) => {
+  const { company } = useCompany();
   const handlePrint = () => {
     window.print();
   };
@@ -56,10 +58,19 @@ export const ThermalTicket80mm: React.FC<ThermalTicket80mmProps> = ({ tour, onCl
           >
             {/* Header */}
             <div className="text-center pb-2 border-b-2 border-black border-dashed">
-              <p className="font-black text-sm tracking-widest uppercase">TMS EXPRESS</p>
+              {company.logo_url && (
+                <div className="flex justify-center mb-1.5">
+                  <img
+                    src={company.logo_url}
+                    alt="Logo"
+                    className="max-h-10 max-w-[140px] object-contain filter grayscale contrast-150"
+                  />
+                </div>
+              )}
+              <p className="font-black text-sm tracking-widest uppercase">{company.company_name || company.app_name}</p>
               <p className="text-[10px] uppercase font-bold">Logistique Urbaine & Régionale</p>
-              <p className="text-[9px] text-gray-700">Hub Central : Tsiazotafo / Analakely</p>
-              <p className="text-[9px]">Tél Service : 034 00 000 00 • GMT+3</p>
+              <p className="text-[9px] text-gray-700">{company.address || "Hub Central : Tsiazotafo / Analakely"}</p>
+              <p className="text-[9px]">Tél : {company.phone || "034 00 000 00"} • NIF : {company.nif} • STAT : {company.stat}</p>
               <p className="text-[10px] mt-1 font-black bg-black text-white py-0.5 px-1 inline-block uppercase">
                 FEUILLE DE ROUTE LIVREUR
               </p>
@@ -154,11 +165,19 @@ export const ThermalTicket80mm: React.FC<ThermalTicket80mmProps> = ({ tour, onCl
                   )}
 
                   <div className="flex justify-between items-center pt-1 font-bold text-[11px] bg-gray-100 p-0.5 rounded">
-                    <span>A ENCAISSER :</span>
+                    <span>A ENCAISSER LIVREUR :</span>
                     <span className="text-black font-black">
-                      {p.total_to_collect.toLocaleString("fr-FR")} Ar
+                      {p.encaissement_lieu === "SIEGE"
+                        ? "0 Ar (AU SIÈGE)"
+                        : `${p.total_to_collect.toLocaleString("fr-FR")} Ar`}
                     </span>
                   </div>
+
+                  {p.encaissement_lieu === "SIEGE" && (
+                    <div className="text-[8px] font-black border border-black p-0.5 mt-0.5 bg-gray-100 text-center uppercase">
+                      *** COD DE {p.total_to_collect.toLocaleString("fr-FR")} Ar RÉCUPÉRÉ AU SIÈGE (NE PAS ENCAISSER) ***
+                    </div>
+                  )}
 
                   {/* Customer Signature Box */}
                   <div className="mt-1 pt-1 border-t border-dotted border-gray-300">
@@ -195,7 +214,7 @@ export const ThermalTicket80mm: React.FC<ThermalTicket80mmProps> = ({ tour, onCl
               </div>
 
               <p className="text-[8px] text-center text-gray-500 pt-1">
-                *** TMS EXPRESS • Tsiazotafo • v5.0 ***
+                *** {company.company_name || company.app_name} • {company.website || "www.tmsexpress.mg"} • NIF : {company.nif} ***
               </p>
             </div>
           </div>

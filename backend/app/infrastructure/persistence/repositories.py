@@ -65,10 +65,18 @@ class PostgresParcelRepository(IParcelRepository):
             partner_name=orm.nom_partenaire,
             driver_contact=orm.driver_contact,
             vehicle_plate=orm.vehicle_plate,
+            encaissement_lieu=getattr(orm, "encaissement_lieu", "LIVREUR") or "LIVREUR",
+            repartition_vendeur=getattr(orm, "repartition_vendeur", None),
+            montant_encaisse_livreur=Money(orm.montant_encaisse_livreur) if getattr(orm, "montant_encaisse_livreur", None) is not None else None,
+            montant_encaisse_vendeur=Money(orm.montant_encaisse_vendeur) if getattr(orm, "montant_encaisse_vendeur", None) is not None else None,
             remittance_id=orm.reversement_id,
             remittance_status=orm.statut_reversement if getattr(orm, "statut_reversement", None) else "NON_REVERSE",
             receptionniste_id=getattr(orm, "receptionniste_id", None),
             receptionniste_nom=getattr(orm, "receptionniste_nom", None),
+            dernier_agent_id=getattr(orm, "dernier_agent_id", None),
+            dernier_agent_nom=getattr(orm, "dernier_agent_nom", None),
+            derniere_action=getattr(orm, "derniere_action", None),
+            derniere_action_at=getattr(orm, "derniere_action_at", None),
             observation=orm.observation,
             active=bool(orm.actif),
             created_at=orm.created_at,
@@ -108,10 +116,18 @@ class PostgresParcelRepository(IParcelRepository):
             nom_partenaire=domain.partner_name,
             driver_contact=domain.driver_contact,
             vehicle_plate=domain.vehicle_plate,
+            encaissement_lieu=domain.encaissement_lieu,
+            repartition_vendeur=domain.repartition_vendeur,
+            montant_encaisse_livreur=float(domain.montant_encaisse_livreur.amount) if domain.montant_encaisse_livreur else None,
+            montant_encaisse_vendeur=float(domain.montant_encaisse_vendeur.amount) if domain.montant_encaisse_vendeur else None,
             reversement_id=domain.remittance_id,
             statut_reversement=domain.remittance_status,
             receptionniste_id=domain.receptionniste_id,
             receptionniste_nom=domain.receptionniste_nom,
+            dernier_agent_id=domain.dernier_agent_id,
+            dernier_agent_nom=domain.dernier_agent_nom,
+            derniere_action=domain.derniere_action,
+            derniere_action_at=domain.derniere_action_at,
             actif=1 if domain.active else 0,
         )
 
@@ -149,12 +165,24 @@ class PostgresParcelRepository(IParcelRepository):
                 orm.nom_partenaire = parcel.partner_name
                 orm.driver_contact = parcel.driver_contact
                 orm.vehicle_plate = parcel.vehicle_plate
+                orm.encaissement_lieu = parcel.encaissement_lieu
+                orm.repartition_vendeur = parcel.repartition_vendeur
+                orm.montant_encaisse_livreur = float(parcel.montant_encaisse_livreur.amount) if parcel.montant_encaisse_livreur else None
+                orm.montant_encaisse_vendeur = float(parcel.montant_encaisse_vendeur.amount) if parcel.montant_encaisse_vendeur else None
                 orm.reversement_id = parcel.remittance_id
                 orm.statut_reversement = parcel.remittance_status
                 if parcel.receptionniste_id is not None:
                     orm.receptionniste_id = parcel.receptionniste_id
                 if parcel.receptionniste_nom is not None:
                     orm.receptionniste_nom = parcel.receptionniste_nom
+                if parcel.dernier_agent_id is not None:
+                    orm.dernier_agent_id = parcel.dernier_agent_id
+                if parcel.dernier_agent_nom is not None:
+                    orm.dernier_agent_nom = parcel.dernier_agent_nom
+                if parcel.derniere_action is not None:
+                    orm.derniere_action = parcel.derniere_action
+                if parcel.derniere_action_at is not None:
+                    orm.derniere_action_at = parcel.derniere_action_at
                 orm.actif = 1 if parcel.active else 0
                 orm.updated_at = datetime.utcnow()
                 self.session.commit()

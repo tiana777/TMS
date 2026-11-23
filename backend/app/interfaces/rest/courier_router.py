@@ -35,7 +35,7 @@ def list_couriers(
 def create_courier(
     dto: CreateCourierDTO,
     db: Session = Depends(get_db),
-    current_user: UserORM = Depends(require_roles(["SUPER_ADMIN"])),
+    current_user: UserORM = Depends(require_roles(["SUPER_ADMIN", "SUPERVISEUR"])),
 ):
     try:
         use_cases = CourierUseCases(db)
@@ -63,7 +63,7 @@ def update_courier_profile(
 def toggle_courier_status(
     courier_id: int,
     db: Session = Depends(get_db),
-    current_user: UserORM = Depends(require_roles(["SUPER_ADMIN"])),
+    current_user: UserORM = Depends(require_roles(["SUPER_ADMIN", "SUPERVISEUR"])),
 ):
     try:
         use_cases = CourierUseCases(db)

@@ -32,7 +32,9 @@ class Tour:
     def calculate_theoretical_total(self) -> Money:
         """Calculates theoretical total due by summing all delivered parcels in tour:
         Total = sum(merchandise_amount + delivery_fee) for all parcels with status LIVRE, ENCAISSE, LIVRE_ENCAISSE
-        (CDC section 13.1)
+        (CDC section 13.1).
+        Si le COD est récupéré au siège (encaissement_lieu == 'SIEGE'), le coursier n'encaisse pas ce montant :
+        il est donc exclu du total théorique dû par le livreur lors de la décharge.
         """
         total = Money.zero()
         for p in self.parcels:
@@ -41,7 +43,10 @@ class Tour:
                 ParcelStatus.ENCAISSE,
                 ParcelStatus.LIVRE_ENCAISSE,
                 ParcelStatus.CLOTURE_CAISSE,
+                ParcelStatus.SOUS_TRAITE,
             ]:
+                if getattr(p, "encaissement_lieu", "LIVREUR") == "SIEGE":
+                    continue
                 total += p.total_to_collect
         self.theoretical_total = total
         return total

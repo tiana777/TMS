@@ -2,11 +2,13 @@
 
 from datetime import datetime
 from typing import List, Optional
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from backend.app.application.dtos.parcel_dtos import (
     CreateBatchParcelDTO,
     CreateParcelDTO,
     MarkPrepaidDTO,
+    ParcelHistoryItemDTO,
     ParcelResponseDTO,
     UpdateParcelStatusDTO,
 )
@@ -26,7 +28,7 @@ from backend.app.domain.state_machine.parcel_fsm import (
 from backend.app.domain.value_objects.axis import LogisticAxis
 from backend.app.domain.value_objects.money import Money
 from backend.app.domain.value_objects.phone_number import PhoneNumber
-from backend.app.infrastructure.persistence.models import ParcelORM, ParcelStatusHistoryORM, AxisORM
+from backend.app.infrastructure.persistence.models import ParcelORM, ParcelStatusHistoryORM, AxisORM, TourORM, UserORM
 from backend.app.infrastructure.persistence.repositories import PostgresParcelRepository
 
 
@@ -35,10 +37,15 @@ class ParcelUseCases:
         self.db = db
         self.repo = PostgresParcelRepository(db)
 
-    def _to_response_dto(self, p: Parcel) -> ParcelResponseDTO:
+    def _to_response_dto(self, p: Parcel, include_history: bool = False) -> ParcelResponseDTO:
         sender_phone_digits = p.sender_phone.raw_digits if p.sender_phone else None
         sender_phone_fmt = p.sender_phone.formatted if p.sender_phone else None
         sender_operator = p.sender_phone.operator.value if p.sender_phone else None
+
+        historique_items = []
+        if include_history and p.id:
+            historique_items = self.get_parcel_history(p.id)
+
         return ParcelResponseDTO(
             id=p.id,
             tracking_number=p.tracking_number,
@@ -76,13 +83,109 @@ class ParcelUseCases:
             partner_reference=p.partner_reference,
             driver_contact=p.driver_contact,
             vehicle_plate=p.vehicle_plate,
+            encaissement_lieu=p.encaissement_lieu or "LIVREUR",
+            repartition_vendeur=p.repartition_vendeur,
+            montant_encaisse_livreur=p.montant_encaisse_livreur.amount if p.montant_encaisse_livreur else None,
+            montant_encaisse_vendeur=p.montant_encaisse_vendeur.amount if p.montant_encaisse_vendeur else None,
             remittance_id=p.remittance_id,
             remittance_status=p.remittance_status,
             receptionniste_id=p.receptionniste_id,
             receptionniste_nom=p.receptionniste_nom,
+            dernier_agent_id=p.dernier_agent_id,
+            dernier_agent_nom=p.dernier_agent_nom,
+            derniere_action=p.derniere_action,
+            derniere_action_at=p.derniere_action_at.strftime("%d/%m/%Y %H:%M:%S") if p.derniere_action_at else None,
             observation=p.observation,
             active=p.active,
+            historique=historique_items,
         )
+
+    def record_history(
+        self,
+        colis_id: int,
+        action: str,
+        user_id: Optional[int] = None,
+        user_nom: Optional[str] = None,
+        user_role: Optional[str] = None,
+        statut_precedent: Optional[str] = None,
+        statut_nouveau: Optional[str] = None,
+        motif: Optional[str] = None,
+        details: Optional[str] = None,
+        parcel_domain: Optional[Parcel] = None,
+    ):
+        if not user_nom and user_id:
+            u = self.db.query(UserORM).filter(UserORM.id == user_id).first()
+            if u:
+                user_nom = u.nom_complet
+                if not user_role:
+                    user_role = u.role
+
+        now = datetime.utcnow()
+        history = ParcelStatusHistoryORM(
+            colis_id=colis_id,
+            utilisateur_id=user_id,
+            action=action,
+            agent_nom=user_nom,
+            agent_role=user_role,
+            statut_precedent=statut_precedent,
+            statut_nouveau=statut_nouveau,
+            motif=motif,
+            details=details,
+            horodatage=now,
+        )
+        self.db.add(history)
+
+        orm = self.db.query(ParcelORM).filter(ParcelORM.id == colis_id).first()
+        if orm:
+            if user_id:
+                orm.dernier_agent_id = user_id
+            if user_nom:
+                orm.dernier_agent_nom = user_nom
+            orm.derniere_action = details or action
+            orm.derniere_action_at = now
+
+        if parcel_domain:
+            if user_id:
+                parcel_domain.dernier_agent_id = user_id
+            if user_nom:
+                parcel_domain.dernier_agent_nom = user_nom
+            parcel_domain.derniere_action = details or action
+            parcel_domain.derniere_action_at = now
+
+        self.db.commit()
+
+    def get_parcel_history(self, parcel_id: int) -> List[ParcelHistoryItemDTO]:
+        items = (
+            self.db.query(ParcelStatusHistoryORM)
+            .filter(ParcelStatusHistoryORM.colis_id == parcel_id)
+            .order_by(ParcelStatusHistoryORM.horodatage.desc(), ParcelStatusHistoryORM.id.desc())
+            .all()
+        )
+        result = []
+        for h in items:
+            agent_nom = h.agent_nom
+            agent_role = h.agent_role
+            if not agent_nom and h.utilisateur_id:
+                u = self.db.query(UserORM).filter(UserORM.id == h.utilisateur_id).first()
+                if u:
+                    agent_nom = u.nom_complet
+                    agent_role = u.role
+            result.append(
+                ParcelHistoryItemDTO(
+                    id=h.id,
+                    colis_id=h.colis_id,
+                    utilisateur_id=h.utilisateur_id,
+                    agent_nom=agent_nom or "Agent Quai",
+                    agent_role=agent_role or "RECEPTIONNISTE",
+                    action=h.action or "CHANGEMENT_STATUT",
+                    statut_precedent=h.statut_precedent,
+                    statut_nouveau=h.statut_nouveau,
+                    motif=h.motif,
+                    details=h.details or h.motif or "Action effectuée sur le flux",
+                    horodatage=h.horodatage.strftime("%d/%m/%Y %H:%M:%S") if h.horodatage else datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S"),
+                )
+            )
+        return result
 
     def create_parcel(
         self,
@@ -152,10 +255,34 @@ class ParcelUseCases:
         rec_id = dto.receptionniste_id if dto.receptionniste_id is not None else user_id
         rec_nom = dto.receptionniste_nom if dto.receptionniste_nom is not None else user_nom
 
+        # Dynamic vendor auto-resolution / creation
+        from backend.app.infrastructure.persistence.models import VendorORM
+        effective_vendor_id = dto.vendor_id
+        vendor = None
+        if effective_vendor_id:
+            vendor = self.db.query(VendorORM).filter(VendorORM.id == effective_vendor_id).first()
+        if not vendor and dto.sender_name and dto.sender_name.strip():
+            vendor = self.db.query(VendorORM).filter(VendorORM.nom == dto.sender_name.strip()).first()
+        if not vendor:
+            clean_name = (dto.sender_name or "Expéditeur Standard").strip()
+            # Double check if vendor with clean_name exists
+            vendor = self.db.query(VendorORM).filter(VendorORM.nom == clean_name).first()
+            if not vendor:
+                vendor = VendorORM(
+                    nom=clean_name,
+                    type_expediteur=sender_type_enum.value if hasattr(sender_type_enum, "value") else str(sender_type_enum),
+                    telephone=dto.sender_phone,
+                    adresse=dto.sender_address,
+                    actif=1,
+                )
+                self.db.add(vendor)
+                self.db.flush()
+        effective_vendor_id = vendor.id
+
         parcel = Parcel(
             tracking_number=tracking_number,
             reception_date=reception_date,
-            vendor_id=dto.vendor_id,
+            vendor_id=effective_vendor_id,
             sender_type=sender_type_enum,
             sender_name=dto.sender_name,
             sender_phone=sender_phone_vo,
@@ -172,10 +299,20 @@ class ParcelUseCases:
             receptionniste_id=rec_id,
             receptionniste_nom=rec_nom,
             observation=dto.observation,
+            encaissement_lieu=dto.encaissement_lieu or "LIVREUR",
         )
 
         saved = self.repo.save(parcel)
-        return self._to_response_dto(saved)
+        self.record_history(
+            colis_id=saved.id,
+            action="RECEPTION_QUAI",
+            user_id=rec_id,
+            user_nom=rec_nom,
+            statut_nouveau=saved.status.value,
+            details=f"Colis réceptionné au Quai par {rec_nom or 'Agent Quai'} • Flux: {saved.flux_type.value} • Axe: {saved.axis.label}",
+            parcel_domain=saved,
+        )
+        return self._to_response_dto(saved, include_history=True)
 
     def create_batch(
         self,
@@ -190,6 +327,8 @@ class ParcelUseCases:
         parcel_id: int,
         dto: UpdateParcelStatusDTO,
         user_id: Optional[int] = None,
+        user_nom: Optional[str] = None,
+        user_role: Optional[str] = None,
     ) -> ParcelResponseDTO:
         parcel = self.repo.get_by_id(parcel_id)
         if not parcel:
@@ -270,28 +409,50 @@ class ParcelUseCases:
         elif target_status == ParcelStatus.CLOTURE_CAISSE:
             parcel.close_in_cash()
 
+        if dto.encaissement_lieu:
+            parcel.encaissement_lieu = dto.encaissement_lieu
+        if dto.repartition_vendeur:
+            parcel.repartition_vendeur = dto.repartition_vendeur
+        if dto.montant_encaisse_livreur is not None:
+            parcel.montant_encaisse_livreur = Money(dto.montant_encaisse_livreur)
+        if dto.montant_encaisse_vendeur is not None:
+            parcel.montant_encaisse_vendeur = Money(dto.montant_encaisse_vendeur)
+
         # Persist updated parcel
         saved = self.repo.save(parcel)
 
-        # Record status audit log in colis_statut_historique (CDC section 12 & 14)
-        history = ParcelStatusHistoryORM(
+        action_desc = f"Statut modifié de {old_status.value} vers {saved.status.value}"
+        if dto.incident_reason:
+            action_desc += f" (Motif: {dto.incident_reason})"
+
+        self.record_history(
             colis_id=saved.id,
-            utilisateur_id=user_id,
+            action="CHANGEMENT_STATUT",
+            user_id=user_id,
+            user_nom=user_nom,
+            user_role=user_role,
             statut_precedent=old_status.value,
             statut_nouveau=saved.status.value,
             motif=dto.incident_reason,
-            horodatage=datetime.utcnow(),
+            details=f"{action_desc} par {user_nom or 'Agent'}",
+            parcel_domain=saved,
         )
-        self.db.add(history)
-        self.db.commit()
 
-        return self._to_response_dto(saved)
+        return self._to_response_dto(saved, include_history=True)
 
-    def override_parcel_axis(self, parcel_id: int, new_axis: str) -> ParcelResponseDTO:
+    def override_parcel_axis(
+        self,
+        parcel_id: int,
+        new_axis: str,
+        user_id: Optional[int] = None,
+        user_nom: Optional[str] = None,
+        user_role: Optional[str] = None,
+    ) -> ParcelResponseDTO:
         parcel = self.repo.get_by_id(parcel_id)
         if not parcel:
             raise BusinessRuleViolationException(f"Colis introuvable (ID: {parcel_id})")
 
+        old_axis = parcel.axis.value
         axis_code = new_axis.strip()
         target_axis = LogisticAxis(axis_code)
         parcel.override_axis(target_axis)
@@ -311,7 +472,18 @@ class ParcelUseCases:
                 self.db.flush()
 
         saved = self.repo.save(parcel)
-        return self._to_response_dto(saved)
+        self.record_history(
+            colis_id=saved.id,
+            action="MODIFICATION_AXE",
+            user_id=user_id,
+            user_nom=user_nom,
+            user_role=user_role,
+            statut_precedent=saved.status.value,
+            statut_nouveau=saved.status.value,
+            details=f"Axe logistique modifié manuellement de {old_axis} à {target_axis.value} par {user_nom or 'Agent'}",
+            parcel_domain=saved,
+        )
+        return self._to_response_dto(saved, include_history=True)
 
     def update_parcel_contact(
         self,
@@ -323,7 +495,10 @@ class ParcelUseCases:
         observation: Optional[str] = None,
         merchandise_amount: Optional[int] = None,
         delivery_fee: Optional[int] = None,
+        encaissement_lieu: Optional[str] = None,
         user_id: Optional[int] = None,
+        user_nom: Optional[str] = None,
+        user_role: Optional[str] = None,
     ) -> ParcelResponseDTO:
         parcel = self.repo.get_by_id(parcel_id)
         if not parcel:
@@ -331,6 +506,9 @@ class ParcelUseCases:
 
         validated_phone = None
         notes = []
+        if encaissement_lieu is not None:
+            parcel.encaissement_lieu = encaissement_lieu
+            notes.append(f"Lieu d'encaissement : {encaissement_lieu}")
         if recipient_phone:
             validated_phone = PhoneNumber(recipient_phone)
             notes.append(f"Téléphone destinataire corrigé : {validated_phone.formatted}")
@@ -372,23 +550,25 @@ class ParcelUseCases:
         )
         saved = self.repo.save(parcel)
 
-        if notes and user_id:
-            audit = ParcelStatusHistoryORM(
-                parcel_id=parcel.id,
-                old_status=parcel.status.value,
-                new_status=parcel.status.value,
-                changed_by_user_id=user_id,
-                reason=" • ".join(notes),
-                horodatage=datetime.now(timezone.utc),
+        if notes:
+            self.record_history(
+                colis_id=saved.id,
+                action="MODIFICATION_INFOS",
+                user_id=user_id,
+                user_nom=user_nom,
+                user_role=user_role,
+                statut_precedent=saved.status.value,
+                statut_nouveau=saved.status.value,
+                motif=" • ".join(notes),
+                details=f"Informations colis modifiées par {user_nom or 'Agent'} • {', '.join(notes)}",
+                parcel_domain=saved,
             )
-            self.db.add(audit)
-            self.db.commit()
 
-        return self._to_response_dto(saved)
+        return self._to_response_dto(saved, include_history=True)
 
     def get_parcel(self, parcel_id: int) -> Optional[ParcelResponseDTO]:
         p = self.repo.get_by_id(parcel_id)
-        return self._to_response_dto(p) if p else None
+        return self._to_response_dto(p, include_history=True) if p else None
 
     def list_parcels(
         self,
@@ -396,6 +576,7 @@ class ParcelUseCases:
         axis: Optional[str] = None,
         date_str: Optional[str] = None,
         tour_id: Optional[int] = None,
+        courier_id: Optional[int] = None,
         flux_type: Optional[str] = None,
         receptionniste_id: Optional[int] = None,
     ) -> List[ParcelResponseDTO]:
@@ -405,9 +586,17 @@ class ParcelUseCases:
         if axis:
             q = q.filter(ParcelORM.axe == axis)
         if date_str:
-            q = q.filter(ParcelORM.date_reception == date_str)
+            q = q.outerjoin(TourORM, ParcelORM.tournee_id == TourORM.id)
+            q = q.filter(
+                or_(
+                    ParcelORM.date_reception == date_str,
+                    TourORM.date_tournee == date_str,
+                )
+            )
         if tour_id is not None:
             q = q.filter(ParcelORM.tournee_id == tour_id)
+        if courier_id is not None:
+            q = q.filter(ParcelORM.livreur_id == courier_id)
         if flux_type:
             q = q.filter(ParcelORM.type_flux == flux_type)
         if receptionniste_id is not None:
@@ -426,6 +615,7 @@ class ParcelUseCases:
         reason: Optional[str] = None,
         user_role: str = "SUPER_ADMIN",
         user_id: Optional[int] = None,
+        user_nom: Optional[str] = None,
     ) -> ParcelResponseDTO:
         parcel = self.repo.get_by_id(parcel_id)
         if not parcel:
@@ -470,6 +660,12 @@ class ParcelUseCases:
         old_status = parcel.status
         old_courier_id = parcel.courier_id
 
+        courier_name = None
+        from backend.app.infrastructure.persistence.models import UserORM
+        courier_orm = self.db.query(UserORM).filter(UserORM.id == courier_id).first()
+        if courier_orm:
+            courier_name = courier_orm.nom_complet
+
         assignment_motif = (
             reason
             or (f"Réassignation d'urgence (Super Admin) vers le coursier #{courier_id}"
@@ -481,15 +677,21 @@ class ParcelUseCases:
         saved = self.repo.save(parcel)
 
         # Record audit trail
-        history = ParcelStatusHistoryORM(
+        assignment_details = (
+            f"Colis réassigné au coursier {courier_name or courier_id} (Tournée #{target_tour_id}) par {user_nom or user_role}"
+        )
+        self.record_history(
             colis_id=saved.id,
-            utilisateur_id=user_id,
+            action="AFFECTATION_LIVREUR",
+            user_id=user_id,
+            user_nom=user_nom,
+            user_role=user_role,
             statut_precedent=old_status.value,
             statut_nouveau=saved.status.value,
             motif=assignment_motif,
-            horodatage=datetime.utcnow(),
+            details=assignment_details,
+            parcel_domain=saved,
         )
-        self.db.add(history)
 
         # Recalculate totals on target tour
         from backend.app.infrastructure.persistence.repositories import PostgresTourRepository
@@ -503,13 +705,15 @@ class ParcelUseCases:
                 tour_repo.save(t)
 
         self.db.commit()
-        return self._to_response_dto(saved)
+        return self._to_response_dto(saved, include_history=True)
 
     def mark_as_prepaid(
         self,
         parcel_id: int,
         dto: MarkPrepaidDTO,
         user_id: Optional[int] = None,
+        user_nom: Optional[str] = None,
+        user_role: Optional[str] = None,
     ) -> ParcelResponseDTO:
         """Handle scenario where customer pays in advance to the headquarters or shop while parcel is in tour."""
         parcel = self.repo.get_by_id(parcel_id)
@@ -539,15 +743,18 @@ class ParcelUseCases:
         if dto.payment_reference:
             motif_audit += f" - Réf: {dto.payment_reference}"
 
-        history = ParcelStatusHistoryORM(
+        self.record_history(
             colis_id=saved.id,
-            utilisateur_id=user_id,
+            action="REGLEMENT_PREPAYE",
+            user_id=user_id,
+            user_nom=user_nom,
+            user_role=user_role,
             statut_precedent=parcel.status.value,
             statut_nouveau=saved.status.value,
             motif=motif_audit,
-            horodatage=datetime.utcnow(),
+            details=f"Paiement anticipé validé par {user_nom or 'Agent'}: {dto.payment_method} ({dto.prepaid_type}) - Réf: {dto.payment_reference or 'N/A'}",
+            parcel_domain=saved,
         )
-        self.db.add(history)
 
         # If parcel was assigned to a tour, update tour theoretical total
         if parcel.tour_id:
@@ -561,7 +768,7 @@ class ParcelUseCases:
                 tour_repo.save(t)
 
         self.db.commit()
-        return self._to_response_dto(saved)
+        return self._to_response_dto(saved, include_history=True)
 
     def delete_parcel(self, parcel_id: int, user_role: str, user_id: Optional[int] = None) -> bool:
         """Supprime définitivement un colis et ses enregistrements associés. Réservé SUPERVISEUR et SUPER_ADMIN."""

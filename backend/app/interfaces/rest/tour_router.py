@@ -50,7 +50,7 @@ def get_tour_detail(
 def start_tour(
     tour_id: int,
     db: Session = Depends(get_db),
-    current_user: UserORM = Depends(require_roles(["RECEPTIONNISTE", "SUPERVISEUR", "SUPER_ADMIN"])),
+    current_user: UserORM = Depends(require_roles(["RECEPTIONNISTE", "SUPERVISEUR", "SUPER_ADMIN", "LIVREUR"])),
 ):
     try:
         use_cases = TourUseCases(db)
@@ -78,7 +78,7 @@ def close_tour(
     tour_id: int,
     dto: CloseTourDTO,
     db: Session = Depends(get_db),
-    current_user: UserORM = Depends(require_roles(["SUPER_ADMIN"])),
+    current_user: UserORM = Depends(require_roles(["SUPER_ADMIN", "SUPERVISEUR"])),
 ):
     try:
         use_cases = TourUseCases(db)

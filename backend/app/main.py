@@ -12,6 +12,7 @@ from backend.app.interfaces.rest.master_data_router import router as master_rout
 from backend.app.interfaces.rest.parcel_router import router as parcel_router
 from backend.app.interfaces.rest.payout_router import router as payout_router
 from backend.app.interfaces.rest.tour_router import router as tour_router
+from backend.app.interfaces.rest.ai_vision_router import router as ai_vision_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -36,6 +37,7 @@ app.include_router(courier_router, prefix=settings.API_V1_STR)
 app.include_router(dispute_router, prefix=settings.API_V1_STR)
 app.include_router(master_router, prefix=settings.API_V1_STR)
 app.include_router(payout_router, prefix=settings.API_V1_STR)
+app.include_router(ai_vision_router, prefix=settings.API_V1_STR)
 
 # Mount Strawberry GraphQL
 graphql_app = GraphQLRouter(schema)

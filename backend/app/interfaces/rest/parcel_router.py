@@ -9,6 +9,7 @@ from backend.app.application.dtos.parcel_dtos import (
     CreateBatchParcelDTO,
     CreateParcelDTO,
     MarkPrepaidDTO,
+    ParcelHistoryItemDTO,
     ParcelResponseDTO,
     ReassignParcelDTO,
     UpdateParcelAxisDTO,
@@ -56,17 +57,21 @@ def list_parcels(
     axis: Optional[str] = None,
     date: Optional[str] = None,
     tour_id: Optional[int] = None,
+    courier_id: Optional[int] = None,
     flux_type: Optional[str] = None,
     receptionniste_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: UserORM = Depends(get_current_user),
 ):
+    # Les agents de quai peuvent voir les colis entre agents sur l'ensemble du Hub
+    # La traçabilité détaillée (qui a créé, qui a modifié, dernière action) est enregistrée dans l'historique
     use_cases = ParcelUseCases(db)
     return use_cases.list_parcels(
         status=status,
         axis=axis,
         date_str=date,
         tour_id=tour_id,
+        courier_id=courier_id,
         flux_type=flux_type,
         receptionniste_id=receptionniste_id,
     )
@@ -85,6 +90,20 @@ def get_parcel(
     return parcel
 
 
+@router.get("/{parcel_id}/history", response_model=List[ParcelHistoryItemDTO])
+def get_parcel_history(
+    parcel_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserORM = Depends(get_current_user),
+):
+    """Historique complet et audit de traçabilité d'un colis (qui a fait quoi sur ce flux)."""
+    use_cases = ParcelUseCases(db)
+    parcel = use_cases.get_parcel(parcel_id)
+    if not parcel:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Colis introuvable.")
+    return use_cases.get_parcel_history(parcel_id)
+
+
 @router.patch("/{parcel_id}/status", response_model=ParcelResponseDTO)
 def update_parcel_status(
     parcel_id: int,
@@ -94,7 +113,13 @@ def update_parcel_status(
 ):
     try:
         use_cases = ParcelUseCases(db)
-        return use_cases.update_status(parcel_id, dto, user_id=current_user.id)
+        return use_cases.update_status(
+            parcel_id,
+            dto,
+            user_id=current_user.id,
+            user_nom=current_user.nom_complet,
+            user_role=current_user.role,
+        )
     except DomainException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -108,7 +133,13 @@ def override_parcel_axis(
 ):
     try:
         use_cases = ParcelUseCases(db)
-        return use_cases.override_parcel_axis(parcel_id, dto.axis)
+        return use_cases.override_parcel_axis(
+            parcel_id,
+            dto.axis,
+            user_id=current_user.id,
+            user_nom=current_user.nom_complet,
+            user_role=current_user.role,
+        )
     except DomainException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -131,7 +162,10 @@ def update_parcel_contact(
             observation=dto.observation,
             merchandise_amount=dto.merchandise_amount,
             delivery_fee=dto.delivery_fee,
+            encaissement_lieu=dto.encaissement_lieu,
             user_id=current_user.id,
+            user_nom=current_user.nom_complet,
+            user_role=current_user.role,
         )
     except DomainException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -154,6 +188,7 @@ def reassign_parcel(
             reason=dto.reason,
             user_role=current_user.role,
             user_id=current_user.id,
+            user_nom=current_user.nom_complet,
         )
     except DomainException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -168,7 +203,13 @@ def mark_parcel_prepaid(
 ):
     try:
         use_cases = ParcelUseCases(db)
-        return use_cases.mark_as_prepaid(parcel_id, dto, user_id=current_user.id)
+        return use_cases.mark_as_prepaid(
+            parcel_id,
+            dto,
+            user_id=current_user.id,
+            user_nom=current_user.nom_complet,
+            user_role=current_user.role,
+        )
     except DomainException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -189,6 +230,8 @@ def bulk_close_cash(
                     pid,
                     UpdateParcelStatusDTO(status="CLOTURE_CAISSE"),
                     user_id=current_user.id,
+                    user_nom=current_user.nom_complet,
+                    user_role=current_user.role,
                 )
                 results.append(res)
             except Exception as ex:

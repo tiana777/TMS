@@ -24,7 +24,7 @@ class UserORM(Base):
     email = Column(String(100), unique=True, nullable=False, index=True)
     role = Column(
         String(30),
-        CheckConstraint("role IN ('RECEPTIONNISTE', 'SUPERVISEUR', 'SUPER_ADMIN')"),
+        CheckConstraint("role IN ('RECEPTIONNISTE', 'SUPERVISEUR', 'SUPER_ADMIN', 'LIVREUR')"),
         nullable=False,
     )
     nom_complet = Column(String(100), nullable=False)
@@ -195,6 +195,10 @@ class ParcelORM(Base):
     nom_partenaire = Column(String(100), nullable=True)
     driver_contact = Column(String(100), nullable=True)
     vehicle_plate = Column(String(50), nullable=True)
+    encaissement_lieu = Column(String(30), default="LIVREUR", nullable=True)
+    repartition_vendeur = Column(String(40), nullable=True)
+    montant_encaisse_livreur = Column(Float, nullable=True)
+    montant_encaisse_vendeur = Column(Float, nullable=True)
     reversement_id = Column(Integer, ForeignKey("reversements_vendeurs.id"), nullable=True, index=True)
     statut_reversement = Column(
         String(30),
@@ -204,6 +208,10 @@ class ParcelORM(Base):
     )
     receptionniste_id = Column(Integer, ForeignKey("utilisateurs.id"), nullable=True, index=True)
     receptionniste_nom = Column(String(100), nullable=True)
+    dernier_agent_id = Column(Integer, ForeignKey("utilisateurs.id"), nullable=True, index=True)
+    dernier_agent_nom = Column(String(255), nullable=True)
+    derniere_action = Column(Text, nullable=True)
+    derniere_action_at = Column(DateTime, nullable=True)
     actif = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -226,13 +234,18 @@ class ParcelStatusHistoryORM(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     colis_id = Column(Integer, ForeignKey("colis.id"), nullable=False, index=True)
-    utilisateur_id = Column(Integer, ForeignKey("utilisateurs.id"), nullable=True)
+    utilisateur_id = Column(Integer, ForeignKey("utilisateurs.id"), nullable=True, index=True)
+    action = Column(String(100), nullable=True)
+    agent_nom = Column(String(255), nullable=True)
+    agent_role = Column(String(100), nullable=True)
     statut_precedent = Column(String(30), nullable=True)
-    statut_nouveau = Column(String(30), nullable=False)
+    statut_nouveau = Column(String(30), nullable=True)
     motif = Column(Text, nullable=True)
+    details = Column(Text, nullable=True)
     horodatage = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     colis = relationship("ParcelORM", back_populates="historique_statuts")
+    utilisateur = relationship("UserORM")
 
 
 class CashCollectionORM(Base):
@@ -359,4 +372,26 @@ class VendorPayoutORM(Base):
 
     vendeur = relationship("VendorORM", back_populates="reversements")
     colis = relationship("ParcelORM", back_populates="reversement")
+
+
+class CompanySettingsORM(Base):
+    """Configuration dynamique de l'entreprise & facturation (Nom d'application, NIF, STAT, RCS...)."""
+    __tablename__ = "parametres_entreprise"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    app_name = Column(String(100), default="TMS EXPRESS 5.0", nullable=False)
+    company_name = Column(String(150), default="TMS EXPRESS MADAGASCAR", nullable=False)
+    nif = Column(String(50), default="4001234567", nullable=False)
+    stat = Column(String(50), default="52291 11 2021 0 10245", nullable=False)
+    rcs = Column(String(100), default="RCS Antananarivo 2021 B 00123", nullable=True)
+    cif = Column(String(50), default="0123456/DGI-J", nullable=True)
+    address = Column(String(255), default="Tsiazotafo / Analakely, Antananarivo 101", nullable=True)
+    phone = Column(String(50), default="+261 34 00 000 00", nullable=True)
+    email = Column(String(100), default="contact@tmsexpress.mg", nullable=True)
+    website = Column(String(100), default="www.tmsexpress.mg", nullable=True)
+    currency = Column(String(20), default="MGA", nullable=False)
+    footer_text = Column(String(255), default="Merci pour votre confiance. Envois garantis et tracés.", nullable=True)
+    logo_url = Column(Text, nullable=True)  # URL ou Data URL base64 de l'image de marque
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
 

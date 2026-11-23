@@ -25,7 +25,9 @@ import {
   Trash2,
   Sparkles,
   CreditCard,
+  History,
 } from "lucide-react";
+import { ParcelHistoryModal } from "../../components/ParcelHistoryModal";
 import {
   fetchTours,
   fetchTourDetail,
@@ -45,9 +47,11 @@ import {
   cleanMalagasyPhone,
   formatMalagasyPhone,
   isValidMalagasyPhone,
+  sanitizePhoneInput,
   MALAGASY_PHONE_REGEX,
 } from "../../lib/phone";
 import { RECEPTIONIST_AGENTS } from "../../components/HeaderUserRole";
+import { getTodayDateString, getTomorrowDateString } from "../../lib/date";
 
 const DEFAULT_CANCEL_REASONS = [
   "Refus client : article non conforme",
@@ -110,7 +114,12 @@ interface Parcel {
   vehicle_plate?: string;
   receptionniste_id?: number | null;
   receptionniste_nom?: string | null;
+  dernier_agent_id?: number | null;
+  dernier_agent_nom?: string | null;
+  derniere_action?: string | null;
+  derniere_action_at?: string | null;
   observation?: string;
+  encaissement_lieu?: string;
 }
 
 interface Tour {
@@ -130,7 +139,9 @@ interface Tour {
 }
 
 export default function TrackingPage() {
-  const [selectedDate, setSelectedDate] = useState<string>("2026-11-08");
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString);
+  const [showAllDates, setShowAllDates] = useState<boolean>(false);
+  const [selectedCourierId, setSelectedCourierId] = useState<number | "ALL">("ALL");
   const [tours, setTours] = useState<Tour[]>([]);
   const [couriers, setCouriers] = useState<Courier[]>([]);
   const [selectedTourId, setSelectedTourId] = useState<number | "ALL">("ALL");
@@ -146,6 +157,7 @@ export default function TrackingPage() {
   // Modals state
   const [activeModal, setActiveModal] = useState<"DELIVER" | "MARK_DELIVERED" | "PREPAID" | "RESCHEDULE" | "CANCEL" | "OUTSOURCE" | "REASSIGN" | null>(null);
   const [targetParcel, setTargetParcel] = useState<Parcel | null>(null);
+  const [historyModalParcel, setHistoryModalParcel] = useState<any | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Prepaid states (Paiement direct en ligne / Siège)
@@ -171,6 +183,15 @@ export default function TrackingPage() {
       setActiveUserId(uid ? Number(uid) : null);
       const unom = localStorage.getItem("tms_user_nom") || "";
       setActiveUserNom(unom);
+
+      // Si l'utilisateur connecté est un LIVREUR, filtrer automatiquement sur son compte livreur
+      if (saved === "LIVREUR") {
+        if (username === "livreur1") setSelectedCourierId(1);
+        else if (username === "livreur2") setSelectedCourierId(2);
+        else if (username === "livreur3") setSelectedCourierId(3);
+        else if (username === "livreur4") setSelectedCourierId(4);
+        else if (uid) setSelectedCourierId(Number(uid));
+      }
     };
     updateRole();
     window.addEventListener("tms_role_change", updateRole);
@@ -256,7 +277,11 @@ export default function TrackingPage() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("ESPECES");
   const [mobileMoneyPhone, setMobileMoneyPhone] = useState<string>("");
 
-  const [rescheduleDate, setRescheduleDate] = useState<string>("2026-11-09");
+  // Lieu et répartition de l'encaissement (Livreur/Hub vs Direct Vendeur vs Siège)
+  const [encaissementLieu, setEncaissementLieu] = useState<"LIVREUR" | "DIRECT_VENDEUR" | "SIEGE">("LIVREUR");
+  const [repartitionVendeur, setRepartitionVendeur] = useState<"COD_SEUL" | "TOUT_VENDEUR" | "FRAIS_SEUL">("COD_SEUL");
+
+  const [rescheduleDate, setRescheduleDate] = useState<string>(getTomorrowDateString);
   const [rescheduleReason, setRescheduleReason] = useState<string>("");
   const [customRescheduleReason, setCustomRescheduleReason] = useState<string>("");
   const [isCreatingRescheduleReason, setIsCreatingRescheduleReason] = useState<boolean>(false);
@@ -322,15 +347,21 @@ export default function TrackingPage() {
   // Load data
   useEffect(() => {
     loadData();
-  }, [selectedDate]);
+  }, [selectedDate, showAllDates, selectedCourierId, currentUserRole, activeUserId]);
 
   const loadData = async () => {
     setIsLoading(true);
     try {
+      const dateParam = showAllDates ? undefined : (selectedDate || undefined);
+      const courierParam = selectedCourierId === "ALL" ? undefined : selectedCourierId;
+
       const [tList, cList, pList] = await Promise.all([
-        fetchTours(selectedDate),
+        fetchTours(dateParam),
         fetchCouriers(),
-        fetchParcels({ date: selectedDate }),
+        fetchParcels({
+          date: dateParam,
+          courier_id: courierParam,
+        }),
       ]);
       setTours(tList || []);
       setCouriers(cList || []);
@@ -343,11 +374,28 @@ export default function TrackingPage() {
     }
   };
 
+  // Filtered tours for selected courier
+  const availableTours = useMemo(() => {
+    if (selectedCourierId === "ALL") return tours;
+    return tours.filter((t) => t.courier_id === selectedCourierId);
+  }, [tours, selectedCourierId]);
+
+  // Active courier object
+  const activeCourier = useMemo(() => {
+    if (selectedCourierId === "ALL") return null;
+    return couriers.find((c) => c.id === selectedCourierId) || null;
+  }, [couriers, selectedCourierId]);
+
   // Helper to get active tour
   const currentTour = useMemo(() => {
-    if (selectedTourId === "ALL") return null;
+    if (selectedTourId === "ALL") {
+      if (selectedCourierId !== "ALL" && availableTours.length > 0) {
+        return availableTours[0];
+      }
+      return null;
+    }
     return tours.find((t) => t.id === selectedTourId) || null;
-  }, [tours, selectedTourId]);
+  }, [tours, selectedTourId, selectedCourierId, availableTours]);
 
   // Helper for status matching
   const matchesStatusFilter = (status: string, filter: string): boolean => {
@@ -358,24 +406,64 @@ export default function TrackingPage() {
     return status === filter;
   };
 
-  // Filter parcels
+  // Helper to check parcel ownership / receptionist filter
+  // Les agents de quai peuvent voir tous les colis entre agents sur le Hub
+  // Le filtre de réceptionniste permet de cibler un agent si désiré
+  const isParcelOwnedByAgent = (p: Parcel) => {
+    if (receptionistFilter !== "ALL") {
+      return p.receptionniste_id === receptionistFilter;
+    }
+    return true;
+  };
+
+  // Scoped parcels for currently selected tour / courier / agent / flux (used to compute dynamic tab counts and live metrics)
+  const scopedParcels = useMemo(() => {
+    let list = parcels;
+    if (selectedCourierId !== "ALL") {
+      list = list.filter((p) => p.courier_id === selectedCourierId);
+    }
+    if (selectedTourId !== "ALL") {
+      list = list.filter((p) => p.tour_id === selectedTourId);
+    }
+    // Strict agent session / supervisor receptionist filter
+    list = list.filter(isParcelOwnedByAgent);
+
+    // Flux filter
+    if (fluxFilter !== "ALL") {
+      list = list.filter((p) => (p.flux_type || "COD") === fluxFilter);
+    }
+
+    return list;
+  }, [
+    parcels,
+    selectedCourierId,
+    selectedTourId,
+    currentUserRole,
+    activeUserNom,
+    activeUserId,
+    receptionistFilter,
+    fluxFilter,
+  ]);
+
+  // Tab counts dynamically calculated for the scoped parcels
+  const tabCounts = useMemo(() => {
+    return {
+      ALL: scopedParcels.length,
+      IN_PROGRESS: scopedParcels.filter((p) => matchesStatusFilter(p.status, "IN_PROGRESS")).length,
+      LIVRE: scopedParcels.filter((p) => matchesStatusFilter(p.status, "LIVRE")).length,
+      ENCAISSE: scopedParcels.filter((p) => matchesStatusFilter(p.status, "ENCAISSE")).length,
+      REPORTE: scopedParcels.filter((p) => matchesStatusFilter(p.status, "REPORTE")).length,
+      ANNULE_RETOUR: scopedParcels.filter((p) => matchesStatusFilter(p.status, "ANNULE_RETOUR")).length,
+      SOUS_TRAITE: scopedParcels.filter((p) => matchesStatusFilter(p.status, "SOUS_TRAITE")).length,
+    };
+  }, [scopedParcels]);
+
+  // Filtered parcels: scoped parcels further filtered by status tab and search query
   const filteredParcels = useMemo(() => {
-    return parcels.filter((p) => {
-      // Tour filter
-      if (selectedTourId !== "ALL") {
-        if (p.tour_id !== selectedTourId) return false;
-      }
+    return scopedParcels.filter((p) => {
       // Status filter
       if (statusFilter !== "ALL") {
         if (!matchesStatusFilter(p.status, statusFilter)) return false;
-      }
-      // Flux filter
-      if (fluxFilter !== "ALL") {
-        if ((p.flux_type || "COD") !== fluxFilter) return false;
-      }
-      // Receptionist filter
-      if (receptionistFilter !== "ALL") {
-        if (p.receptionniste_id !== receptionistFilter) return false;
       }
       // Search query
       if (searchQuery.trim()) {
@@ -391,30 +479,11 @@ export default function TrackingPage() {
       }
       return true;
     });
-  }, [parcels, selectedTourId, statusFilter, searchQuery, fluxFilter, receptionistFilter]);
-
-  // Scoped parcels for currently selected tour / courier (used to compute dynamic tab counts)
-  const scopedParcels = useMemo(() => {
-    if (selectedTourId === "ALL") return parcels;
-    return parcels.filter((p) => p.tour_id === selectedTourId);
-  }, [parcels, selectedTourId]);
-
-  // Tab counts dynamically calculated for the selected tour / courier
-  const tabCounts = useMemo(() => {
-    return {
-      ALL: scopedParcels.length,
-      IN_PROGRESS: scopedParcels.filter((p) => matchesStatusFilter(p.status, "IN_PROGRESS")).length,
-      LIVRE: scopedParcels.filter((p) => matchesStatusFilter(p.status, "LIVRE")).length,
-      ENCAISSE: scopedParcels.filter((p) => matchesStatusFilter(p.status, "ENCAISSE")).length,
-      REPORTE: scopedParcels.filter((p) => matchesStatusFilter(p.status, "REPORTE")).length,
-      ANNULE_RETOUR: scopedParcels.filter((p) => matchesStatusFilter(p.status, "ANNULE_RETOUR")).length,
-      SOUS_TRAITE: scopedParcels.filter((p) => matchesStatusFilter(p.status, "SOUS_TRAITE")).length,
-    };
-  }, [scopedParcels]);
+  }, [scopedParcels, statusFilter, searchQuery]);
 
   // Statistics calculation
   const stats = useMemo(() => {
-    const list = selectedTourId === "ALL" ? parcels : parcels.filter((p) => p.tour_id === selectedTourId);
+    const list = scopedParcels;
     const total = list.length;
     const delivered = list.filter((p) =>
       ["LIVRE", "ENCAISSE", "LIVRE_ENCAISSE", "CLOTURE_CAISSE"].includes(p.status)
@@ -447,7 +516,7 @@ export default function TrackingPage() {
       theoreticalCash,
       completionRate,
     };
-  }, [parcels, selectedTourId]);
+  }, [scopedParcels]);
 
   // Start tour handler
   const handleStartTour = async (tourId: number) => {
@@ -502,6 +571,8 @@ export default function TrackingPage() {
     setIsPartialDelivery(false);
     setPartialMerchandiseAmount(parcel.merchandise_amount || 0);
     setPartialReturnNotes("");
+    setEncaissementLieu((parcel.encaissement_lieu as any) || "LIVREUR");
+    setRepartitionVendeur("COD_SEUL");
   };
 
   // Dynamic Reason Creators & Managers (never hardcoded, persistent in localStorage)
@@ -679,6 +750,7 @@ export default function TrackingPage() {
 
         payload.status = targetParcel.status === "LIVRE" || targetParcel.status === "SOUS_TRAITE" ? "ENCAISSE" : "LIVRE_ENCAISSE";
         payload.payment_method = selectedPaymentMethod;
+        payload.encaissement_lieu = encaissementLieu;
       } else if (activeModal === "MARK_DELIVERED") {
         payload.status = "LIVRE";
       } else if (activeModal === "RESCHEDULE") {
@@ -703,6 +775,7 @@ export default function TrackingPage() {
         payload.partner_fee = Number(partnerFee) || 0;
         payload.driver_contact = driverContact.trim() || undefined;
         payload.vehicle_plate = vehiclePlate.trim() || undefined;
+        payload.encaissement_lieu = encaissementLieu;
         if (!payload.partner_reference) {
           throw new Error("Le numéro de récépissé officiel de la coopérative est obligatoire.");
         }
@@ -734,6 +807,7 @@ export default function TrackingPage() {
                 partner_reference: payload.partner_reference,
                 driver_contact: payload.driver_contact,
                 vehicle_plate: payload.vehicle_plate,
+                encaissement_lieu: payload.encaissement_lieu || p.encaissement_lieu,
                 merchandise_amount:
                   activeModal === "DELIVER" && isPartialDelivery
                     ? partialMerchandiseAmount
@@ -776,6 +850,11 @@ export default function TrackingPage() {
     setPhoneUpdateError(null);
     setMobileMoneyPhone("");
     setPartnerReference("");
+    setIsPartialDelivery(false);
+    setPartialMerchandiseAmount(0);
+    setPartialReturnNotes("");
+    setEncaissementLieu("LIVREUR");
+    setRepartitionVendeur("COD_SEUL");
   };
 
   // Status badge renderer according to CDC section 9
@@ -824,17 +903,35 @@ export default function TrackingPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5">
-            <Calendar className="w-3.5 h-3.5 text-slate-500" />
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
-            />
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
           <button
+            data-cy="btn-toggle-all-dates"
+            onClick={() => setShowAllDates((prev) => !prev)}
+            className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition flex items-center gap-1.5 ${
+              showAllDates
+                ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                : "bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-300"
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            {showAllDates ? "🌐 Toutes les dates" : "📅 Filtrer par date"}
+          </button>
+
+          {!showAllDates && (
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5">
+              <Calendar className="w-3.5 h-3.5 text-slate-500" />
+              <input
+                data-cy="tracking-date-input"
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
+              />
+            </div>
+          )}
+
+          <button
+            data-cy="btn-refresh-tracking"
             onClick={loadData}
             className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg transition shadow-xs flex items-center gap-1.5"
           >
@@ -871,64 +968,142 @@ export default function TrackingPage() {
         </div>
       )}
 
-      {/* Tour Selection and Summary Card */}
-      <div className="bg-white border border-slate-200 text-slate-800 rounded-xl p-4 shadow-xs space-y-3">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+      {/* Session Livreur Active Banner */}
+      {currentUserRole === "LIVREUR" && (
+        <div
+          data-cy="courier-session-banner"
+          className="p-4 rounded-xl bg-gradient-to-r from-emerald-700 via-teal-700 to-cyan-800 text-white shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-emerald-500/40"
+        >
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg border border-blue-200">
-              <Truck className="w-4 h-4" />
+            <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center text-xl shadow-inner">
+              🛵
             </div>
             <div>
-              <p className="text-[11px] uppercase font-semibold text-slate-500 tracking-wider">
-                Sélection de la Tournée Opérationnelle
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-full">
+                  Session Livreur Connecté
+                </span>
+                <span className="text-[10px] bg-emerald-950/40 text-emerald-200 px-2 py-0.5 rounded-full font-bold">
+                  Pointage Terrain Dédié
+                </span>
+              </div>
+              <p className="text-sm font-extrabold mt-0.5">
+                {activeCourier ? `${activeCourier.name} (${activeCourier.vehicle_type})` : activeUserNom || "Livreur Terrain"}
               </p>
-              <div className="flex items-center gap-2 mt-1">
-                <select
-                  data-cy="tour-selector"
-                  value={selectedTourId}
-                  onChange={(e) =>
-                    setSelectedTourId(e.target.value === "ALL" ? "ALL" : Number(e.target.value))
-                  }
-                  className="bg-white border border-slate-300 text-slate-800 font-medium text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-blue-500 cursor-pointer shadow-xs"
-                >
-                  <option value="ALL">🌐 Toutes les Tournées ({tours.length} tournées)</option>
-                  {tours.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      Tournée #{t.id} — {t.courier_name || `Livreur ${t.courier_id}`} (
-                      {t.status === "ASSIGNE" ? "Assignée (En quai)" : t.status === "EN_COURS" ? "En Course" : t.status})
-                    </option>
-                  ))}
-                </select>
+              <p className="text-xs text-emerald-100 opacity-90">
+                Vous visualisez exclusivement vos colis assignés et vos encaissements COD sur le terrain.
+              </p>
+            </div>
+          </div>
+          <div className="text-right sm:border-l sm:border-white/20 sm:pl-4">
+            <span className="text-[11px] uppercase tracking-wider text-emerald-200 block font-semibold">Colis à livrer</span>
+            <span className="text-2xl font-black">{scopedParcels.length}</span>
+          </div>
+        </div>
+      )}
 
-                {currentTour && currentTour.status === "ASSIGNE" && (
-                  <button
-                    data-cy="btn-start-tour"
-                    onClick={() => handleStartTour(currentTour.id)}
-                    disabled={isSubmitting}
-                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-lg transition shadow-xs flex items-center gap-1.5"
+      {/* Courier & Tour Selection and Summary Card */}
+      <div className="bg-white border border-slate-200 text-slate-800 rounded-xl p-4 shadow-xs space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Courier Filter */}
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-200">
+                <User className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-[11px] uppercase font-bold text-slate-500 tracking-wider">
+                  Livreur Assigné
+                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <select
+                    data-cy="courier-filter"
+                    value={selectedCourierId}
+                    onChange={(e) => {
+                      const val = e.target.value === "ALL" ? "ALL" : Number(e.target.value);
+                      setSelectedCourierId(val);
+                      setSelectedTourId("ALL");
+                    }}
+                    className="bg-white border border-slate-300 text-slate-800 font-bold text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-blue-500 cursor-pointer shadow-2xs"
                   >
-                    <Play className="w-3 h-3 fill-current" />
-                    Lancer la Tournée (Départ Quai)
-                  </button>
-                )}
+                    <option value="ALL">🌐 Tous les Livreurs ({couriers.length} livreurs)</option>
+                    {couriers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        🛵 {c.name} ({c.vehicle_type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Tour Selection */}
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-50 text-blue-600 rounded-lg border border-blue-200">
+                <Truck className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-[11px] uppercase font-bold text-slate-500 tracking-wider">
+                  Tournée Opérationnelle
+                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <select
+                    data-cy="tour-selector"
+                    value={selectedTourId}
+                    onChange={(e) =>
+                      setSelectedTourId(e.target.value === "ALL" ? "ALL" : Number(e.target.value))
+                    }
+                    className="bg-white border border-slate-300 text-slate-800 font-medium text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-blue-500 cursor-pointer shadow-xs"
+                  >
+                    <option value="ALL">
+                      {selectedCourierId !== "ALL"
+                        ? `Toutes les tournées du livreur (${availableTours.length})`
+                        : `🌐 Toutes les Tournées (${tours.length} tournées)`}
+                    </option>
+                    {availableTours.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        Tournée #{t.id} — {t.courier_name || `Livreur ${t.courier_id}`} (
+                        {t.status === "ASSIGNE" ? "Assignée (En quai)" : t.status === "EN_COURS" ? "En Course" : t.status})
+                      </option>
+                    ))}
+                  </select>
+
+                  {currentTour && currentTour.status === "ASSIGNE" && (
+                    <button
+                      data-cy="btn-start-tour"
+                      onClick={() => handleStartTour(currentTour.id)}
+                      disabled={isSubmitting}
+                      className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-lg transition shadow-xs flex items-center gap-1.5"
+                    >
+                      <Play className="w-3 h-3 fill-current" />
+                      Lancer la Tournée (Départ Quai)
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
 
-          {currentTour && (
+          {(activeCourier || currentTour) && (
             <div className="flex items-center gap-3 text-xs text-slate-600 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 font-mono">
               <div className="flex items-center gap-1.5">
                 <User className="w-3.5 h-3.5 text-blue-600" />
-                <span className="font-semibold text-slate-900 font-sans">{currentTour.courier_name}</span>
+                <span className="font-semibold text-slate-900 font-sans">
+                  {activeCourier ? activeCourier.name : currentTour?.courier_name}
+                </span>
               </div>
               <span className="text-slate-300">•</span>
               <div className="flex items-center gap-1.5">
                 <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                <span>{currentTour.courier_phone_formatted || currentTour.courier_phone}</span>
+                <span>
+                  {activeCourier
+                    ? activeCourier.phone_formatted || activeCourier.phone
+                    : currentTour?.courier_phone_formatted || currentTour?.courier_phone}
+                </span>
               </div>
               <span className="text-slate-300">•</span>
-              <span className="px-1.5 py-0.5 rounded bg-slate-200 text-[11px] font-sans text-slate-700">
-                {currentTour.courier_vehicle}
+              <span className="px-1.5 py-0.5 rounded bg-slate-200 text-[11px] font-sans text-slate-700 font-bold">
+                {activeCourier ? activeCourier.vehicle_type : currentTour?.courier_vehicle}
               </span>
             </div>
           )}
@@ -978,30 +1153,39 @@ export default function TrackingPage() {
         </div>
       </div>
 
-      {/* Guichets Réceptionnistes & Flux Filter Bar */}
+      {/* Agents Réceptionnistes Quai & Flux Filter Bar */}
       <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 shadow-2xs flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 shrink-0">
-            <User className="w-3.5 h-3.5 text-blue-600" /> Guichet Inbound :
-          </span>
-          <select
-            data-cy="receptionist-filter"
-            value={receptionistFilter}
-            onChange={(e) =>
-              setReceptionistFilter(e.target.value === "ALL" ? "ALL" : Number(e.target.value))
-            }
-            className="bg-white border border-slate-300 text-slate-800 text-xs font-semibold rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs cursor-pointer"
-          >
-            <option value="ALL">🌐 Tous les Guichets (5 agents)</option>
-            {RECEPTIONIST_AGENTS.map((agent) => (
-              <option key={agent.id} value={agent.id}>
-                {agent.badge} — {agent.nom} ({agent.flux})
-              </option>
-            ))}
-          </select>
+          {currentUserRole === "RECEPTIONNISTE" ? (
+            <span className="text-xs font-bold text-blue-800 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 flex items-center gap-1.5 shadow-2xs">
+              <User className="w-3.5 h-3.5 text-blue-600" />
+              Session Agent Quai : <span className="font-black text-slate-900">{activeUserNom || "Agent"}</span> (Vos propres flux)
+            </span>
+          ) : (
+            <>
+              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 shrink-0">
+                <User className="w-3.5 h-3.5 text-blue-600" /> Agent Réception Quai :
+              </span>
+              <select
+                data-cy="receptionist-filter"
+                value={receptionistFilter}
+                onChange={(e) =>
+                  setReceptionistFilter(e.target.value === "ALL" ? "ALL" : Number(e.target.value))
+                }
+                className="bg-white border border-slate-300 text-slate-800 text-xs font-semibold rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs cursor-pointer"
+              >
+                <option value="ALL">🌐 Tous les Agents Réception (Quai)</option>
+                {RECEPTIONIST_AGENTS.map((agent) => (
+                  <option key={agent.id} value={agent.id}>
+                    👤 {agent.nom} ({agent.matricule || "REC"}) — Multi-Flux
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
 
-          {/* Quick "My Parcels" button for Receptionists */}
-          {activeUserId && (
+          {/* Quick "My Parcels" button for Supervisors/Admins */}
+          {activeUserId && currentUserRole !== "RECEPTIONNISTE" && (
             <button
               type="button"
               data-cy="filter-my-parcels"
@@ -1022,7 +1206,7 @@ export default function TrackingPage() {
               <span>
                 {receptionistFilter === activeUserId
                   ? `Filtre actif : ${activeUserNom}`
-                  : `Mes Réceptions (${activeUserNom || "Mon Guichet"})`}
+                  : `Mes Réceptions (${activeUserNom || "Mon Compte"})`}
               </span>
             </button>
           )}
@@ -1177,16 +1361,33 @@ export default function TrackingPage() {
           <div className="space-y-3">
             {filteredParcels.map((parcel) => {
               const isActionable = ["ASSIGNE", "EN_COURS"].includes(parcel.status);
+              const isCompleted = ["LIVRE_ENCAISSE", "CLOTURE_CAISSE", "SOUS_TRAITE", "ANNULE_RETOUR"].includes(parcel.status);
 
               return (
                 <div
                   key={parcel.id}
                   data-cy={`parcel-row-${parcel.id}`}
-                  className="bg-white border border-slate-200 hover:border-slate-300 rounded-xl p-3.5 shadow-2xs hover:shadow-xs transition duration-150 space-y-2.5"
+                  className={`border rounded-xl p-3.5 shadow-2xs transition duration-150 space-y-2.5 ${
+                    isCompleted
+                      ? "bg-slate-50/80 border-slate-200/90 opacity-75 hover:opacity-90"
+                      : isActionable
+                      ? "bg-white border-slate-200 hover:border-slate-300 hover:shadow-xs"
+                      : "bg-slate-50/60 border-slate-200"
+                  }`}
                 >
                   {/* Top Tier: Identifiers, Status Badges and Montant COD */}
                   <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
                     <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        data-cy={`btn-history-${parcel.id}`}
+                        onClick={() => setHistoryModalParcel(parcel)}
+                        className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold text-xs rounded-lg transition flex items-center gap-1 shadow-2xs"
+                        title="Consulter l'historique de traçabilité (qui a fait quoi sur ce colis)"
+                      >
+                        <History className="w-3.5 h-3.5 text-slate-600" />
+                        Historique
+                      </button>
+
                       {isPrivileged && (
                         <input
                           type="checkbox"
@@ -1213,20 +1414,45 @@ export default function TrackingPage() {
                       >
                         {parcel.flux_type}
                       </span>
-                      {selectedTourId === "ALL" && parcel.courier_id && (
-                        <span className="px-2 py-0.5 text-[11px] font-medium rounded bg-slate-50 text-slate-600 border border-slate-200 inline-flex items-center gap-1">
-                          <User className="w-3 h-3 text-slate-400" />
-                          Livreur #{parcel.courier_id}
+                      {(parcel.flux_type === "PROVINCE" || parcel.status === "SOUS_TRAITE") && (
+                        <span
+                          data-cy={`encaissement-lieu-badge-${parcel.id}`}
+                          className={`px-2 py-0.5 text-[11px] font-bold rounded border inline-flex items-center gap-1 ${
+                            parcel.encaissement_lieu === "SIEGE"
+                              ? "bg-blue-50 text-blue-700 border-blue-200"
+                              : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          }`}
+                        >
+                          {parcel.encaissement_lieu === "SIEGE" ? "🏢 COD Siège" : "🛵 COD Livreur"}
+                        </span>
+                      )}
+                      {parcel.courier_id && (
+                        <span
+                          data-cy={`courier-badge-${parcel.id}`}
+                          className="px-2 py-0.5 text-[11px] font-bold rounded bg-emerald-50 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1"
+                        >
+                          <Truck className="w-3 h-3 text-emerald-600" />
+                          {couriers.find((c) => c.id === parcel.courier_id)?.name || `Livreur #${parcel.courier_id}`}
                         </span>
                       )}
                       {parcel.receptionniste_nom && (
                         <span
                           data-cy={`receptionist-badge-${parcel.id}`}
                           className="px-2 py-0.5 text-[11px] font-bold rounded bg-blue-50 text-blue-800 border border-blue-200 inline-flex items-center gap-1"
-                          title="Guichet réceptionniste ayant enregistré ce colis à l'Inbound"
+                          title="Agent de réception quai ayant enregistré ce colis à l'Inbound"
                         >
                           <User className="w-3 h-3 text-blue-600" />
-                          Guichet : {parcel.receptionniste_nom}
+                          Agent Réception : {parcel.receptionniste_nom}
+                        </span>
+                      )}
+                      {parcel.dernier_agent_nom && (
+                        <span
+                          data-cy={`last-agent-badge-${parcel.id}`}
+                          className="px-2 py-0.5 text-[11px] font-bold rounded bg-indigo-50 text-indigo-800 border border-indigo-200 inline-flex items-center gap-1"
+                          title={`Dernière action : ${parcel.derniere_action || 'Mise à jour'} (${parcel.derniere_action_at || ''})`}
+                        >
+                          <Clock className="w-3 h-3 text-indigo-600" />
+                          Dernier intervenant : <strong className="font-semibold">{parcel.dernier_agent_nom}</strong>
                         </span>
                       )}
                     </div>
@@ -1340,10 +1566,17 @@ export default function TrackingPage() {
                         </span>
                       )}
                       {parcel.status === "SOUS_TRAITE" && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-50 text-purple-800 border border-purple-200 font-semibold text-[11px]">
-                          🚌 Gare / Coopérative : {parcel.partner_name} • Récépissé : {parcel.partner_reference} ({parcel.partner_fee?.toLocaleString()} Ar frais)
-                          {parcel.vehicle_plate && ` • 🚗 ${parcel.vehicle_plate}`}
-                          {parcel.driver_contact && ` • 📞 ${parcel.driver_contact}`}
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50 text-purple-800 border border-purple-200 font-semibold text-[11px] flex-wrap">
+                          <span>🚌 Gare / Coopérative : {parcel.partner_name} • Récépissé : {parcel.partner_reference} ({parcel.partner_fee?.toLocaleString()} Ar frais)</span>
+                          {parcel.vehicle_plate && <span>• 🚗 {parcel.vehicle_plate}</span>}
+                          {parcel.driver_contact && <span>• 📞 {parcel.driver_contact}</span>}
+                          <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold border ${
+                            parcel.encaissement_lieu === "SIEGE"
+                              ? "bg-blue-100 text-blue-900 border-blue-300"
+                              : "bg-emerald-100 text-emerald-900 border-emerald-300"
+                          }`}>
+                            {parcel.encaissement_lieu === "SIEGE" ? "🏢 COD au Siège" : "🛵 COD Livreur"}
+                          </span>
                         </span>
                       )}
                       {parcel.payment_method && (
@@ -1465,15 +1698,22 @@ export default function TrackingPage() {
                         </>
                       ) : parcel.status === "LIVRE" ? (
                         parcel.total_to_collect > 0 ? (
-                          <button
-                            data-cy={`btn-deliver-${parcel.id}`}
-                            onClick={() => openModal("DELIVER", parcel)}
-                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center gap-1 animate-pulse"
-                            title="Valider l'encaissement pour ce colis déjà livré"
-                          >
-                            <DollarSign className="w-3.5 h-3.5" />
-                            Encaisser ({parcel.total_to_collect?.toLocaleString()} Ar)
-                          </button>
+                          parcel.encaissement_lieu === "SIEGE" ? (
+                            <span className="text-xs font-bold text-blue-800 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 flex items-center gap-1">
+                              <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                              Livré & Réglé au Siège ({parcel.total_to_collect?.toLocaleString()} Ar)
+                            </span>
+                          ) : (
+                            <button
+                              data-cy={`btn-deliver-${parcel.id}`}
+                              onClick={() => openModal("DELIVER", parcel)}
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center gap-1 animate-pulse"
+                              title="Valider l'encaissement pour ce colis déjà livré"
+                            >
+                              <DollarSign className="w-3.5 h-3.5" />
+                              Encaisser ({parcel.total_to_collect?.toLocaleString()} Ar)
+                            </button>
+                          )
                         ) : (
                           <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 flex items-center gap-1">
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
@@ -1481,20 +1721,37 @@ export default function TrackingPage() {
                           </span>
                         )
                       ) : parcel.status === "SOUS_TRAITE" && parcel.total_to_collect > 0 ? (
-                        <button
-                          data-cy={`btn-collect-province-cod-${parcel.id}`}
-                          onClick={() => openModal("DELIVER", parcel)}
-                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center gap-1 animate-pulse"
-                          title="Encaisser le COD Mobile Money versé par le client après réception des coordonnées chauffeur & n° voiture"
-                        >
-                          <DollarSign className="w-3.5 h-3.5" />
-                          Encaisser COD ({parcel.total_to_collect?.toLocaleString()} Ar)
-                        </button>
+                        parcel.encaissement_lieu === "SIEGE" ? (
+                          <span className="text-xs font-bold text-blue-800 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 flex items-center gap-1">
+                            <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                            Sous-traité & Réglé au Siège ({parcel.total_to_collect?.toLocaleString()} Ar)
+                          </span>
+                        ) : (
+                          <button
+                            data-cy={`btn-collect-province-cod-${parcel.id}`}
+                            onClick={() => openModal("DELIVER", parcel)}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center gap-1 animate-pulse"
+                            title="Encaisser le COD Mobile Money versé par le client après réception des coordonnées chauffeur & n° voiture"
+                          >
+                            <DollarSign className="w-3.5 h-3.5" />
+                            Encaisser COD ({parcel.total_to_collect?.toLocaleString()} Ar)
+                          </button>
+                        )
                       ) : (
                         <span className="text-xs font-semibold text-slate-400 italic px-2 py-1">
                           Pointage clôturé
                         </span>
                       )}
+
+                      <button
+                        data-cy={`btn-history-${parcel.id}`}
+                        onClick={() => setHistoryModalParcel(parcel)}
+                        className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold text-xs rounded-lg transition flex items-center gap-1 shadow-2xs"
+                        title="Consulter l'historique de traçabilité (qui a fait quoi sur ce colis)"
+                      >
+                        <History className="w-3.5 h-3.5 text-slate-600" />
+                        Historique
+                      </button>
 
                       {isPrivileged && (
                         <button
@@ -1858,6 +2115,39 @@ export default function TrackingPage() {
                 </div>
               )}
             </div>
+
+            {/* Choix Lieu Recouvrement COD / Port */}
+            {targetParcel.total_to_collect > 0 && (
+              <div className="p-3 bg-purple-50/70 border border-purple-200 rounded-xl space-y-1.5">
+                <label className="text-xs font-bold text-purple-950 block uppercase tracking-wider">
+                  Lieu d'Encaissement des Fonds (Siège vs Livreur)
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEncaissementLieu("SIEGE")}
+                    className={`p-2 text-xs font-bold rounded-lg border transition text-left cursor-pointer ${
+                      encaissementLieu === "SIEGE"
+                        ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    🏢 Au Siège (Caisse)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEncaissementLieu("LIVREUR")}
+                    className={`p-2 text-xs font-bold rounded-lg border transition text-left cursor-pointer ${
+                      encaissementLieu === "LIVREUR"
+                        ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    🛵 Par le Livreur
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-700 block uppercase tracking-wider">
@@ -2606,6 +2896,44 @@ export default function TrackingPage() {
                 />
               </div>
 
+              <div>
+                <label className="text-xs font-bold text-slate-700 block uppercase tracking-wider mb-1">
+                  Lieu de Récupération du COD Province
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    data-cy="outsource-encaissement-siege"
+                    onClick={() => setEncaissementLieu("SIEGE")}
+                    className={`p-2.5 rounded-xl border text-xs font-bold text-left transition cursor-pointer ${
+                      encaissementLieu === "SIEGE"
+                        ? "bg-blue-50 border-blue-500 text-blue-800 ring-2 ring-blue-500/20"
+                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    🏢 Au Siège (Caisse)
+                    <span className="block text-[10px] font-normal text-slate-500 mt-0.5">
+                      Paiement direct au Siège / Virement
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    data-cy="outsource-encaissement-livreur"
+                    onClick={() => setEncaissementLieu("LIVREUR")}
+                    className={`p-2.5 rounded-xl border text-xs font-bold text-left transition cursor-pointer ${
+                      encaissementLieu === "LIVREUR"
+                        ? "bg-emerald-50 border-emerald-500 text-emerald-800 ring-2 ring-emerald-500/20"
+                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    🛵 Par le Livreur
+                    <span className="block text-[10px] font-normal text-slate-500 mt-0.5">
+                      Le livreur / navette encaisse et décharge
+                    </span>
+                  </button>
+                </div>
+              </div>
+
               <div className="bg-purple-50/80 p-3 rounded-xl border border-purple-200 text-purple-900 text-[11px] leading-relaxed">
                 <strong>💡 Preuves d'Embarquement Province :</strong> Le numéro de récépissé, l'immatriculation du
                 taxi-brousse et le contact du chauffeur constituent la preuve formelle transmise au client destinataire.
@@ -2817,6 +3145,13 @@ export default function TrackingPage() {
           </div>
         </div>
       )}
+
+      {/* Audit & Traceability Modal */}
+      <ParcelHistoryModal
+        parcel={historyModalParcel}
+        isOpen={Boolean(historyModalParcel)}
+        onClose={() => setHistoryModalParcel(null)}
+      />
     </div>
   );
 }

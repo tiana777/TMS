@@ -25,7 +25,9 @@ import {
   User,
   ShoppingBag,
   Trash2,
+  History,
 } from "lucide-react";
+import { ParcelHistoryModal } from "@/components/ParcelHistoryModal";
 import { AxisBadge } from "@/components/AxisBadge";
 import { OperatorBadge } from "@/components/OperatorBadge";
 import { ThermalTicket80mm } from "@/components/ThermalTicket80mm";
@@ -47,6 +49,7 @@ import {
   bulkDeleteParcels,
 } from "@/lib/api";
 import { AxisInfo, Courier, LogisticAxis, Parcel, Tour } from "@/types";
+import { getTodayDateString } from "@/lib/date";
 
 const AXIS_OPTIONS: { code: LogisticAxis | "ALL"; label: string; short: string }[] = [
   { code: "ALL", label: "Tous les Axes", short: "Tous" },
@@ -69,9 +72,18 @@ const GARE_FILTERS = [
   { id: "Andohatapenaka", label: "Gare Andohatapenaka / Maki (RN4 Nord/Ouest)" },
 ];
 
+const RECEPTIONIST_FILTERS = [
+  { id: "ALL", label: "Tous les Agents Référents (Vue Direction)", short: "Tous les Agents", icon: "👥" },
+  { id: "Aina Razafy", label: "Aina Razafy (Agent Quai REC-001)", short: "Aina Razafy", icon: "👤" },
+  { id: "Faly Rabe", label: "Faly Rabe (Agent Quai REC-002)", short: "Faly Rabe", icon: "👤" },
+  { id: "Hery Andrianina", label: "Hery Andrianina (Agent Quai REC-003)", short: "Hery Andrianina", icon: "👤" },
+  { id: "Voahirana Rasoanaivo", label: "Voahirana Rasoanaivo (Agent Quai REC-004)", short: "Voahirana Rasoanaivo", icon: "👤" },
+  { id: "Mamy Rakotomalala", label: "Mamy Rakotomalala (Agent Quai REC-005)", short: "Mamy Rakotomalala", icon: "👤" },
+];
+
 export default function DispatchPage() {
   const [activeTab, setActiveTab] = useState<"dispatch" | "roadmaps">("dispatch");
-  const [selectedDate, setSelectedDate] = useState<string>("2026-11-08");
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString);
 
   // Master data
   const [couriers, setCouriers] = useState<Courier[]>([]);
@@ -81,6 +93,7 @@ export default function DispatchPage() {
   const [stockParcels, setStockParcels] = useState<Parcel[]>([]);
   const [selectedAxis, setSelectedAxis] = useState<LogisticAxis | "ALL">("ALL");
   const [selectedGare, setSelectedGare] = useState<string>("ALL");
+  const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedParcelIds, setSelectedParcelIds] = useState<number[]>([]);
   const [assignedCourierId, setAssignedCourierId] = useState<number | "">("");
@@ -102,9 +115,28 @@ export default function DispatchPage() {
   // Modals
   const [showThermalTicket, setShowThermalTicket] = useState<boolean>(false);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState<boolean>(false);
+  const [historyModalParcel, setHistoryModalParcel] = useState<Parcel | null>(null);
 
   // Role & Reassignment state
-  const [currentUserRole, setCurrentUserRole] = useState<string>("SUPERVISEUR");
+  const [currentUserRole, setCurrentUserRole] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("tms_user_role") || "SUPERVISEUR";
+    }
+    return "SUPERVISEUR";
+  });
+  const [activeUserNom, setActiveUserNom] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("tms_user_nom") || "";
+    }
+    return "";
+  });
+  const [activeUserId, setActiveUserId] = useState<number | null>(() => {
+    if (typeof window !== "undefined") {
+      const uId = localStorage.getItem("tms_user_id");
+      return uId ? Number(uId) : null;
+    }
+    return null;
+  });
   const [reassigningParcel, setReassigningParcel] = useState<Parcel | null>(null);
   const [reassignTargetCourierId, setReassignTargetCourierId] = useState<number | "">("");
   const [reassignReason, setReassignReason] = useState<string>("Panne de moto du livreur initial");
@@ -238,12 +270,18 @@ export default function DispatchPage() {
   useEffect(() => {
     const updateRole = () => {
       const saved = localStorage.getItem("tms_user_role") || "SUPERVISEUR";
+      const uNom = localStorage.getItem("tms_user_nom") || "";
+      const uId = localStorage.getItem("tms_user_id");
       setCurrentUserRole(saved);
+      setActiveUserNom(uNom);
+      setActiveUserId(uId ? Number(uId) : null);
+      loadStockParcels();
+      loadTours();
     };
     updateRole();
     window.addEventListener("tms_role_change", updateRole);
     return () => window.removeEventListener("tms_role_change", updateRole);
-  }, []);
+  }, [selectedDate]);
 
   const handleOpenReassignModal = (parcel: Parcel) => {
     if (parcel.status === "EN_COURS" && currentUserRole !== "SUPER_ADMIN") {
@@ -346,8 +384,24 @@ export default function DispatchPage() {
   // Strictly Urban parcels on this page (CDC Section 4.1 & Écran 03A)
   // Parcels manually overridden in this screen also remain visible to display the manual choice badge
   const isProvinceAxis = (axis?: string) => Boolean(axis && (axis === "AXE_PROVINCE" || axis.includes("PROV")));
-  const urbanStockParcels = stockParcels.filter((p) => !isProvinceAxis(p.axis) || p.is_manual_axis);
-  const totalProvinceStock = stockParcels.filter((p) => isProvinceAxis(p.axis)).length;
+
+  // Visibilité transversale entre agents (traçabilité assurée par l'historique d'audit) :
+  // Les agents de quai peuvent voir tous les colis du Hub
+  // Le filtre selectedAgentFilter permet de cibler un agent si désiré
+  const isParcelOwnedByAgent = (p: Parcel) => {
+    if (selectedAgentFilter !== "ALL") {
+      const matchNom = Boolean(
+        p.receptionniste_nom &&
+        p.receptionniste_nom.trim().toLowerCase().includes(selectedAgentFilter.trim().toLowerCase())
+      );
+      return matchNom;
+    }
+    return true;
+  };
+
+  const visibleStockParcels = stockParcels.filter(isParcelOwnedByAgent);
+  const urbanStockParcels = visibleStockParcels.filter((p) => !isProvinceAxis(p.axis) || p.is_manual_axis);
+  const totalProvinceStock = visibleStockParcels.filter((p) => isProvinceAxis(p.axis)).length;
 
   // Couriers: Mutualized pool across all axes - couriers are NOT assigned to axes directly.
   // The supervisor manually selects any active courier for any delivery.
@@ -355,8 +409,23 @@ export default function DispatchPage() {
 
   const selectedCourier = couriers.find((c) => c.id === Number(assignedCourierId));
   const courierCapacity = selectedCourier ? Math.min(selectedCourier.max_parcels || 30, 30) : 30;
-  const isOverCapacity = selectedParcelIds.length > courierCapacity;
-  const isSurchargeOver30 = selectedParcelIds.length > 30;
+
+  // Calcul dynamique des colis déjà assignés au livreur (tournées actives du jour ou colis rattachés)
+  const courierActiveTours = tours.filter(
+    (t) => t.courier_id === Number(assignedCourierId) && t.status !== "CLOTURE"
+  );
+  const existingParcelsInTours = courierActiveTours.reduce(
+    (sum, t) => sum + (t.parcels_count ?? (t.parcels ? t.parcels.length : 0)),
+    0
+  );
+  const courierExistingParcelsCount = Math.max(
+    existingParcelsInTours,
+    selectedCourier?.today_parcels_count || 0
+  );
+
+  const totalProjectedLoad = courierExistingParcelsCount + selectedParcelIds.length;
+  const isOverCapacity = totalProjectedLoad > courierCapacity;
+  const isSurchargeOver30 = totalProjectedLoad > 30;
   const isSurcharge = isOverCapacity || isSurchargeOver30;
 
   // Reset selected parcels & page when axis corridor or filters change
@@ -366,16 +435,21 @@ export default function DispatchPage() {
   }, [selectedAxis]);
 
   useEffect(() => {
+    setSelectedParcelIds([]);
+    setCurrentPage(1);
+  }, [selectedAgentFilter]);
+
+  useEffect(() => {
     setCurrentPage(1);
   }, [selectedGare, searchQuery]);
 
   // Synchronize assigned courier with available couriers
   useEffect(() => {
-    if (couriers.length === 0) return;
-    if (assignedCourierId === "" || !couriers.some((c) => c.id === Number(assignedCourierId))) {
-      setAssignedCourierId(couriers[0].id);
+    if (availableCouriers.length === 0) return;
+    if (assignedCourierId === "" || !availableCouriers.some((c) => c.id === Number(assignedCourierId))) {
+      setAssignedCourierId(availableCouriers[0].id);
     }
-  }, [couriers]);
+  }, [availableCouriers, assignedCourierId]);
 
   useEffect(() => {
     if (selectedCourier) {
@@ -405,7 +479,7 @@ export default function DispatchPage() {
   };
 
   // Filtered parcels for Écran 03A: urban by default, or specific axis including province if explicitly selected
-  const sourceParcels = selectedAxis === "AXE_PROVINCE" ? stockParcels : urbanStockParcels;
+  const sourceParcels = selectedAxis === "AXE_PROVINCE" ? visibleStockParcels : urbanStockParcels;
   const filteredParcels = sourceParcels.filter((p) => {
     if (selectedAxis !== "ALL") {
       if (selectedAxis === "AXE_PROVINCE") {
@@ -416,6 +490,12 @@ export default function DispatchPage() {
     }
     if (selectedAxis === "AXE_PROVINCE" && selectedGare !== "ALL") {
       if (!p.delivery_address?.toLowerCase().includes(selectedGare.toLowerCase())) {
+        return false;
+      }
+    }
+    // Appliquer le filtre d'agent si sélectionné dans le menu déroulant
+    if (selectedAgentFilter !== "ALL") {
+      if (p.receptionniste_nom !== selectedAgentFilter) {
         return false;
       }
     }
@@ -517,10 +597,10 @@ export default function DispatchPage() {
     }
   };
 
-  // Aggregated metrics for Écran 03
-  const totalStockCount = stockParcels.length;
-  const totalStockCOD = stockParcels.reduce((sum, p) => sum + p.total_to_collect, 0);
-  const selectedParcelsTotal = stockParcels
+  // Aggregated metrics for Écran 03 (strictly scoped to visibleStockParcels)
+  const totalStockCount = visibleStockParcels.length;
+  const totalStockCOD = visibleStockParcels.reduce((sum, p) => sum + p.total_to_collect, 0);
+  const selectedParcelsTotal = visibleStockParcels
     .filter((p) => selectedParcelIds.includes(p.id))
     .reduce((sum, p) => sum + p.total_to_collect, 0);
 
@@ -755,10 +835,10 @@ export default function DispatchPage() {
                 {AXIS_OPTIONS.map((ax) => {
                   const count =
                     ax.code === "ALL"
-                      ? stockParcels.length
+                      ? visibleStockParcels.length
                       : ax.code === "AXE_PROVINCE"
-                      ? stockParcels.filter((p) => isProvinceAxis(p.axis)).length
-                      : stockParcels.filter((p) => p.axis === ax.code).length;
+                      ? visibleStockParcels.filter((p) => isProvinceAxis(p.axis)).length
+                      : visibleStockParcels.filter((p) => p.axis === ax.code).length;
                   const isSelected = selectedAxis === ax.code;
 
                   return (
@@ -791,31 +871,100 @@ export default function DispatchPage() {
                   <span className="text-xs font-semibold text-purple-800 flex items-center gap-1">
                     <Building2 className="w-3.5 h-3.5" /> Gares d&apos;Antananarivo :
                   </span>
-                  {GARE_FILTERS.map((g) => (
-                    <button
-                      key={g.id}
-                      onClick={() => setSelectedGare(g.id)}
-                      className={`px-2 py-0.5 text-xs rounded-md font-medium transition-colors ${
-                        selectedGare === g.id
-                          ? "bg-purple-600 text-white font-semibold"
-                          : "bg-white text-purple-700 hover:bg-purple-100 border border-purple-200"
-                      }`}
-                    >
-                      {g.label}
-                    </button>
-                  ))}
+                  {GARE_FILTERS.map((g) => {
+                    const count =
+                      g.id === "ALL"
+                        ? visibleStockParcels.filter((p) => isProvinceAxis(p.axis)).length
+                        : visibleStockParcels.filter(
+                            (p) =>
+                              isProvinceAxis(p.axis) &&
+                              `${p.delivery_address} ${p.axis_label}`.toLowerCase().includes(g.id.toLowerCase())
+                          ).length;
+                    const isSelected = selectedGare === g.id;
+                    return (
+                      <button
+                        key={g.id}
+                        onClick={() => setSelectedGare(g.id)}
+                        className={`px-2 py-0.5 text-xs rounded-md font-medium transition-colors flex items-center gap-1.5 border cursor-pointer ${
+                          isSelected
+                            ? "bg-purple-600 text-white border-purple-600 font-semibold"
+                            : "bg-white text-purple-700 hover:bg-purple-100 border-purple-200 shadow-2xs"
+                        }`}
+                      >
+                        <span>{g.label}</span>
+                        <span
+                          className={`px-1.5 py-0.2 rounded-full text-[10px] tabular-nums font-mono ${
+                            isSelected
+                              ? "bg-purple-700 text-white"
+                              : "bg-purple-100 text-purple-700 border border-purple-200"
+                          }`}
+                        >
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
+
+              {/* Filter by Receptionist Agent */}
+              <div className="pt-2 border-t border-slate-200/60 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs text-slate-600 font-medium">
+                  <User className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Filtrer par Agent Quai :</span>
+                  {currentUserRole === "RECEPTIONNISTE" && activeUserNom && (
+                    <span className="text-[11px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                      Session : <strong>{activeUserNom}</strong>
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {RECEPTIONIST_FILTERS.map((f) => {
+                    const count =
+                      f.id === "ALL"
+                        ? sourceParcels.length
+                        : sourceParcels.filter((p) => p.receptionniste_nom === f.id).length;
+                    const isSelected = selectedAgentFilter === f.id;
+
+                    return (
+                      <button
+                        key={f.id}
+                        type="button"
+                        data-cy={`filter-agent-${f.id.toLowerCase().replace(/\s+/g, "-")}`}
+                        onClick={() => setSelectedAgentFilter(f.id)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 border cursor-pointer ${
+                          isSelected
+                            ? "bg-slate-900 text-white border-slate-900 shadow-xs font-semibold"
+                            : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-xs"
+                        }`}
+                      >
+                        <span>{f.icon}</span>
+                        <span>{f.short}</span>
+                        <span
+                          className={`px-1.5 py-0.2 rounded-full text-[10px] tabular-nums font-mono ${
+                            isSelected ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+                          }`}
+                        >
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
             {/* Quick Assignment Toolbar */}
-            <div className="bg-white border border-slate-200 p-3 rounded-xl shadow-xs flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+            <div className="bg-white border border-slate-200 p-2.5 rounded-xl shadow-xs flex flex-wrap items-center justify-between gap-2.5">
               {/* Selection indicators */}
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2">
                 <button
+                  type="button"
                   onClick={handleSelectAllVisible}
                   data-cy="select-all-btn"
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-200"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-200 cursor-pointer"
+                  title="Sélectionner tous les colis affichés"
                 >
                   {filteredParcels.length > 0 &&
                   filteredParcels.every((p) => selectedParcelIds.includes(p.id)) ? (
@@ -823,16 +972,16 @@ export default function DispatchPage() {
                   ) : (
                     <Square className="w-3.5 h-3.5 text-slate-400" />
                   )}
-                  <span>Tout sélectionner ({filteredParcels.length})</span>
+                  <span>Tout ({filteredParcels.length})</span>
                 </button>
 
-                <div className="text-xs">
+                <div className="text-xs flex items-center gap-1.5">
                   <span className="font-semibold text-slate-800" data-cy="selected-count">
                     {selectedParcelIds.length} sélectionné(s)
                   </span>
                   {selectedParcelIds.length > 0 && (
-                    <span className="text-emerald-700 ml-2 font-semibold">
-                      • Valeur COD : {selectedParcelsTotal.toLocaleString("fr-FR")} Ar
+                    <span className="text-emerald-700 font-semibold font-mono bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      COD : {selectedParcelsTotal.toLocaleString("fr-FR")} Ar
                     </span>
                   )}
                 </div>
@@ -842,7 +991,7 @@ export default function DispatchPage() {
                     type="button"
                     onClick={() => setDeleteConfirmModal({ isOpen: true, isBulk: true })}
                     data-cy="btn-bulk-delete-parcels"
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-xs font-bold transition shadow-xs cursor-pointer ml-1"
+                    className="flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-xs font-bold transition shadow-xs cursor-pointer ml-1"
                     title="Supprimer définitivement les colis sélectionnés (Superviseur / Super Admin)"
                   >
                     <Trash2 className="w-3.5 h-3.5 text-rose-600" />
@@ -860,25 +1009,33 @@ export default function DispatchPage() {
                     onChange={(e) => setAssignedCourierId(e.target.value ? Number(e.target.value) : "")}
                     data-cy="select-courier"
                     disabled={availableCouriers.length === 0}
-                    className="border text-xs font-medium px-2.5 py-1.5 rounded-lg focus:border-blue-500 focus:outline-none bg-white border-slate-300 text-slate-900"
+                    className="border text-xs font-medium px-2.5 py-1.5 rounded-lg focus:border-blue-500 focus:outline-none bg-white border-slate-300 text-slate-900 max-w-[280px] sm:max-w-[340px] truncate"
                   >
                     {availableCouriers.length === 0 ? (
                       <option value="" disabled>
                         Aucun livreur disponible
                       </option>
                     ) : (
-                      availableCouriers.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} ({c.vehicle_type} - {c.phone_formatted})
-                        </option>
-                      ))
+                      availableCouriers.map((c) => {
+                        const cTours = tours.filter((t) => t.courier_id === c.id && t.status !== "CLOTURE");
+                        const cAssigned = Math.max(
+                          cTours.reduce((sum, t) => sum + (t.parcels_count ?? (t.parcels ? t.parcels.length : 0)), 0),
+                          c.today_parcels_count || 0
+                        );
+                        const cMax = Math.min(c.max_parcels || 30, 30);
+                        return (
+                          <option key={c.id} value={c.id}>
+                            {c.name} • {c.vehicle_type} ({c.phone_formatted}) — {cAssigned > 0 ? `${cAssigned}/${cMax} assignés` : `0/${cMax} en cours`}
+                          </option>
+                        );
+                      })
                     )}
                   </select>
                 </div>
 
                 {/* Courier Capacity Indicator & Surcharge Configurator (Max 30 colis) */}
                 {selectedCourier && (
-                  <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs">
+                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs">
                     <span className="text-slate-500 font-medium">Capacité :</span>
                     <span
                       data-cy="courier-capacity-display"
@@ -886,10 +1043,15 @@ export default function DispatchPage() {
                         isSurcharge ? "text-red-600" : "text-emerald-600"
                       }`}
                     >
-                      {selectedParcelIds.length} / {courierCapacity} max
+                      {totalProjectedLoad} / {courierCapacity} max
                     </span>
-                    <div className="flex items-center gap-1 ml-1.5 border-l border-slate-200 pl-1.5">
-                      <span className="text-[10px] text-slate-500">Plafond (max 30):</span>
+                    {courierExistingParcelsCount > 0 && (
+                      <span className="text-[10px] text-slate-400 font-normal">
+                        ({courierExistingParcelsCount} act. + {selectedParcelIds.length} sél.)
+                      </span>
+                    )}
+                    <div className="flex items-center gap-1 ml-1 border-l border-slate-200 pl-1.5">
+                      <span className="text-[10px] text-slate-400">Plafond :</span>
                       <input
                         type="number"
                         min={1}
@@ -897,14 +1059,14 @@ export default function DispatchPage() {
                         data-cy="input-courier-capacity"
                         value={courierCapacityInput}
                         onChange={(e) => setCourierCapacityInput(Number(e.target.value))}
-                        className="w-12 px-1 py-0.5 text-center font-mono font-semibold text-xs bg-white border border-slate-300 rounded text-slate-900 focus:outline-none focus:border-blue-500"
+                        className="w-10 px-1 py-0.5 text-center font-mono font-semibold text-xs bg-white border border-slate-300 rounded text-slate-900 focus:outline-none focus:border-blue-500"
                       />
                       <button
                         type="button"
                         data-cy="btn-update-capacity"
                         onClick={handleSaveCapacity}
                         disabled={isUpdatingCapacity}
-                        className="px-2 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-bold"
+                        className="px-1.5 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-bold"
                       >
                         {isUpdatingCapacity ? "..." : "OK"}
                       </button>
@@ -916,7 +1078,7 @@ export default function DispatchPage() {
                   onClick={handleAssignToTour}
                   disabled={selectedParcelIds.length === 0 || !assignedCourierId || isAssigning || isSurcharge}
                   data-cy="assign-tour-btn"
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all shadow-xs ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all shadow-xs ${
                     selectedParcelIds.length > 0 && assignedCourierId && !isAssigning && !isSurcharge
                       ? "bg-blue-600 hover:bg-blue-500 text-white cursor-pointer"
                       : "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
@@ -925,9 +1087,9 @@ export default function DispatchPage() {
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>
                     {isAssigning
-                      ? "Assignation en cours..."
+                      ? "Assignation..."
                       : isSurcharge
-                      ? `Capacité dépassée (${selectedParcelIds.length}/${courierCapacity})`
+                      ? `Capacité dépassée (${totalProjectedLoad}/${courierCapacity})`
                       : `Assigner (${selectedParcelIds.length} colis)`}
                   </span>
                 </button>
@@ -943,8 +1105,8 @@ export default function DispatchPage() {
                 <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
                 <span>
                   {isSurchargeOver30
-                    ? `🚨 Surcharge stricte : un livreur ne peut transporter que 30 colis au maximum (${selectedParcelIds.length} sélectionnés). Veuillez réduire le lot à assigner.`
-                    : `Capacité maximale dépassée : le livreur ${selectedCourier?.name} ne peut prendre que ${courierCapacity} colis maximum (${selectedParcelIds.length} sélectionnés). Réduisez la sélection ou ajustez le plafond paramétrable.`}
+                    ? `🚨 Surcharge stricte : un livreur ne peut transporter que 30 colis au maximum (${totalProjectedLoad} colis : ${courierExistingParcelsCount > 0 ? `${courierExistingParcelsCount} déjà assigné(s) + ` : ""}${selectedParcelIds.length} sélectionnés). Veuillez réduire le lot à assigner.`
+                    : `Capacité maximale dépassée : le livreur ${selectedCourier?.name} ne peut prendre que ${courierCapacity} colis maximum (${courierExistingParcelsCount > 0 ? `${courierExistingParcelsCount} déjà assigné(s) + ` : ""}${selectedParcelIds.length} sélectionnés). Réduisez la sélection ou ajustez le plafond paramétrable.`}
                 </span>
               </div>
             )}
@@ -957,8 +1119,18 @@ export default function DispatchPage() {
                 placeholder="Recherche rapide : N° BDR, client, téléphone, lieu, article ou expéditeur..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-white border border-slate-200 text-slate-800 pl-8 pr-3 py-1.5 rounded-lg text-xs focus:border-blue-500 focus:outline-none placeholder-slate-400 shadow-xs"
+                className="w-full bg-white border border-slate-200 text-slate-800 pl-8 pr-8 py-1.5 rounded-lg text-xs focus:border-blue-500 focus:outline-none placeholder-slate-400 shadow-xs"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 text-xs"
+                  title="Effacer la recherche"
+                >
+                  ✕
+                </button>
+              )}
             </div>
           </div>
 
@@ -1025,16 +1197,36 @@ export default function DispatchPage() {
                               className="rounded border-slate-300 text-blue-600 focus:ring-0 cursor-pointer"
                             />
                           </td>
-                          <td className="py-2.5 px-3 font-mono font-bold text-blue-700 text-xs">
-                            {p.tracking_number}
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <span className="font-mono font-bold text-blue-700 text-xs block">
+                              {p.tracking_number}
+                            </span>
+                            {p.receptionniste_nom && (
+                              <div
+                                className="text-[10px] text-slate-400 font-normal flex items-center gap-1 mt-0.5 truncate max-w-[130px]"
+                                title={`Agent quai ayant réceptionné : ${p.receptionniste_nom}`}
+                              >
+                                <span className="text-slate-300">👤</span>
+                                <span className="truncate">{p.receptionniste_nom}</span>
+                              </div>
+                            )}
+                            {p.dernier_agent_nom && p.dernier_agent_nom !== p.receptionniste_nom && (
+                              <div
+                                className="text-[10px] text-indigo-500 font-normal flex items-center gap-1 mt-0.5 truncate max-w-[130px]"
+                                title={`Dernière action par : ${p.dernier_agent_nom} (${p.derniere_action || ''})`}
+                              >
+                                <span>⚡</span>
+                                <span className="truncate">{p.dernier_agent_nom}</span>
+                              </div>
+                            )}
                           </td>
-                          <td className="py-2.5 px-3">
-                            <div className="font-semibold text-slate-900 text-xs">{p.sender_name || "N/A"}</div>
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <div className="font-semibold text-slate-900 text-xs truncate max-w-[140px]">{p.sender_name || "N/A"}</div>
                             <span className="text-[10px] text-slate-400 uppercase font-medium">
                               {p.sender_type || "CYBERMARCHAND"}
                             </span>
                           </td>
-                          <td className="py-2.5 px-3">
+                          <td className="py-2.5 px-3 whitespace-nowrap">
                             <div className="font-semibold text-slate-900 text-xs">{p.recipient_name}</div>
                             <div className="flex items-center gap-1.5 mt-0.5">
                               <span className="font-mono text-slate-600 text-xs tabular-nums">
@@ -1089,42 +1281,71 @@ export default function DispatchPage() {
                               </div>
                             )}
                           </td>
-                          <td className="py-2.5 px-3">
+                          <td className="py-2.5 px-3 whitespace-nowrap">
                             <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase inline-flex items-center gap-1 ${
                                 p.flux_type === "COD"
-                                    ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                  ? "bg-blue-50 text-blue-700 border border-blue-200"
+                                  : p.flux_type === "SIMPLE"
+                                  ? "bg-teal-50 text-teal-700 border border-teal-200"
                                   : p.flux_type === "PROVINCE"
-                                  ? "bg-purple-50 text-purple-700 border border-purple-200"
-                                  : "bg-blue-50 text-blue-700 border border-blue-200"
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                  : p.flux_type === "RETOUR"
+                                  ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                  : "bg-purple-50 text-purple-700 border border-purple-200"
                               }`}
                             >
-                              {p.flux_type}
+                              <span>
+                                {p.flux_type === "COD"
+                                  ? "💵"
+                                  : p.flux_type === "SIMPLE"
+                                  ? "📄"
+                                  : p.flux_type === "PROVINCE"
+                                  ? "🚐"
+                                  : p.flux_type === "RETOUR"
+                                  ? "🔄"
+                                  : "🏢"}
+                              </span>
+                              <span>{p.flux_type}</span>
                             </span>
                           </td>
-                          <td className="py-2.5 px-3 text-right font-bold text-emerald-700 font-mono text-xs tabular-nums">
+                          <td className="py-2.5 px-3 text-right font-bold text-emerald-700 font-mono text-xs tabular-nums whitespace-nowrap">
                             {p.total_to_collect.toLocaleString("fr-FR")} Ar
                           </td>
-                          <td className="py-2.5 px-3 text-center">
+                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
                               En Dépôt
                             </span>
                           </td>
-                          <td className="py-2.5 px-3 text-center">
-                            {isPrivileged && (
+                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                            <div className="flex items-center justify-center gap-1">
                               <button
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setDeleteConfirmModal({ isOpen: true, parcel: p, isBulk: false });
+                                  setHistoryModalParcel(p);
                                 }}
-                                data-cy={`btn-delete-parcel-${p.id}`}
-                                title="Supprimer définitivement ce colis (Superviseur / Super Admin)"
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition border border-transparent hover:border-rose-200 cursor-pointer"
+                                data-cy={`btn-history-parcel-${p.id}`}
+                                title="Historique & Traçabilité (qui a fait quoi sur ce colis)"
+                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition border border-transparent hover:border-blue-200 cursor-pointer"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                <History className="w-3.5 h-3.5 text-slate-500" />
                               </button>
-                            )}
+                              {isPrivileged && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteConfirmModal({ isOpen: true, parcel: p, isBulk: false });
+                                  }}
+                                  data-cy={`btn-delete-parcel-${p.id}`}
+                                  title="Supprimer définitivement ce colis (Superviseur / Super Admin)"
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition border border-transparent hover:border-rose-200 cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1273,6 +1494,7 @@ export default function DispatchPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {tours.map((t) => {
                   const isSelected = selectedTourId === t.id;
+                  const isClosed = t.status === "CLOTURE";
                   return (
                     <div
                       key={t.id}
@@ -1280,7 +1502,11 @@ export default function DispatchPage() {
                       data-cy={`tour-card-${t.id}`}
                       className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
                         isSelected
-                          ? "bg-blue-50/80 border-blue-500 shadow-xs ring-1 ring-blue-500/20"
+                          ? isClosed
+                            ? "bg-slate-100/90 border-slate-400 shadow-xs ring-1 ring-slate-400/20"
+                            : "bg-blue-50/80 border-blue-500 shadow-xs ring-1 ring-blue-500/20"
+                          : isClosed
+                          ? "bg-slate-50/70 border-slate-200/80 opacity-75 hover:bg-slate-100/60 shadow-xs"
                           : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50 shadow-xs"
                       }`}
                     >
@@ -1522,6 +1748,15 @@ export default function DispatchPage() {
                                   Retirer
                                 </button>
                               )}
+
+                              <button
+                                type="button"
+                                onClick={() => setHistoryModalParcel(p)}
+                                title="Historique & Traçabilité (qui a fait quoi sur ce colis)"
+                                className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition border border-transparent hover:border-blue-200 cursor-pointer"
+                              >
+                                <History className="w-3.5 h-3.5 text-slate-500" />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -1856,6 +2091,13 @@ export default function DispatchPage() {
           </div>
         </div>
       )}
+
+      {/* Modal d'historique et de traçabilité des flux */}
+      <ParcelHistoryModal
+        parcel={historyModalParcel}
+        isOpen={Boolean(historyModalParcel)}
+        onClose={() => setHistoryModalParcel(null)}
+      />
     </div>
   );
 }

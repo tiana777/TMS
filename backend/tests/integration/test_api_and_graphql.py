@@ -47,7 +47,7 @@ class TestRESTandGraphQLAPI:
         # Login as reception agent
         login_res = client.post(
             "/api/v1/auth/login",
-            json={"username": "reception", "password": "recep123"},
+            json={"username": "agent1", "password": "agent123"},
         )
         assert login_res.status_code == 200
         token = login_res.json()["access_token"]
@@ -73,10 +73,10 @@ class TestRESTandGraphQLAPI:
         assert parcel["total_to_collect_formatted"] == "55 000 Ar"
         p_id = parcel["id"]
 
-        # 2. Login as superviseur to assign parcel
+        # 2. Login as superviseur/directeur to assign parcel
         sup_login = client.post(
             "/api/v1/auth/login",
-            json={"username": "superviseur", "password": "super123"},
+            json={"username": "directeur", "password": "directeur123"},
         )
         sup_token = sup_login.json()["access_token"]
         sup_headers = {"Authorization": f"Bearer {sup_token}"}
@@ -113,7 +113,7 @@ class TestRESTandGraphQLAPI:
         # 1. Login as reception
         login_res = client.post(
             "/api/v1/auth/login",
-            json={"username": "reception", "password": "recep123"},
+            json={"username": "agent1", "password": "agent123"},
         )
         token = login_res.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
@@ -134,7 +134,7 @@ class TestRESTandGraphQLAPI:
         # 2. Login as supervisor
         sup_login = client.post(
             "/api/v1/auth/login",
-            json={"username": "superviseur", "password": "super123"},
+            json={"username": "directeur", "password": "directeur123"},
         )
         sup_token = sup_login.json()["access_token"]
         sup_headers = {"Authorization": f"Bearer {sup_token}"}
@@ -170,7 +170,7 @@ class TestRESTandGraphQLAPI:
         # 1. Login as reception & create COD parcel
         login_res = client.post(
             "/api/v1/auth/login",
-            json={"username": "reception", "password": "recep123"},
+            json={"username": "agent1", "password": "agent123"},
         )
         token = login_res.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
@@ -191,7 +191,7 @@ class TestRESTandGraphQLAPI:
         # 2. Login as supervisor
         sup_login = client.post(
             "/api/v1/auth/login",
-            json={"username": "superviseur", "password": "super123"},
+            json={"username": "directeur", "password": "directeur123"},
         )
         sup_token = sup_login.json()["access_token"]
         sup_headers = {"Authorization": f"Bearer {sup_token}"}
@@ -240,7 +240,7 @@ class TestRESTandGraphQLAPI:
         # 1. Login as reception & create 3 parcels
         login_res = client.post(
             "/api/v1/auth/login",
-            json={"username": "reception", "password": "recep123"},
+            json={"username": "agent1", "password": "agent123"},
         )
         recep_token = login_res.json()["access_token"]
         recep_headers = {"Authorization": f"Bearer {recep_token}"}
@@ -276,7 +276,7 @@ class TestRESTandGraphQLAPI:
         # 3. Login as supervisor: delete 1 parcel succeeds
         sup_login = client.post(
             "/api/v1/auth/login",
-            json={"username": "superviseur", "password": "super123"},
+            json={"username": "directeur", "password": "directeur123"},
         )
         sup_token = sup_login.json()["access_token"]
         sup_headers = {"Authorization": f"Bearer {sup_token}"}
@@ -986,7 +986,7 @@ class TestRESTandGraphQLAPI:
         zone_name = f"Zone_{uid}"
 
         # 1. Login as RECEPTIONNISTE and attempt to create an axis -> 403
-        rec_res = client.post("/api/v1/auth/login", json={"username": "reception", "password": "recep123"})
+        rec_res = client.post("/api/v1/auth/login", json={"username": "agent1", "password": "agent123"})
         assert rec_res.status_code == 200
         rec_token = rec_res.json()["access_token"]
         rec_headers = {"Authorization": f"Bearer {rec_token}"}
@@ -998,8 +998,8 @@ class TestRESTandGraphQLAPI:
         )
         assert forbidden_res.status_code == 403
 
-        # 2. Login as SUPERVISEUR -> can create an Urban and a Province axis
-        sup_res = client.post("/api/v1/auth/login", json={"username": "superviseur", "password": "super123"})
+        # 2. Login as SUPER_ADMIN (Directeur) -> can create an Urban and a Province axis
+        sup_res = client.post("/api/v1/auth/login", json={"username": "directeur", "password": "directeur123"})
         assert sup_res.status_code == 200
         sup_token = sup_res.json()["access_token"]
         sup_headers = {"Authorization": f"Bearer {sup_token}"}
@@ -1194,32 +1194,30 @@ class TestRESTandGraphQLAPI:
         dup_res = client.post("/api/v1/payouts", json=payout_payload, headers=headers)
         assert dup_res.status_code == 400
 
-    def test_5_receptionist_agents_flow_separation(self):
-        """Verify the 5 distinct receptionist profiles with separated operational flows."""
+    def test_4_receptionist_agents_flow_separation(self):
+        """Verify the 4 distinct receptionist profiles with individual sessions and universal multi-flux capability."""
         expected_agents = [
-            ("recep_cod", "COD", "Aina (Guichet 1 - COD Urbain)"),
-            ("recep_simple", "SIMPLE", "Faly (Guichet 2 - Port Payé)"),
-            ("recep_province", "PROVINCE", "Hery (Guichet 3 - Province & Gares)"),
-            ("recep_retour", "RETOUR", "Voahirana (Guichet 4 - SAV & Retours)"),
-            ("recep_b2b", "ENTREPRISE", "Mamy (Guichet 5 - Entreprises & B2B)"),
+            ("agent1", "Aina Razafy"),
+            ("agent2", "Faly Rabe"),
+            ("agent3", "Hery Andrianina"),
+            ("agent4", "Voahirana Rasoanaivo"),
         ]
 
         agent_tokens = {}
-        for username, assigned_flux, nom in expected_agents:
+        for username, nom in expected_agents:
             res = client.post(
                 "/api/v1/auth/login",
-                json={"username": username, "password": "recep123"},
+                json={"username": username, "password": "agent123"},
             )
             assert res.status_code == 200, f"Login failed for {username}"
             data = res.json()
             assert data["role"] == "RECEPTIONNISTE"
-            assert data["assigned_flux"] == assigned_flux
             assert data["nom_complet"] == nom
             assert data["id"] is not None
             agent_tokens[username] = (data["access_token"], data["id"], data["nom_complet"])
 
         # Agent 1 (COD) creates a parcel
-        token_cod, id_cod, nom_cod = agent_tokens["recep_cod"]
+        token_cod, id_cod, nom_cod = agent_tokens["agent1"]
         res_cod = client.post(
             "/api/v1/parcels",
             json={
@@ -1240,7 +1238,7 @@ class TestRESTandGraphQLAPI:
         assert p_cod["flux_type"] == "COD"
 
         # Agent 3 (Province) creates a parcel
-        token_prov, id_prov, nom_prov = agent_tokens["recep_province"]
+        token_prov, id_prov, nom_prov = agent_tokens["agent3"]
         res_prov = client.post(
             "/api/v1/parcels",
             json={
@@ -1260,6 +1258,26 @@ class TestRESTandGraphQLAPI:
         assert p_prov["receptionniste_nom"] == nom_prov
         assert p_prov["flux_type"] == "PROVINCE"
 
+        # Agent 1 (Aina) can ALSO create a PROVINCE parcel under her own session (Multi-Flux capability)
+        res_cod_prov = client.post(
+            "/api/v1/parcels",
+            json={
+                "vendor_id": 1,
+                "recipient_name": "Client Province créé par Aina",
+                "recipient_phone": "0331122334",
+                "delivery_address": "Gare Ambodivona vers Tamatave",
+                "flux_type": "PROVINCE",
+                "merchandise_amount": 75000,
+                "delivery_fee": 10000,
+            },
+            headers={"Authorization": f"Bearer {token_cod}"},
+        )
+        assert res_cod_prov.status_code == 201
+        p_cod_prov = res_cod_prov.json()
+        assert p_cod_prov["receptionniste_id"] == id_cod
+        assert p_cod_prov["receptionniste_nom"] == nom_cod
+        assert p_cod_prov["flux_type"] == "PROVINCE"
+
         # Check separated filtering by receptionist ID and flux
         list_cod = client.get(
             f"/api/v1/parcels?receptionniste_id={id_cod}",
@@ -1276,6 +1294,270 @@ class TestRESTandGraphQLAPI:
         prov_ids = [p["id"] for p in list_prov]
         assert p_prov["id"] in prov_ids
         assert p_cod["id"] not in prov_ids  # Isolated work queue!
+
+    def test_user_management_crud_and_rbac(self):
+        import uuid
+        uid = uuid.uuid4().hex[:6]
+        # 1. Admin login
+        admin_login = client.post("/api/v1/auth/login", json={"username": "admin", "password": "admin123"}).json()
+        admin_token = admin_login["access_token"]
+        headers_admin = {"Authorization": f"Bearer {admin_token}"}
+
+        # 2. List users
+        users_res = client.get("/api/v1/auth/users", headers=headers_admin)
+        assert users_res.status_code == 200
+        initial_users = users_res.json()
+        assert len(initial_users) >= 4
+
+        # 3. Create a new supervisor user
+        new_user_payload = {
+            "username": f"super_{uid}",
+            "email": f"super.{uid}@tmsexpress.mg",
+            "role": "SUPERVISEUR",
+            "nom_complet": "Chef Quai Testeur",
+            "password": "password123",
+            "assigned_flux": None,
+        }
+        create_res = client.post("/api/v1/auth/users", json=new_user_payload, headers=headers_admin)
+        assert create_res.status_code == 201
+        created_user = create_res.json()
+        assert created_user["username"] == f"super_{uid}"
+        assert created_user["role"] == "SUPERVISEUR"
+        assert created_user["actif"] is True
+        user_id = created_user["id"]
+
+        # 4. Reject duplicate username
+        dup_user_res = client.post("/api/v1/auth/users", json=new_user_payload, headers=headers_admin)
+        assert dup_user_res.status_code == 400
+        assert "déjà utilisé" in dup_user_res.json()["detail"]
+
+        # 5. Reject invalid role
+        invalid_role_payload = {**new_user_payload, "username": "bad_role_user", "email": "bad@tms.mg", "role": "HACKER"}
+        bad_role_res = client.post("/api/v1/auth/users", json=invalid_role_payload, headers=headers_admin)
+        assert bad_role_res.status_code == 400
+
+        # 6. Toggle active status
+        toggle_res = client.patch(f"/api/v1/auth/users/{user_id}/toggle-status", headers=headers_admin)
+        assert toggle_res.status_code == 200
+        assert toggle_res.json()["actif"] is False
+
+        toggle_back_res = client.patch(f"/api/v1/auth/users/{user_id}/toggle-status", headers=headers_admin)
+        assert toggle_back_res.status_code == 200
+        assert toggle_back_res.json()["actif"] is True
+
+        # 7. Update user profile
+        update_res = client.patch(
+            f"/api/v1/auth/users/{user_id}",
+            json={"nom_complet": "Chef Quai Modifié", "assigned_flux": "COD"},
+            headers=headers_admin,
+        )
+        assert update_res.status_code == 200
+        assert update_res.json()["nom_complet"] == "Chef Quai Modifié"
+        assert update_res.json()["assigned_flux"] == "COD"
+
+    def test_courier_creation_by_supervisor_and_admin(self):
+        import random
+        rnd = random.randint(1000000, 9999999)
+        # 1. Superviseur login
+        sup_login = client.post("/api/v1/auth/login", json={"username": "superviseur", "password": "super123"}).json()
+        sup_token = sup_login["access_token"]
+        headers_sup = {"Authorization": f"Bearer {sup_token}"}
+
+        # 2. Superviseur creates a courier
+        phone = f"034{rnd}"
+        courier_payload = {
+            "name": f"Coursier Test {rnd}",
+            "phone": phone,
+            "vehicle_type": "Scooter 110cc",
+            "security_deposit": 150000,
+            "max_parcels": 25,
+            "assigned_axis": "AXE_RN1",
+        }
+        res = client.post("/api/v1/couriers", json=courier_payload, headers=headers_sup)
+        assert res.status_code == 201
+        created = res.json()
+        assert created["name"] == f"Coursier Test {rnd}"
+        assert created["phone"] == phone
+        assert created["max_parcels"] == 25
+        assert created["assigned_axis"] == "AXE_RN1"
+        assert created["active"] is True
+
+    def test_province_flow_cod_siege_vs_livreur(self):
+        import random
+        from datetime import datetime
+        rnd = random.randint(1000000, 9999999)
+
+        # 1. Login admin
+        admin_login = client.post("/api/v1/auth/login", json={"username": "admin", "password": "admin123"}).json()
+        headers_admin = {"Authorization": f"Bearer {admin_login['access_token']}"}
+
+        # 2. Create courier for navette gare
+        courier_res = client.post(
+            "/api/v1/couriers",
+            json={
+                "name": f"Navette Gare {rnd}",
+                "phone": f"034{rnd}",
+                "vehicle_type": "Fourgonnette",
+                "max_parcels": 30,
+                "assigned_axis": "AXE_PROVINCE",
+            },
+            headers=headers_admin,
+        )
+        courier_id = courier_res.json()["id"]
+
+        # 3. Create 2 Province Parcels : 1 with COD au Siège, 1 with COD Livreur
+        date_today = datetime.now().strftime("%Y-%m-%d")
+        batch_payload = {
+            "parcels": [
+                {
+                    "vendor_id": 1,
+                    "sender_name": "Boutique Mode Tamatave",
+                    "recipient_name": "Rabe Tamatave",
+                    "recipient_phone": "0341234567",
+                    "delivery_address": "Gare Ambodivona, Toamasina",
+                    "axis": "AXE_PROVINCE",
+                    "flux_type": "PROVINCE",
+                    "merchandise_amount": 50000,
+                    "delivery_fee": 5000,
+                    "encaissement_lieu": "SIEGE",
+                    "reception_date": date_today,
+                },
+                {
+                    "vendor_id": 1,
+                    "sender_name": "Boutique Mode Majunga",
+                    "recipient_name": "Rasao Majunga",
+                    "recipient_phone": "0329876543",
+                    "delivery_address": "Gare Andohatapenaka, Mahajanga",
+                    "axis": "AXE_PROVINCE",
+                    "flux_type": "PROVINCE",
+                    "merchandise_amount": 40000,
+                    "delivery_fee": 5000,
+                    "encaissement_lieu": "LIVREUR",
+                    "reception_date": date_today,
+                },
+            ]
+        }
+        create_res = client.post("/api/v1/parcels/batch", json=batch_payload, headers=headers_admin)
+        assert create_res.status_code == 201
+        parcels_created = create_res.json()
+        assert len(parcels_created) == 2
+
+        p_siege = parcels_created[0]
+        p_livreur = parcels_created[1]
+        assert p_siege["encaissement_lieu"] == "SIEGE"
+        assert p_livreur["encaissement_lieu"] == "LIVREUR"
+
+        # 4. Test updating encaissement_lieu via contact PATCH
+        patch_contact = client.patch(
+            f"/api/v1/parcels/{p_siege['id']}/contact",
+            json={"encaissement_lieu": "LIVREUR"},
+            headers=headers_admin,
+        )
+        assert patch_contact.status_code == 200
+        assert patch_contact.json()["encaissement_lieu"] == "LIVREUR"
+
+        # Revert back to SIEGE
+        client.patch(
+            f"/api/v1/parcels/{p_siege['id']}/contact",
+            json={"encaissement_lieu": "SIEGE"},
+            headers=headers_admin,
+        )
+
+        # 5. Assign both to a tour while EN_DEPOT
+        tour_res = client.post(
+            "/api/v1/tours",
+            json={
+                "courier_id": courier_id,
+                "tour_date": date_today,
+                "parcel_ids": [p_siege["id"], p_livreur["id"]],
+            },
+            headers=headers_admin,
+        )
+        assert tour_res.status_code == 201
+        tour_id = tour_res.json()["id"]
+
+        # 6. Start tour
+        start_res = client.post(f"/api/v1/tours/{tour_id}/start", headers=headers_admin)
+        assert start_res.status_code == 200
+
+        # 7. Outsource p_siege to Cotisse Transport with status SOUS_TRAITE at the gare
+        outsource_res = client.patch(
+            f"/api/v1/parcels/{p_siege['id']}/status",
+            json={
+                "status": "SOUS_TRAITE",
+                "partner_name": "Cotisse Transport",
+                "partner_reference": f"COT-{rnd}",
+                "partner_fee": 15000,
+                "driver_contact": "0341122233",
+                "vehicle_plate": "1234 TAB",
+                "encaissement_lieu": "SIEGE",
+            },
+            headers=headers_admin,
+        )
+        assert outsource_res.status_code == 200
+        assert outsource_res.json()["status"] == "SOUS_TRAITE"
+        assert outsource_res.json()["encaissement_lieu"] == "SIEGE"
+
+        # 8. Mark p_livreur as LIVRE_ENCAISSE
+        deliver_res = client.patch(
+            f"/api/v1/parcels/{p_livreur['id']}/status",
+            json={"status": "LIVRE_ENCAISSE", "payment_method": "ESPECES"},
+            headers=headers_admin,
+        )
+        assert deliver_res.status_code == 200
+
+        # Mark p_siege as ENCAISSE at SIEGE
+        encaisse_siege_res = client.patch(
+            f"/api/v1/parcels/{p_siege['id']}/status",
+            json={"status": "ENCAISSE", "payment_method": "MVOLA", "encaissement_lieu": "SIEGE"},
+            headers=headers_admin,
+        )
+        assert encaisse_siege_res.status_code == 200
+
+        # 9. Verify Tour theoretical total:
+        # p_siege (55 000 Ar) was encaissement_lieu="SIEGE", so courier owes 0 for it!
+        # p_livreur (45 000 Ar) was encaissement_lieu="LIVREUR", so courier owes 45 000 Ar.
+        # Theoretical total must equal 45 000 Ar (NOT 100 000 Ar)!
+        tour_detail = client.get(f"/api/v1/tours/{tour_id}", headers=headers_admin).json()
+        assert tour_detail["theoretical_total"] == 45000
+
+        # 10. Close tour with exactly 45000 Ar -> discrepancy = 0 Ar, perfect balance!
+        close_res = client.post(
+            f"/api/v1/tours/{tour_id}/close",
+            json={"cash_and_mobile_remitted": 45000},
+            headers=headers_admin,
+        )
+        assert close_res.status_code == 200
+        assert close_res.json()["discrepancy"] == 0
+        assert close_res.json()["status"] == "CLOTURE"
+
+    def test_ai_vision_manifest_recognition_sample_and_json(self):
+        # 1. Test sample request via JSON
+        res = client.post(
+            "/api/v1/manifests/recognize-ai-json",
+            json={"is_sample": True},
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["status"] == "SUCCESS"
+        assert data["count"] == 5
+        assert len(data["parcels"]) == 5
+        assert data["parcels"][0]["tracking_number"] == "BDR-9021"
+        assert data["parcels"][0]["recipient_phone"] == "034 12 345 67"
+
+        # 2. Test fallback when image provided without API key
+        fake_b64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        res2 = client.post(
+            "/api/v1/manifests/recognize-ai-json",
+            json={"image_base64": fake_b64},
+        )
+        assert res2.status_code == 200
+        data2 = res2.json()
+        assert data2["status"] == "SUCCESS"
+        assert len(data2["parcels"]) > 0
+
+
+
 
 
 

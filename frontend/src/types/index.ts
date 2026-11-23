@@ -2,7 +2,7 @@ export type Operator = "TELMA" | "ORANGE" | "AIRTEL";
 
 export type SenderType = "CYBERMARCHAND" | "PARTICULIER" | "ENTREPRISE";
 
-export type FluxType = "COD" | "SIMPLE" | "RETOUR" | "PROVINCE";
+export type FluxType = "COD" | "SIMPLE" | "RETOUR" | "PROVINCE" | "ENTREPRISE";
 
 export type ParcelStatus =
   | "EN_DEPOT"
@@ -44,6 +44,20 @@ export type LogisticAxis =
   | "AXE_PROV_RN44_ALAOTRA"
   | string;
 
+export interface ParcelHistoryItem {
+  id: number;
+  colis_id: number;
+  utilisateur_id?: number | null;
+  agent_nom?: string | null;
+  agent_role?: string | null;
+  action: string;
+  statut_precedent?: string | null;
+  statut_nouveau?: string | null;
+  motif?: string | null;
+  details?: string | null;
+  horodatage: string;
+}
+
 export interface Parcel {
   id: number;
   tracking_number: string;
@@ -81,10 +95,19 @@ export interface Parcel {
   partner_reference?: string | null;
   driver_contact?: string | null;
   vehicle_plate?: string | null;
+  encaissement_lieu?: "LIVREUR" | "DIRECT_VENDEUR" | "SIEGE" | string | null;
+  repartition_vendeur?: "COD_SEUL" | "FRAIS_SEUL" | "TOUT_VENDEUR" | string | null;
+  montant_encaisse_livreur?: number | null;
+  montant_encaisse_vendeur?: number | null;
   remittance_id?: number | null;
   remittance_status?: string;
   receptionniste_id?: number | null;
   receptionniste_nom?: string | null;
+  dernier_agent_id?: number | null;
+  dernier_agent_nom?: string | null;
+  derniere_action?: string | null;
+  derniere_action_at?: string | null;
+  historique?: ParcelHistoryItem[];
   observation?: string | null;
   active: boolean;
 }
@@ -140,6 +163,17 @@ export interface Courier {
   active_tour_id?: number | null;
   disputes_count?: number;
 }
+
+export interface UserItem {
+  id: number;
+  username: string;
+  email: string;
+  role: "SUPER_ADMIN" | "SUPERVISEUR" | "RECEPTIONNISTE" | "LIVREUR" | string;
+  nom_complet: string;
+  assigned_flux?: string | null;
+  actif: boolean;
+}
+
 
 export interface Tour {
   id: number;
@@ -237,5 +271,23 @@ export interface PendingPayoutSummary {
   net_payable_formatted: string;
   eligible_parcels: PayoutParcelSummary[];
 }
+
+export interface CompanySettings {
+  id: number;
+  app_name: string;
+  company_name: string;
+  nif: string;
+  stat: string;
+  rcs?: string | null;
+  cif?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  currency: string;
+  footer_text?: string | null;
+  logo_url?: string | null;
+}
+
 
 

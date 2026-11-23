@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 
 class CreateParcelDTO(BaseModel):
-    vendor_id: int
+    vendor_id: Optional[int] = None
     sender_type: str = "CYBERMARCHAND"  # CYBERMARCHAND, PARTICULIER, ENTREPRISE
     sender_name: Optional[str] = None
     sender_phone: Optional[str] = None
@@ -24,6 +24,7 @@ class CreateParcelDTO(BaseModel):
     receptionniste_id: Optional[int] = None
     receptionniste_nom: Optional[str] = None
     observation: Optional[str] = None
+    encaissement_lieu: Optional[str] = "LIVREUR"
 
 
 class CreateBatchParcelDTO(BaseModel):
@@ -42,6 +43,7 @@ class UpdateParcelContactDTO(BaseModel):
     observation: Optional[str] = None
     merchandise_amount: Optional[int] = None
     delivery_fee: Optional[int] = None
+    encaissement_lieu: Optional[str] = None
 
 
 class ReassignParcelDTO(BaseModel):
@@ -79,6 +81,24 @@ class UpdateParcelStatusDTO(BaseModel):
     partner_fee: Optional[int] = None
     driver_contact: Optional[str] = None
     vehicle_plate: Optional[str] = None
+    encaissement_lieu: Optional[str] = None
+    repartition_vendeur: Optional[str] = None
+    montant_encaisse_livreur: Optional[float] = None
+    montant_encaisse_vendeur: Optional[float] = None
+
+
+class ParcelHistoryItemDTO(BaseModel):
+    id: int
+    colis_id: int
+    utilisateur_id: Optional[int] = None
+    agent_nom: Optional[str] = None
+    agent_role: Optional[str] = None
+    action: Optional[str] = None
+    statut_precedent: Optional[str] = None
+    statut_nouveau: Optional[str] = None
+    motif: Optional[str] = None
+    details: Optional[str] = None
+    horodatage: str
 
 
 class ParcelResponseDTO(BaseModel):
@@ -118,9 +138,18 @@ class ParcelResponseDTO(BaseModel):
     partner_reference: Optional[str] = None
     driver_contact: Optional[str] = None
     vehicle_plate: Optional[str] = None
+    encaissement_lieu: Optional[str] = None
+    repartition_vendeur: Optional[str] = None
+    montant_encaisse_livreur: Optional[float] = None
+    montant_encaisse_vendeur: Optional[float] = None
     remittance_id: Optional[int] = None
     remittance_status: str = "NON_REVERSE"
     receptionniste_id: Optional[int] = None
     receptionniste_nom: Optional[str] = None
+    dernier_agent_id: Optional[int] = None
+    dernier_agent_nom: Optional[str] = None
+    derniere_action: Optional[str] = None
+    derniere_action_at: Optional[str] = None
     observation: Optional[str] = None
     active: bool
+    historique: Optional[List[ParcelHistoryItemDTO]] = []
