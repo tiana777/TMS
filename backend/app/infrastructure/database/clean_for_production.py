@@ -17,8 +17,10 @@ Configuration demandée par l'utilisateur :
 """
 
 from sqlalchemy import text
-from backend.app.infrastructure.database.connection import SessionLocal
+from backend.app.core.config import settings
+from backend.app.infrastructure.database.connection import SessionLocal, engine, ensure_database_exists
 from backend.app.infrastructure.persistence.models import (
+    Base,
     AxisORM,
     CourierORM,
     PartnerORM,
@@ -38,14 +40,35 @@ def clean_database_for_production():
     print("      🚀 NETTOYAGE STRICT BASE DE DONNÉES PRODUCTION (BLANK SLATE)     ")
     print("=======================================================================\n")
 
+    # 0. S'assurer que la base existe physiquement dans PostgreSQL
+    ensure_database_exists(settings.DATABASE_URL)
+
+    # 0.B Création de toutes les tables si la base est vierge
+    print("0. Initialisation des tables & modèles de données...")
+    Base.metadata.create_all(bind=engine)
+    print("   ✓ Schéma des tables PostgreSQL prêt.")
+
     db = SessionLocal()
     try:
         # ---------------------------------------------------------------------
         # 1. CONSOLIDATION INITIALE DU RÉFÉRENTIEL (AXES & ZONES)
         # ---------------------------------------------------------------------
-        print("1. Vérification et synchronisation du Référentiel Géographique...")
+        print("\n1. Vérification et synchronisation du Référentiel Géographique...")
         apply_real_axes_migration()
         print("   ✓ 9 axes logistiques réels et zones d'Antananarivo prêts.")
+
+        # 1.B Partenaires et coopératives régionales
+        initial_partners = [
+            {"nom": "Cotisse Transport VIP & Colis", "type": "COOPERATIVE", "gare_rattachement": "Ambodivona", "contact": "032 11 027 10"},
+            {"nom": "Soatrans Coopérative", "type": "COOPERATIVE", "gare_rattachement": "Fasan'ny Karana", "contact": "034 05 600 00"},
+            {"nom": "Besady Plus Transport", "type": "COOPERATIVE", "gare_rattachement": "Andohatapenaka", "contact": "033 15 220 30"},
+            {"nom": "Kofmad Transport Est", "type": "COOPERATIVE", "gare_rattachement": "Ambodivona", "contact": "032 55 440 01"},
+        ]
+        for pd in initial_partners:
+            existing = db.query(PartnerORM).filter(PartnerORM.nom == pd["nom"]).first()
+            if not existing:
+                db.add(PartnerORM(**pd, actif=1))
+        db.commit()
 
         # ---------------------------------------------------------------------
         # 2. PURGE TOTALE DES DONNÉES OPÉRATIONNELLES (COLIS, TOURNÉES, FINANCES)

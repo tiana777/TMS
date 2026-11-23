@@ -112,7 +112,20 @@ def step_2_configure_network_and_env(args):
     print(f"   ✓ L'interface Web sera accessible sur     : http://{server_host}:3000")
 
     # Configuration DB
-    default_db_url = "postgresql+psycopg://postgres:postgres@localhost:5432/tms_express_db"
+    existing_db_url = None
+    backend_env_path = BACKEND_DIR / ".env"
+    if backend_env_path.exists():
+        try:
+            with open(backend_env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip().startswith("DATABASE_URL="):
+                        val = line.strip().split("=", 1)[1].strip().strip('"').strip("'")
+                        if val:
+                            existing_db_url = val
+        except Exception:
+            pass
+
+    default_db_url = existing_db_url or "postgresql+psycopg://postgres:root@localhost:5432/tms_express_db"
     if args.db_url:
         database_url = args.db_url.strip()
     elif args.auto:
