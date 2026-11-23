@@ -161,7 +161,7 @@ NEXT_PUBLIC_CURRENCY="MGA"
         f.write(frontend_env_content)
     print(f"   ✓ Fichier {frontend_env_path} créé avec succès.")
 
-    return server_host
+    return server_host, database_url
 
 
 def step_3_setup_backend_venv():
@@ -186,27 +186,53 @@ def step_3_setup_backend_venv():
     return py_exe
 
 
-def step_4_init_database(py_exe, args):
+def step_4_init_database(py_exe, args, database_url=None):
     if args.skip_db:
         print("\n[Étape 4/6] ⏭️ Saut de l'initialisation de la base (--skip-db demandé).")
         return
     print("\n[Étape 4/6] 🗄️ Initialisation et amorçage de la base de données PostgreSQL...")
     clean_script = "backend.app.infrastructure.database.clean_for_production"
     
-    env_copy = os.environ.copy()
-    env_copy["PYTHONPATH"] = str(ROOT_DIR)
+    current_url = database_url or "postgresql+psycopg://postgres:postgres@localhost:5432/tms_express_db"
 
-    res = subprocess.run(
-        f'"{py_exe}" -m {clean_script}',
-        cwd=str(ROOT_DIR),
-        shell=True,
-        env=env_copy,
-    )
-    if res.returncode == 0:
-        print("   ✓ Base de données initialisée avec les 9 axes urbains, 13 axes province, 7 gares et utilisateurs staff.")
-    else:
-        print("   ⚠️ L'initialisation automatique a renvoyé un avertissement.")
-        print("      Assurez-vous que le serveur PostgreSQL est bien démarré et que la base existe.")
+    while True:
+        env_copy = os.environ.copy()
+        env_copy["PYTHONPATH"] = str(ROOT_DIR)
+        env_copy["DATABASE_URL"] = current_url
+
+        res = subprocess.run(
+            f'"{py_exe}" -m {clean_script}',
+            cwd=str(ROOT_DIR),
+            shell=True,
+            env=env_copy,
+        )
+        if res.returncode == 0:
+            print("   ✓ Base de données initialisée avec succès.")
+            break
+        else:
+            print("\n   ⚠️ Échec de connexion à PostgreSQL.")
+            print(f"      URL testée : {current_url}")
+            print("      Causes possibles : mot de passe postgres requis, ou service PostgreSQL arrêté.")
+            try:
+                prompt_text = "   Entrez le mot de passe de l'utilisateur 'postgres' (ou Entrée pour ignorer) : "
+                pwd_input = input(prompt_text).strip()
+                if not pwd_input:
+                    break
+                current_url = f"postgresql+psycopg://postgres:{pwd_input}@localhost:5432/tms_express_db"
+                # Mettre à jour backend/.env
+                backend_env_path = BACKEND_DIR / ".env"
+                if backend_env_path.exists():
+                    with open(backend_env_path, "r", encoding="utf-8") as f:
+                        lines = f.readlines()
+                    with open(backend_env_path, "w", encoding="utf-8") as f:
+                        for l in lines:
+                            if l.startswith("DATABASE_URL="):
+                                f.write(f"DATABASE_URL={current_url}\n")
+                            else:
+                                f.write(l)
+                print(f"   • Re-tentative avec le mot de passe renseigné...")
+            except (EOFError, KeyboardInterrupt):
+                break
 
 
 def step_5_build_frontend(args):
@@ -350,9 +376,9 @@ def main():
 
     print_banner()
     step_1_check_prerequisites()
-    server_host = step_2_configure_network_and_env(args)
+    server_host, database_url = step_2_configure_network_and_env(args)
     py_exe = step_3_setup_backend_venv()
-    step_4_init_database(py_exe, args)
+    step_4_init_database(py_exe, args, database_url=database_url)
     step_5_build_frontend(args)
     step_6_setup_pm2(server_host)
     create_desktop_shortcut()

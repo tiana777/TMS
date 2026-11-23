@@ -1,7 +1,26 @@
 """Application configuration settings."""
 
 import os
+from pathlib import Path
 from pydantic import BaseModel
+
+# Chargement automatique des variables d'environnement depuis backend/.env ou racine
+for env_candidate in [
+    Path(__file__).resolve().parent.parent.parent / ".env",
+    Path.cwd() / "backend" / ".env",
+    Path.cwd() / ".env",
+]:
+    if env_candidate.exists():
+        try:
+            with open(env_candidate, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+        except Exception:
+            pass
+        break
 
 
 class Settings(BaseModel):
@@ -23,7 +42,7 @@ class Settings(BaseModel):
     # Database
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL",
-        "postgresql+psycopg://postgres@localhost:5432/tms_express_db"
+        "postgresql+psycopg://postgres:postgres@localhost:5432/tms_express_db"
     )
     
     # Timezone & Locale
