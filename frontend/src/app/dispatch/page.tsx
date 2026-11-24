@@ -62,7 +62,6 @@ const AXIS_OPTIONS: { code: LogisticAxis | "ALL"; label: string; short: string }
   { code: "AXE_IVATO", label: "Axe Ivato (Andraharo / RN4 Aéroport)", short: "Ivato" },
   { code: "AXE_IAVOLOHA", label: "Axe Iavoloha (Tanjombato / RN7 Sud)", short: "Iavoloha" },
   { code: "AXE_ALASORA", label: "Axe Alasora (Mandroseza / By-pass)", short: "Alasora" },
-  { code: "AXE_PROVINCE", label: "Axe Provinces & Gares Routières", short: "Provinces" },
 ];
 
 const GARE_FILTERS = [
@@ -478,20 +477,11 @@ export default function DispatchPage() {
     }
   };
 
-  // Filtered parcels for Écran 03A: urban by default, or specific axis including province if explicitly selected
-  const sourceParcels = selectedAxis === "AXE_PROVINCE" ? visibleStockParcels : urbanStockParcels;
+  // Filtered parcels for Écran 03A: all parcels (urban & province gares) grouped by the 9 real axes
+  const sourceParcels = visibleStockParcels;
   const filteredParcels = sourceParcels.filter((p) => {
-    if (selectedAxis !== "ALL") {
-      if (selectedAxis === "AXE_PROVINCE") {
-        if (!isProvinceAxis(p.axis)) return false;
-      } else if (p.axis !== selectedAxis) {
-        return false;
-      }
-    }
-    if (selectedAxis === "AXE_PROVINCE" && selectedGare !== "ALL") {
-      if (!p.delivery_address?.toLowerCase().includes(selectedGare.toLowerCase())) {
-        return false;
-      }
+    if (selectedAxis !== "ALL" && p.axis !== selectedAxis) {
+      return false;
     }
     // Appliquer le filtre d'agent si sélectionné dans le menu déroulant
     if (selectedAgentFilter !== "ALL") {
@@ -1959,15 +1949,16 @@ export default function DispatchPage() {
                   <option value="AXE_IAVOLOHA">8. Axe Iavoloha (RN7 Sud & Tanjombato)</option>
                   <option value="AXE_ALASORA">9. Axe Alasora (Mandroseza & By-pass)</option>
                 </optgroup>
-                <optgroup label="🚐 Expéditions Nationales (Province & Gares)">
-                  <option value="AXE_PROVINCE">8. AXE_PROVINCE (Toutes Gares Routières)</option>
-                  <option value="AXE_PROV_RN2_EST">9. AXE_PROV_RN2_EST (Tamatave / Moramanga / Sainte-Marie)</option>
-                  <option value="AXE_PROV_RN4_OUEST">10. AXE_PROV_RN4_OUEST (Majunga / Maevatanana / Marovoay)</option>
-                  <option value="AXE_PROV_RN6_NORD">11. AXE_PROV_RN6_NORD (Diego-Suarez / Nosy Be / Sambava)</option>
-                  <option value="AXE_PROV_RN7_SUD">12. AXE_PROV_RN7_SUD (Antsirabe / Ambositra / Fianar)</option>
-                  <option value="AXE_PROV_RN7_SUD_OUEST">13. AXE_PROV_RN7_SUD_OUEST (Tuléar / Morondava)</option>
-                  <option value="AXE_PROV_SUD_EST">14. AXE_PROV_SUD_EST (Manakara / Fort-Dauphin)</option>
-                  <option value="AXE_PROV_RN44_ALAOTRA">15. AXE_PROV_RN44_ALAOTRA (Ambatondrazaka / Alaotra)</option>
+                <optgroup label="🏢 Gares Routières d'Antananarivo (➔ 9 Axes Urbains)">
+                  <option value="AXE_CENTRE_2">🏢 Gare Ambodivona ➔ Axe Centre Ville 2 (RN2 Est - Tamatave)</option>
+                  <option value="AXE_AMBOHIMANGAKELY">🏢 Gare Ampasapito ➔ Axe Ambohimangakely</option>
+                  <option value="AXE_SABOTSY_NAMEHANA">🏢 Gare Andranobevava ➔ Axe Sabotsy Namehana (RN3 Nord)</option>
+                  <option value="AXE_AMPITATAFIKA">🏢 Gare Anosibe ➔ Axe Ampitatafika</option>
+                  <option value="AXE_IAVOLOHA">🏢 Gare Ankadimbahoaka (Fasan'ny Karana) ➔ Axe Iavoloha (RN7 Sud)</option>
+                  <option value="AXE_CENTRE_1">🏢 Gare Behoririka ➔ Axe Centre Ville 1</option>
+                  <option value="AXE_ITAOSY">🏢 Gare Andohatapenaka (Maki) ➔ Axe Itaosy (RN4 Ouest - Majunga)</option>
+                  <option value="AXE_AMPITATAFIKA">🏢 Gare Anosizato ➔ Axe Ampitatafika (RN1)</option>
+                  <option value="AXE_ALASORA">🏢 Gare Amoronakona ➔ Axe Alasora (By-pass / Est)</option>
                 </optgroup>
               </select>
             </div>

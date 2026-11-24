@@ -422,16 +422,29 @@ export default function InboundPage() {
   }, []);
 
   const selectPartnerOrGare = (idx: number, partner: Partner) => {
-    let targetAxis: LogisticAxis = "AXE_PROVINCE";
+    let targetAxis: LogisticAxis = "AXE_CENTRE_2";
     const gare = (partner.gare_rattachement || "").toLowerCase();
     const nom = partner.nom.toLowerCase();
+    const combined = `${gare} ${nom}`;
 
-    if (gare.includes("ambodivona") || nom.includes("ambodivona")) {
-      targetAxis = "AXE_PROVINCE_AMBODIVONA" as LogisticAxis;
-    } else if (gare.includes("fasan") || nom.includes("fasan")) {
-      targetAxis = "AXE_PROVINCE_FASAN_NY_KARANA" as LogisticAxis;
-    } else if (gare.includes("andohatapenaka") || nom.includes("andohatapenaka")) {
-      targetAxis = "AXE_PROVINCE_ANDOHATAPENAKA" as LogisticAxis;
+    if (combined.includes("ambodivona")) {
+      targetAxis = "AXE_CENTRE_2";
+    } else if (combined.includes("ampasapito")) {
+      targetAxis = "AXE_AMBOHIMANGAKELY";
+    } else if (combined.includes("andranobevava")) {
+      targetAxis = "AXE_SABOTSY_NAMEHANA";
+    } else if (combined.includes("anosibe")) {
+      targetAxis = "AXE_AMPITATAFIKA";
+    } else if (combined.includes("ankadimbahoaka") || combined.includes("fasan")) {
+      targetAxis = "AXE_IAVOLOHA";
+    } else if (combined.includes("behoririka")) {
+      targetAxis = "AXE_CENTRE_1";
+    } else if (combined.includes("andohatapenaka") || combined.includes("maki")) {
+      targetAxis = "AXE_ITAOSY";
+    } else if (combined.includes("anosizato")) {
+      targetAxis = "AXE_AMPITATAFIKA";
+    } else if (combined.includes("amoronakona")) {
+      targetAxis = "AXE_ALASORA";
     }
 
     setRows((prev) => {
@@ -1382,25 +1395,19 @@ export default function InboundPage() {
                             }}
                             className="w-full px-3 py-2 bg-purple-50 border border-purple-300 rounded-xl text-xs font-bold text-purple-950 focus:ring-2 focus:ring-purple-500 focus:outline-none shadow-xs"
                           >
-                            <option value="" disabled>-- Sélectionner l'Axe de Province / Gare --</option>
-                            <optgroup label="🏢 Gares Routières d'Antananarivo (Hubs)">
-                              <option value="AXE_PROVINCE_AMBODIVONA">🏢 Gare Routière Ambodivona (RN2 Est - Tamatave)</option>
-                              <option value="AXE_PROVINCE_FASAN_NY_KARANA">🏢 Gare Routière Fasan'ny Karana (RN7 Sud - Fianar, Tuléar)</option>
-                              <option value="AXE_PROVINCE_ANDOHATAPENAKA">🏢 Gare Routière Andohatapenaka Maki (RN4 Ouest / RN6 - Majunga, Diégo)</option>
-                              <option value="AXE_PROVINCE">🚌 Gares Routières & Régions (Général)</option>
+                            <option value="" disabled>-- Sélectionner la Gare Routière de Départ --</option>
+                            <optgroup label="🏢 Gares Routières d'Antananarivo (➔ 9 Axes Urbains)">
+                              <option value="AXE_CENTRE_2">🏢 Gare Ambodivona ➔ Axe Centre Ville 2 (RN2 Est - Tamatave)</option>
+                              <option value="AXE_AMBOHIMANGAKELY">🏢 Gare Ampasapito ➔ Axe Ambohimangakely</option>
+                              <option value="AXE_SABOTSY_NAMEHANA">🏢 Gare Andranobevava ➔ Axe Sabotsy Namehana (RN3 Nord)</option>
+                              <option value="AXE_AMPITATAFIKA">🏢 Gare Anosibe ➔ Axe Ampitatafika</option>
+                              <option value="AXE_IAVOLOHA">🏢 Gare Ankadimbahoaka (Fasan'ny Karana) ➔ Axe Iavoloha (RN7 Sud)</option>
+                              <option value="AXE_CENTRE_1">🏢 Gare Behoririka ➔ Axe Centre Ville 1</option>
+                              <option value="AXE_ITAOSY">🏢 Gare Andohatapenaka (Maki) ➔ Axe Itaosy (RN4 Ouest - Majunga)</option>
+                              <option value="AXE_AMPITATAFIKA">🏢 Gare Anosizato ➔ Axe Ampitatafika (RN1)</option>
+                              <option value="AXE_ALASORA">🏢 Gare Amoronakona ➔ Axe Alasora (By-pass / Est)</option>
                             </optgroup>
-                            <optgroup label="📍 Grandes Villes & Régions (National)">
-                              <option value="AXE_PROVINCE_TOAMASINA">Axe Toamasina / Tamatave (RN2 Est)</option>
-                              <option value="AXE_PROVINCE_MAHAJANGA">Axe Mahajanga / Majunga (RN4 Ouest)</option>
-                              <option value="AXE_PROVINCE_ANTSIRABE">Axe Antsirabe (RN7)</option>
-                              <option value="AXE_PROVINCE_FIANARANTSOA">Axe Fianarantsoa (RN7 Sud)</option>
-                              <option value="AXE_PROVINCE_TOLIARA">Axe Toliara / Tuléar (RN7 Grand Sud)</option>
-                              <option value="AXE_PROVINCE_ANTSIRANANA">Axe Antsiranana / Diégo (RN6 Nord)</option>
-                              <option value="AXE_PROVINCE_MORONDAVA">Axe Morondava / Menabe (RN34/35)</option>
-                              <option value="AXE_PROVINCE_SAMBAVA">Axe Sambava / Antalaha (SAVA)</option>
-                              <option value="AXE_PROVINCE_ALAOTRA">Axe Ambatondrazaka (Alaotra RN44)</option>
-                            </optgroup>
-                            <option value="SWITCH_TO_URBAN">← Revenir aux axes urbains (Grand Tanà)</option>
+                            <option value="SWITCH_TO_URBAN">← Revenir aux livraisons urbaines (Grand Tanà)</option>
                           </select>
                         </div>
 
@@ -1513,17 +1520,16 @@ export default function InboundPage() {
                           <option value="AXE_IAVOLOHA">8. Axe Iavoloha (RN7 Sud & Tanjombato)</option>
                           <option value="AXE_ALASORA">9. Axe Alasora (Mandroseza & By-pass)</option>
                         </optgroup>
-                        <optgroup label="🚚 Expéditions Gares Routières & Province">
-                          <option value="AXE_PROVINCE_AMBODIVONA">🏢 Gare Routière Ambodivona (RN2 Est - Cotisse, Trans Texpress)</option>
-                          <option value="AXE_PROVINCE_FASAN_NY_KARANA">🏢 Gare Routière Fasan'ny Karana (RN7 Sud - Kofmad)</option>
-                          <option value="AXE_PROVINCE_ANDOHATAPENAKA">🏢 Gare Routière Andohatapenaka Maki (RN4 Ouest - Besady Plus)</option>
-                          <option value="AXE_PROVINCE">🚌 Gares Routières & Régions (Général)</option>
-                          <option value="AXE_PROVINCE_TOAMASINA">Axe Toamasina / Tamatave</option>
-                          <option value="AXE_PROVINCE_MAHAJANGA">Axe Mahajanga / Majunga</option>
-                          <option value="AXE_PROVINCE_ANTSIRABE">Axe Antsirabe</option>
-                          <option value="AXE_PROVINCE_FIANARANTSOA">Axe Fianarantsoa</option>
-                          <option value="AXE_PROVINCE_TOLIARA">Axe Toliara / Tuléar</option>
-                          <option value="AXE_PROVINCE_ANTSIRANANA">Axe Antsiranana / Diégo</option>
+                        <optgroup label="🏢 Gares Routières d'Antananarivo (➔ 9 Axes Urbains)">
+                          <option value="AXE_CENTRE_2">🏢 Gare Ambodivona ➔ Axe Centre Ville 2 (RN2 Est - Tamatave)</option>
+                          <option value="AXE_AMBOHIMANGAKELY">🏢 Gare Ampasapito ➔ Axe Ambohimangakely</option>
+                          <option value="AXE_SABOTSY_NAMEHANA">🏢 Gare Andranobevava ➔ Axe Sabotsy Namehana (RN3 Nord)</option>
+                          <option value="AXE_AMPITATAFIKA">🏢 Gare Anosibe ➔ Axe Ampitatafika</option>
+                          <option value="AXE_IAVOLOHA">🏢 Gare Ankadimbahoaka (Fasan'ny Karana) ➔ Axe Iavoloha (RN7 Sud)</option>
+                          <option value="AXE_CENTRE_1">🏢 Gare Behoririka ➔ Axe Centre Ville 1</option>
+                          <option value="AXE_ITAOSY">🏢 Gare Andohatapenaka (Maki) ➔ Axe Itaosy (RN4 Ouest - Majunga)</option>
+                          <option value="AXE_AMPITATAFIKA">🏢 Gare Anosizato ➔ Axe Ampitatafika (RN1)</option>
+                          <option value="AXE_ALASORA">🏢 Gare Amoronakona ➔ Axe Alasora (By-pass / Est)</option>
                         </optgroup>
                       </select>
                     )}

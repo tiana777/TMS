@@ -1379,16 +1379,16 @@ export default function DispatchProvincePage() {
                   <option value="AXE_IAVOLOHA">8. Axe Iavoloha (RN7 Sud & Tanjombato)</option>
                   <option value="AXE_ALASORA">9. Axe Alasora (Mandroseza & By-pass)</option>
                 </optgroup>
-                <optgroup label="🚐 Expéditions Nationales (Province & Gares)">
-                  {provinceAxes.length > 0 ? (
-                    provinceAxes.map((a) => (
-                      <option key={a.code} value={a.code}>
-                        {a.libelle} ({a.code})
-                      </option>
-                    ))
-                  ) : (
-                    <option value="AXE_PROVINCE">AXE_PROVINCE (Toutes Gares Routières)</option>
-                  )}
+                <optgroup label="🏢 Gares Routières d'Antananarivo (➔ 9 Axes Urbains)">
+                  <option value="AXE_CENTRE_2">🏢 Gare Ambodivona ➔ Axe Centre Ville 2 (RN2 Est - Tamatave)</option>
+                  <option value="AXE_AMBOHIMANGAKELY">🏢 Gare Ampasapito ➔ Axe Ambohimangakely</option>
+                  <option value="AXE_SABOTSY_NAMEHANA">🏢 Gare Andranobevava ➔ Axe Sabotsy Namehana (RN3 Nord)</option>
+                  <option value="AXE_AMPITATAFIKA">🏢 Gare Anosibe ➔ Axe Ampitatafika</option>
+                  <option value="AXE_IAVOLOHA">🏢 Gare Ankadimbahoaka (Fasan'ny Karana) ➔ Axe Iavoloha (RN7 Sud)</option>
+                  <option value="AXE_CENTRE_1">🏢 Gare Behoririka ➔ Axe Centre Ville 1</option>
+                  <option value="AXE_ITAOSY">🏢 Gare Andohatapenaka (Maki) ➔ Axe Itaosy (RN4 Ouest - Majunga)</option>
+                  <option value="AXE_AMPITATAFIKA">🏢 Gare Anosizato ➔ Axe Ampitatafika (RN1)</option>
+                  <option value="AXE_ALASORA">🏢 Gare Amoronakona ➔ Axe Alasora (By-pass / Est)</option>
                 </optgroup>
               </select>
             </div>

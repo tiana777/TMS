@@ -70,6 +70,11 @@ def clean_database_for_production():
                 db.add(PartnerORM(**pd, actif=1))
         db.commit()
 
+        # 1.C Désactivation des anciens axes virtuels province et déverrouillage des livreurs
+        db.execute(text("UPDATE axes SET actif = 0 WHERE code LIKE 'AXE_PROV%';"))
+        db.execute(text("UPDATE livreurs SET assigned_axis = NULL;"))
+        db.commit()
+
         # ---------------------------------------------------------------------
         # 2. PURGE TOTALE DES DONNÉES OPÉRATIONNELLES (COLIS, TOURNÉES, FINANCES)
         # ---------------------------------------------------------------------
@@ -224,7 +229,7 @@ def clean_database_for_production():
             },
         ]
 
-        # Flotte des 10 livreurs opérationnels avec leurs axes de distribution
+        # Flotte des 10 livreurs opérationnels (polyvalents, aucun axe fixe par défaut)
         production_couriers = [
             {
                 "id": 1,
@@ -233,7 +238,7 @@ def clean_database_for_production():
                 "type_vehicule": "Scooter 110cc",
                 "caution_garantie": 150000.0,
                 "capacite_max_colis": 30,
-                "assigned_axis": "AXE_CENTRE_1",
+                "assigned_axis": None,
             },
             {
                 "id": 2,
@@ -242,7 +247,7 @@ def clean_database_for_production():
                 "type_vehicule": "Moto 125cc",
                 "caution_garantie": 150000.0,
                 "capacite_max_colis": 30,
-                "assigned_axis": "AXE_CENTRE_2",
+                "assigned_axis": None,
             },
             {
                 "id": 3,
@@ -251,7 +256,7 @@ def clean_database_for_production():
                 "type_vehicule": "Moto 125cc",
                 "caution_garantie": 150000.0,
                 "capacite_max_colis": 30,
-                "assigned_axis": "AXE_ITAOSY",
+                "assigned_axis": None,
             },
             {
                 "id": 4,
@@ -260,7 +265,7 @@ def clean_database_for_production():
                 "type_vehicule": "Scooter 110cc",
                 "caution_garantie": 150000.0,
                 "capacite_max_colis": 30,
-                "assigned_axis": "AXE_AMPITATAFIKA",
+                "assigned_axis": None,
             },
             {
                 "id": 5,
@@ -269,7 +274,7 @@ def clean_database_for_production():
                 "type_vehicule": "Moto 150cc",
                 "caution_garantie": 150000.0,
                 "capacite_max_colis": 30,
-                "assigned_axis": "AXE_AMBOHIMANGAKELY",
+                "assigned_axis": None,
             },
             {
                 "id": 6,
@@ -278,7 +283,7 @@ def clean_database_for_production():
                 "type_vehicule": "Moto Trail 150cc",
                 "caution_garantie": 150000.0,
                 "capacite_max_colis": 30,
-                "assigned_axis": "AXE_SABOTSY_NAMEHANA",
+                "assigned_axis": None,
             },
             {
                 "id": 7,
@@ -287,7 +292,7 @@ def clean_database_for_production():
                 "type_vehicule": "Moto 125cc",
                 "caution_garantie": 150000.0,
                 "capacite_max_colis": 30,
-                "assigned_axis": "AXE_IVATO",
+                "assigned_axis": None,
             },
             {
                 "id": 8,
@@ -296,7 +301,7 @@ def clean_database_for_production():
                 "type_vehicule": "Moto Cross 150cc",
                 "caution_garantie": 150000.0,
                 "capacite_max_colis": 30,
-                "assigned_axis": "AXE_IAVOLOHA",
+                "assigned_axis": None,
             },
             {
                 "id": 9,
@@ -305,7 +310,7 @@ def clean_database_for_production():
                 "type_vehicule": "Moto 125cc",
                 "caution_garantie": 150000.0,
                 "capacite_max_colis": 30,
-                "assigned_axis": "AXE_ALASORA",
+                "assigned_axis": None,
             },
             {
                 "id": 10,
@@ -314,7 +319,7 @@ def clean_database_for_production():
                 "type_vehicule": "Navette Fourgonnette",
                 "caution_garantie": 300000.0,
                 "capacite_max_colis": 60,
-                "assigned_axis": "AXE_PROVINCE_AMBODIVONA",
+                "assigned_axis": None,
             },
         ]
 

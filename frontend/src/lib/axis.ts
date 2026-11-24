@@ -1,21 +1,68 @@
 import { LogisticAxis } from "../types";
 
-export const PROVINCE_KEYWORDS = [
-  // Major regional cities & provinces
-  "toamasina", "tamatave", "mahajanga", "majunga", "antsirabe", "fianarantsoa",
-  "toliara", "tulear", "diego", "antsiranana", "moramanga", "brickaville",
-  "manakara", "sambava", "antalaha", "nosy be", "nosy-be", "fort-dauphin",
-  "fort dauphin", "tolagnaro", "ambatondrazaka", "fenerive", "fenerive-est",
-  "sainte-marie", "sainte marie", "ambositra", "ambalavao", "ihosy", "port-berge",
-  "antsohihy", "ambanja", "maevatanana", "ambato-boeni", "mananjary", "morondava",
-  // Stations (Gares)
-  "gare ambodivona", "fasan'ny karana", "fasan ny karana", "fasankarana",
-  "gare maki", "andohatapenaka", "gare andohatapenaka", "gare aranta",
-  // National cooperatives
-  "cotisse", "kofmad", "besady", "sonatra", "trans texpress", "trans tsiry",
-  "soatrans", "fifafi", "trans mada", "kofiam", "chita express", "trans diego",
-  "madatrans",
-];
+// -----------------------------------------------------------------------------
+// 9 Official Gares Routières mapped to the 9 Real Urban Delivery Axes
+// -----------------------------------------------------------------------------
+export const GARE_ROUTIERE_TO_AXIS: Record<string, LogisticAxis> = {
+  "Ambodivona": "AXE_CENTRE_2",
+  "Ampasapito": "AXE_AMBOHIMANGAKELY",
+  "Andranobevava": "AXE_SABOTSY_NAMEHANA",
+  "Anosibe": "AXE_AMPITATAFIKA",
+  "Ankadimbahoaka": "AXE_IAVOLOHA",
+  "Behoririka": "AXE_CENTRE_1",
+  "Andohatapenaka": "AXE_ITAOSY",
+  "Anosizato": "AXE_AMPITATAFIKA",
+  "Amoronakona": "AXE_ALASORA",
+};
+
+export const GARE_KEYWORDS: Record<string, string[]> = {
+  AXE_CENTRE_2: [
+    "ambodivona", "gare ambodivona", "cotisse", "trans texpress", "tamatave", "toamasina",
+    "moramanga", "brickaville", "ambatondrazaka", "fenerive", "sainte-marie", "sainte marie",
+  ],
+  AXE_AMBOHIMANGAKELY: [
+    "ampasapito", "gare ampasapito",
+  ],
+  AXE_SABOTSY_NAMEHANA: [
+    "andranobevava", "gare andranobevava",
+  ],
+  AXE_AMPITATAFIKA: [
+    "anosibe", "gare anosibe", "anosizato", "gare anosizato",
+  ],
+  AXE_IAVOLOHA: [
+    "ankadimbahoaka", "gare ankadimbahoaka", "fasan'ny karana", "fasan ny karana", "fasankarana",
+    "kofmad", "soatrans", "antsirabe", "fianarantsoa", "toliara", "tulear", "ambositra",
+    "ambalavao", "ihosy", "manakara", "fort-dauphin", "fort dauphin", "tolagnaro",
+  ],
+  AXE_CENTRE_1: [
+    "behoririka", "gare behoririka",
+  ],
+  AXE_ITAOSY: [
+    "andohatapenaka", "gare andohatapenaka", "maki", "gare maki", "besady", "mahajanga",
+    "majunga", "diego", "antsiranana", "sambava", "antalaha", "nosy be", "nosy-be",
+    "maevatanana", "ambato-boeni", "ambanja", "antsohihy", "port-berge",
+  ],
+  AXE_ALASORA: [
+    "amoronakona", "gare amoronakona",
+  ],
+};
+
+export function getAxisForGareClient(gareOrAxis: string): LogisticAxis | null {
+  if (!gareOrAxis) return null;
+  const clean = gareOrAxis.trim();
+  const realAxes: LogisticAxis[] = [
+    "AXE_CENTRE_1", "AXE_CENTRE_2", "AXE_ITAOSY", "AXE_AMPITATAFIKA",
+    "AXE_AMBOHIMANGAKELY", "AXE_SABOTSY_NAMEHANA", "AXE_IVATO", "AXE_IAVOLOHA", "AXE_ALASORA"
+  ];
+  if (realAxes.includes(clean as LogisticAxis)) return clean as LogisticAxis;
+  const norm = normalizeText(clean);
+  for (const [gare, axis] of Object.entries(GARE_ROUTIERE_TO_AXIS)) {
+    if (normalizeText(gare) === norm || normalizeText(gare).includes(norm)) {
+      return axis;
+    }
+  }
+  return null;
+}
 
 // Grille Tarifaire Officielle du CDC (Section 5.3)
 export const FEE_5000_KEYWORDS = [
@@ -240,25 +287,10 @@ export function detectAxisClient(address: string): {
     }
   }
 
-  // 1. Province Priority (Gares Routières, Coopératives et Villes Régionales)
-  const isAmbodivona = ["ambodivona", "cotisse", "trans texpress", "tamatave", "toamasina", "moramanga", "brickaville", "ambatondrazaka"].some(k => lower.includes(k) || norm.includes(normalizeText(k)));
-  if (isAmbodivona) {
-    return { axis: "AXE_PROVINCE_AMBODIVONA" as LogisticAxis, isFallback: false, fee: 10000 };
-  }
-
-  const isFasanNyKarana = ["fasan'ny karana", "fasan ny karana", "fasankarana", "kofmad", "antsirabe", "fianarantsoa", "toliara", "tulear", "ambositra", "ambalavao", "ihosy", "morondava"].some(k => lower.includes(k) || norm.includes(normalizeText(k)));
-  if (isFasanNyKarana) {
-    return { axis: "AXE_PROVINCE_FASAN_NY_KARANA" as LogisticAxis, isFallback: false, fee: 10000 };
-  }
-
-  const isAndohatapenaka = ["andohatapenaka", "maki", "besady", "mahajanga", "majunga", "diego", "antsiranana", "sambava", "antalaha", "nosy be", "nosy-be", "maevatanana", "ambato-boeni", "ambanja", "antsohihy"].some(k => lower.includes(k) || norm.includes(normalizeText(k)));
-  if (isAndohatapenaka) {
-    return { axis: "AXE_PROVINCE_ANDOHATAPENAKA" as LogisticAxis, isFallback: false, fee: 10000 };
-  }
-
-  for (const kw of PROVINCE_KEYWORDS) {
-    if (lower.includes(kw) || norm.includes(normalizeText(kw))) {
-      return { axis: "AXE_PROVINCE", isFallback: false, fee: 10000 };
+  // 1. Gares Routières & Province keywords (mapped to the 9 real urban axes)
+  for (const [axisKey, keywords] of Object.entries(GARE_KEYWORDS)) {
+    if (keywords.some((k) => lower.includes(k) || norm.includes(normalizeText(k)))) {
+      return { axis: axisKey as LogisticAxis, isFallback: false, fee };
     }
   }
 

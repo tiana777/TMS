@@ -1,7 +1,7 @@
 """Domain Service: AxisAutoDetector based on real Excel operational axes & tariffs."""
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List, Dict, Any
 import unicodedata
 import re
 from backend.app.domain.value_objects.axis import LogisticAxis
@@ -15,7 +15,74 @@ def normalize_text(text: str) -> str:
     return re.sub(r"[^a-z0-9]", "", text.lower().strip())
 
 
-# Level 1: Province / Gares Routières / Coopératives
+# -----------------------------------------------------------------------------
+# 9 Official Gares Routières mapped to the 9 Real Urban Delivery Axes
+# -----------------------------------------------------------------------------
+GARE_ROUTIERE_TO_AXIS: Dict[str, LogisticAxis] = {
+    "Ambodivona": LogisticAxis.AXE_CENTRE_2,
+    "Ampasapito": LogisticAxis.AXE_AMBOHIMANGAKELY,
+    "Andranobevava": LogisticAxis.AXE_SABOTSY_NAMEHANA,
+    "Anosibe": LogisticAxis.AXE_AMPITATAFIKA,
+    "Ankadimbahoaka": LogisticAxis.AXE_IAVOLOHA,
+    "Behoririka": LogisticAxis.AXE_CENTRE_1,
+    "Andohatapenaka": LogisticAxis.AXE_ITAOSY,
+    "Anosizato": LogisticAxis.AXE_AMPITATAFIKA,
+    "Amoronakona": LogisticAxis.AXE_ALASORA,
+}
+
+# Associated keywords for each gare and its regional destinations
+GARE_KEYWORDS: Dict[LogisticAxis, List[str]] = {
+    LogisticAxis.AXE_CENTRE_2: [
+        "ambodivona", "gare ambodivona", "cotisse", "trans texpress", "tamatave", "toamasina",
+        "moramanga", "brickaville", "ambatondrazaka", "fenerive", "sainte-marie", "sainte marie",
+    ],
+    LogisticAxis.AXE_AMBOHIMANGAKELY: [
+        "ampasapito", "gare ampasapito",
+    ],
+    LogisticAxis.AXE_SABOTSY_NAMEHANA: [
+        "andranobevava", "gare andranobevava",
+    ],
+    LogisticAxis.AXE_AMPITATAFIKA: [
+        "anosibe", "gare anosibe", "anosizato", "gare anosizato",
+    ],
+    LogisticAxis.AXE_IAVOLOHA: [
+        "ankadimbahoaka", "gare ankadimbahoaka", "fasan'ny karana", "fasan ny karana", "fasankarana",
+        "kofmad", "soatrans", "antsirabe", "fianarantsoa", "toliara", "tulear", "ambositra",
+        "ambalavao", "ihosy", "manakara", "fort-dauphin", "fort dauphin", "tolagnaro",
+    ],
+    LogisticAxis.AXE_CENTRE_1: [
+        "behoririka", "gare behoririka",
+    ],
+    LogisticAxis.AXE_ITAOSY: [
+        "andohatapenaka", "gare andohatapenaka", "maki", "gare maki", "besady", "mahajanga",
+        "majunga", "diego", "antsiranana", "sambava", "antalaha", "nosy be", "nosy-be",
+        "maevatanana", "ambato-boeni", "ambanja", "antsohihy", "port-berge",
+    ],
+    LogisticAxis.AXE_ALASORA: [
+        "amoronakona", "gare amoronakona",
+    ],
+}
+
+
+def get_axis_for_gare(gare_or_axis: str) -> Optional[LogisticAxis]:
+    """Resolves a Gare Routière name or axis string to its corresponding official LogisticAxis."""
+    if not gare_or_axis:
+        return None
+    cleaned = gare_or_axis.strip()
+    # Check if already a known axis enum
+    for ax in LogisticAxis:
+        if ax.value == cleaned:
+            return ax
+    # Check match against gares routières
+    norm = normalize_text(cleaned)
+    for gare, axis in GARE_ROUTIERE_TO_AXIS.items():
+        norm_gare = normalize_text(gare)
+        if norm_gare == norm or norm_gare in norm:
+            return axis
+    return None
+
+
+# Legacy list kept for compatibility checks
 PROVINCE_KEYWORDS = [
     # Major regional cities
     "toamasina", "tamatave", "mahajanga", "majunga", "antsirabe", "fianarantsoa",
@@ -26,7 +93,8 @@ PROVINCE_KEYWORDS = [
     "antsohihy", "ambanja", "maevatanana", "ambato-boeni", "mananjary", "morondava",
     # Stations (Gares)
     "gare ambodivona", "fasan'ny karana", "fasan ny karana", "fasankarana",
-    "gare maki", "andohatapenaka", "gare andohatapenaka", "gare aranta",
+    "gare maki", "andohatapenaka", "gare andohatapenaka", "gare aranta", "ampasapito",
+    "andranobevava", "anosibe", "ankadimbahoaka", "behoririka", "anosizato", "amoronakona",
     # National cooperatives
     "cotisse", "kofmad", "besady", "sonatra", "trans texpress", "trans tsiry",
     "soatrans", "fifafi", "trans mada", "kofiam", "chita express", "trans diego",
@@ -232,7 +300,19 @@ class AxisAutoDetector:
                     delivery_fee=cz["fee"],
                 )
 
-        # 1. Level 1: Real 9 Urban Corridors
+        # 1. Level 1: Gares Routières & Stations for Province shipments (mapped to the 9 real urban axes)
+        for axis, keywords in GARE_KEYWORDS.items():
+            for kw in keywords:
+                norm_kw = normalize_text(kw)
+                if len(norm_kw) >= 3 and norm_kw in norm_addr:
+                    return AxisDetectionResult(
+                        axis=axis,
+                        matched_keyword=kw,
+                        is_fallback=False,
+                        delivery_fee=fee,
+                    )
+
+        # 2. Level 2: Real 9 Urban Corridors
         for axis, keywords in REAL_URBAN_KEYWORDS.items():
             for kw in keywords:
                 norm_kw = normalize_text(kw)
@@ -244,7 +324,7 @@ class AxisAutoDetector:
                         delivery_fee=fee,
                     )
 
-        # 2. Level 2: Fallback to AXE_CENTRE_1 (Province destinations are set manually)
+        # 3. Level 3: Fallback to AXE_CENTRE_1
         return AxisDetectionResult(
             axis=LogisticAxis.AXE_CENTRE_1,
             matched_keyword=None,

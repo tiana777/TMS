@@ -18,7 +18,7 @@ from backend.app.domain.exceptions import (
 )
 from backend.app.domain.models.parcel import FluxType, Parcel
 from backend.app.domain.models.vendor import SenderType
-from backend.app.domain.services.axis_detector import AxisAutoDetector
+from backend.app.domain.services.axis_detector import AxisAutoDetector, get_axis_for_gare
 from backend.app.domain.state_machine.parcel_fsm import (
     ParcelStateMachine,
     ParcelStatus,
@@ -199,40 +199,13 @@ class ParcelUseCases:
         # 2. Axis auto-detection or manual assignment
         if dto.axis:
             axis_code = dto.axis.strip()
-            axis = LogisticAxis(axis_code)
+            gare_axis = get_axis_for_gare(axis_code)
+            axis = gare_axis if gare_axis else LogisticAxis(axis_code)
             is_manual_axis = True
-            # Incremental registration of new province axes
-            if dto.flux_type == FluxType.PROVINCE.value or "PROV" in axis_code.upper():
-                existing_axis = self.db.query(AxisORM).filter(AxisORM.code == axis_code).first()
-                if not existing_axis:
-                    raw_name = axis_code.replace("AXE_PROVINCE_", "").replace("AXE_PROV_", "").replace("AXE_", "").replace("_", " ").strip().title()
-                    new_axis_orm = AxisORM(
-                        code=axis_code if axis_code.startswith("AXE_") else f"AXE_PROVINCE_{axis_code.upper().replace(' ', '_')}",
-                        libelle=f"Axe Province {raw_name}" if not raw_name.lower().startswith("axe") else raw_name,
-                        type_axe="PROVINCE",
-                        actif=1,
-                    )
-                    self.db.add(new_axis_orm)
-                    self.db.flush()
         else:
-            if dto.flux_type == FluxType.PROVINCE.value:
-                # If flux is PROVINCE but no axis provided, default to a fallback province axis
-                axis = LogisticAxis("AXE_PROVINCE")
-                is_manual_axis = True
-                existing_axis = self.db.query(AxisORM).filter(AxisORM.code == "AXE_PROVINCE").first()
-                if not existing_axis:
-                    new_axis_orm = AxisORM(
-                        code="AXE_PROVINCE",
-                        libelle="Axe Province (Gares Routières & Régions)",
-                        type_axe="PROVINCE",
-                        actif=1,
-                    )
-                    self.db.add(new_axis_orm)
-                    self.db.flush()
-            else:
-                detection = AxisAutoDetector.detect(dto.delivery_address)
-                axis = detection.axis
-                is_manual_axis = False
+            detection = AxisAutoDetector.detect(dto.delivery_address)
+            axis = detection.axis
+            is_manual_axis = False
 
         # 3. Next sequential BDR generation
         tracking_number = dto.tracking_number or self.repo.generate_next_bdr()
@@ -454,22 +427,9 @@ class ParcelUseCases:
 
         old_axis = parcel.axis.value
         axis_code = new_axis.strip()
-        target_axis = LogisticAxis(axis_code)
+        gare_axis = get_axis_for_gare(axis_code)
+        target_axis = gare_axis if gare_axis else LogisticAxis(axis_code)
         parcel.override_axis(target_axis)
-
-        # Incremental registration of new province axes
-        if parcel.flux_type == FluxType.PROVINCE or "PROV" in axis_code.upper():
-            existing_axis = self.db.query(AxisORM).filter(AxisORM.code == axis_code).first()
-            if not existing_axis:
-                raw_name = axis_code.replace("AXE_PROVINCE_", "").replace("AXE_PROV_", "").replace("AXE_", "").replace("_", " ").strip().title()
-                new_axis_orm = AxisORM(
-                    code=axis_code if axis_code.startswith("AXE_") else f"AXE_PROVINCE_{axis_code.upper().replace(' ', '_')}",
-                    libelle=f"Axe Province {raw_name}" if not raw_name.lower().startswith("axe") else raw_name,
-                    type_axe="PROVINCE",
-                    actif=1,
-                )
-                self.db.add(new_axis_orm)
-                self.db.flush()
 
         saved = self.repo.save(parcel)
         self.record_history(

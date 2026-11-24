@@ -5,25 +5,25 @@ from backend.app.domain.value_objects.axis import LogisticAxis
 
 
 class TestAxisAutoDetector:
-    def test_province_addresses_require_manual_axis_selection(self):
-        """Province destinations are no longer auto-detected: they fall back to AXE_CENTRE_1 with is_fallback=True so the user assigns them manually."""
+    def test_province_addresses_mapped_to_gares_and_urban_axes(self):
+        """Province destinations and gares are mapped to the 9 real urban axes."""
         cases = [
-            "Livraison boutique Toamasina bazar be",
-            "Colis pour Tamatave port",
-            "Avenue de la paix Majunga",
-            "Mahajanga bord de mer",
-            "Centre ville Antsirabe",
-            "Fianarantsoa ville haute",
-            "Toliara sanfily",
-            "Diego Suarez grand hotel",
-            "Moramanga ville",
-            "Sambava centre",
-            "Envoi par Cotisse Transport",
+            ("Livraison boutique Toamasina bazar be", LogisticAxis.AXE_CENTRE_2),
+            ("Colis pour Tamatave port", LogisticAxis.AXE_CENTRE_2),
+            ("Avenue de la paix Majunga", LogisticAxis.AXE_ITAOSY),
+            ("Mahajanga bord de mer", LogisticAxis.AXE_ITAOSY),
+            ("Centre ville Antsirabe", LogisticAxis.AXE_IAVOLOHA),
+            ("Fianarantsoa ville haute", LogisticAxis.AXE_IAVOLOHA),
+            ("Toliara sanfily", LogisticAxis.AXE_IAVOLOHA),
+            ("Diego Suarez grand hotel", LogisticAxis.AXE_ITAOSY),
+            ("Moramanga ville", LogisticAxis.AXE_CENTRE_2),
+            ("Sambava centre", LogisticAxis.AXE_ITAOSY),
+            ("Envoi par Cotisse Transport", LogisticAxis.AXE_CENTRE_2),
         ]
-        for address in cases:
+        for address, expected_axis in cases:
             res = AxisAutoDetector.detect(address)
-            assert res.axis == LogisticAxis.AXE_CENTRE_1, f"Expected fallback for {address}"
-            assert res.is_fallback is True
+            assert res.axis == expected_axis, f"Expected {expected_axis} for {address}, got {res.axis}"
+            assert res.is_fallback is False
 
     def test_level2_real_urban_corridors_and_fees(self):
         cases = [
