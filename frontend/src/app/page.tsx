@@ -276,6 +276,8 @@ export default function CockpitDashboardPage() {
     },
   ];
 
+  const isManager = currentUserRole === "SUPER_ADMIN" || currentUserRole === "SUPERVISEUR";
+
   return (
     <div className="max-w-7xl mx-auto space-y-5">
       {/* Top Banner & Date Selector */}
@@ -316,7 +318,7 @@ export default function CockpitDashboardPage() {
       </div>
 
       {/* ================= BANDEAU RÉCAPITULATIF GÉNÉRAL DU JOUR (PRIORITÉ 8) ================= */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+      <div className={`grid grid-cols-1 ${isManager ? "md:grid-cols-3" : "md:grid-cols-2"} gap-3.5`}>
         {/* 1. Nombre de colis livrés */}
         <div
           data-cy="recap-colis-livres"
@@ -377,32 +379,34 @@ export default function CockpitDashboardPage() {
           </p>
         </div>
 
-        {/* 3. Total des frais de livraison encaissés aujourd'hui (Chiffre d'Affaires TMS) */}
-        <div
-          data-cy="recap-frais-encaisses"
-          className="bg-gradient-to-br from-blue-50/80 via-white to-white p-4 rounded-xl border border-blue-200/90 shadow-xs flex flex-col justify-between"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-blue-800 flex items-center gap-1.5">
-              <Wallet className="w-4 h-4 text-blue-600" />
-              Frais Encaissés Aujourd'hui
-            </span>
-            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
-              CA Net TMS
-            </span>
-          </div>
-          <div className="my-2 flex items-baseline gap-1.5">
-            <p className="text-3xl font-black text-blue-950 font-mono tabular-nums">
-              {metrics.totalDeliveryFeesCollected.toLocaleString("fr-FR")} Ar
+        {/* 3. Total des frais de livraison encaissés aujourd'hui (Chiffre d'Affaires TMS - Visible UNIQUEMENT Direction & Superviseur) */}
+        {isManager && (
+          <div
+            data-cy="recap-frais-encaisses"
+            className="bg-gradient-to-br from-blue-50/80 via-white to-white p-4 rounded-xl border border-blue-200/90 shadow-xs flex flex-col justify-between"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-800 flex items-center gap-1.5">
+                <Wallet className="w-4 h-4 text-blue-600" />
+                Frais Encaissés Aujourd'hui
+              </span>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                CA Net TMS
+              </span>
+            </div>
+            <div className="my-2 flex items-baseline gap-1.5">
+              <p className="text-3xl font-black text-blue-950 font-mono tabular-nums">
+                {metrics.totalDeliveryFeesCollected.toLocaleString("fr-FR")} Ar
+              </p>
+            </div>
+            <p className="text-[11px] text-slate-500 pt-2 border-t border-blue-100/80 flex items-center justify-between">
+              <span>Revenu transport perçu</span>
+              <span className="font-semibold text-blue-700">
+                sur {metrics.totalDeliveryFeesExpected.toLocaleString("fr-FR")} Ar prévus
+              </span>
             </p>
           </div>
-          <p className="text-[11px] text-slate-500 pt-2 border-t border-blue-100/80 flex items-center justify-between">
-            <span>Revenu transport perçu</span>
-            <span className="font-semibold text-blue-700">
-              sur {metrics.totalDeliveryFeesExpected.toLocaleString("fr-FR")} Ar prévus
-            </span>
-          </p>
-        </div>
+        )}
       </div>
 
       {/* ================= ÉCRAN 06 : BARRE DE PROGRESSION SEGMENTÉE ================= */}
@@ -563,28 +567,53 @@ export default function CockpitDashboardPage() {
           </p>
         </div>
 
-        {/* Metric 4: Montant COD Recouvré */}
-        <div
-          data-cy="metric-cod-recovered"
-          className="bg-white p-3.5 rounded-xl border border-slate-200/90 border-l-4 border-l-indigo-500 shadow-xs flex flex-col justify-between"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-              Montant COD Recouvré
-            </span>
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200/50">
-              Devise MGA
-            </span>
-          </div>
-          <div className="my-1.5 flex items-baseline gap-1.5">
-            <p className="text-lg font-bold text-indigo-900 font-mono tabular-nums">
-              {metrics.totalCODCollected.toLocaleString()} Ar
+        {/* Metric 4: Montant COD Recouvré (Direction / Superviseur) ou Colis en Stock Hub (Agent Réception) */}
+        {isManager ? (
+          <div
+            data-cy="metric-cod-recovered"
+            className="bg-white p-3.5 rounded-xl border border-slate-200/90 border-l-4 border-l-indigo-500 shadow-xs flex flex-col justify-between"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                Montant COD Recouvré
+              </span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200/50">
+                Devise MGA
+              </span>
+            </div>
+            <div className="my-1.5 flex items-baseline gap-1.5">
+              <p className="text-lg font-bold text-indigo-900 font-mono tabular-nums">
+                {metrics.totalCODCollected.toLocaleString()} Ar
+              </p>
+            </div>
+            <p className="text-[11px] text-slate-500 pt-1.5 border-t border-slate-100 truncate">
+              sur <span className="font-semibold text-slate-700 font-mono tabular-nums">{metrics.totalTheoreticalToCollect.toLocaleString()} Ar</span> attendus
             </p>
           </div>
-          <p className="text-[11px] text-slate-500 pt-1.5 border-t border-slate-100 truncate">
-            sur <span className="font-semibold text-slate-700 font-mono tabular-nums">{metrics.totalTheoreticalToCollect.toLocaleString()} Ar</span> attendus
-          </p>
-        </div>
+        ) : (
+          <div
+            data-cy="metric-stock-hub"
+            className="bg-white p-3.5 rounded-xl border border-slate-200/90 border-l-4 border-l-amber-500 shadow-xs flex flex-col justify-between"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                Colis en Stock Hub
+              </span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200/50">
+                En Dépôt
+              </span>
+            </div>
+            <div className="my-1.5 flex items-baseline gap-1.5">
+              <p className="text-lg font-bold text-amber-800 font-mono tabular-nums">
+                {metrics.countByStatus.EN_DEPOT || 0}
+              </p>
+              <span className="text-xs text-slate-400 font-normal">au magasin</span>
+            </div>
+            <p className="text-[11px] text-slate-500 pt-1.5 border-t border-slate-100 truncate">
+              <span>Prêts pour assignation ou retour</span>
+            </p>
+          </div>
+        )}
       </div>
 
       {/* ================= VUE FLOTTE & TOURNÉES EN DIRECT ================= */}
