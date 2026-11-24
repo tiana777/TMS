@@ -9,6 +9,7 @@ from backend.app.infrastructure.database.connection import get_db
 from backend.app.infrastructure.persistence.models import (
     AxisORM,
     CompanySettingsORM,
+    LigneDestinationORM,
     PartnerORM,
     UserORM,
     VendorORM,
@@ -22,11 +23,37 @@ router = APIRouter(prefix="/master", tags=["Référentiel Métier"])
 class ZoneResponseDTO(BaseModel):
     id: int
     nom: str
+    type: str = "quartier"
+    tarif_livraison: int = 3000
+    quartier_parent_id: Optional[int] = None
+    destinations: Optional[str] = None
+    axe_id: Optional[int] = None
+    axe_code: Optional[str] = None
 
 
 class ZoneDetailDTO(BaseModel):
     id: int
     nom: str
+    type: str = "quartier"
+    tarif_livraison: int = 3000
+    quartier_parent_id: Optional[int] = None
+    destinations: Optional[str] = None
+    axe_id: Optional[int] = None
+    axe_code: Optional[str] = None
+
+
+def _build_zone_dto(z: ZoneORM, axe: Optional[AxisORM] = None) -> ZoneDetailDTO:
+    axe_obj = axe or z.axe
+    return ZoneDetailDTO(
+        id=z.id,
+        nom=z.nom,
+        type=z.type or "quartier",
+        tarif_livraison=z.tarif_livraison or 3000,
+        quartier_parent_id=z.quartier_parent_id,
+        destinations=z.destinations,
+        axe_id=z.axe_id,
+        axe_code=axe_obj.code if axe_obj else None,
+    )
 
 
 class AxisResponseDTO(BaseModel):
@@ -82,6 +109,12 @@ class CreatePartnerInputDTO(BaseModel):
 
 class CreateZoneInputDTO(BaseModel):
     nom: str
+    axe_id: Optional[int] = None
+    axe_code: Optional[str] = None
+    type: str = "quartier"  # 'quartier', 'gare', 'cooperative'
+    tarif_livraison: Optional[int] = 3000
+    quartier_parent_id: Optional[int] = None
+    destinations: Optional[str] = None
 
 
 class UpdateVendorInputDTO(BaseModel):
@@ -117,20 +150,94 @@ def get_axes(type_axe: Optional[str] = None, actif: Optional[int] = 1, db: Sessi
     axes = q.order_by(AxisORM.id.asc()).all()
     results = []
     for a in axes:
-        zones_detail = [ZoneDetailDTO(id=z.id, nom=z.nom) for z in a.zones]
+        zones_detail = [_build_zone_dto(z, a) for z in a.zones]
         zones = [z.nom for z in a.zones]
         results.append(
             AxisResponseDTO(
                 id=a.id,
                 code=a.code,
                 libelle=a.libelle,
-                type_axe=a.type_axe or ("PROVINCE" if "PROVINCE" in a.code else "URBAIN"),
+                type_axe=a.type_axe or "URBAIN",
                 actif=a.actif,
                 zones=zones,
                 zones_detail=zones_detail,
             )
         )
     return results
+
+
+@router.get("/zones", response_model=List[ZoneDetailDTO])
+def get_zones(
+    axe_id: Optional[int] = None,
+    axe_code: Optional[str] = None,
+    type: Optional[str] = None,
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Liste exhaustive des localités, quartiers, gares et coopératives avec leur axe urbain de rattachement."""
+    q = db.query(ZoneORM).join(AxisORM, ZoneORM.axe_id == AxisORM.id).filter(AxisORM.actif == 1)
+    if axe_id is not None:
+        q = q.filter(ZoneORM.axe_id == axe_id)
+    if axe_code:
+        q = q.filter(AxisORM.code == axe_code.upper().strip())
+    if type:
+        q = q.filter(ZoneORM.type == type.lower().strip())
+    if search:
+        term = f"%{search.strip()}%"
+        q = q.filter((ZoneORM.nom.ilike(term)) | (ZoneORM.destinations.ilike(term)))
+    
+    zones = q.order_by(ZoneORM.type.asc(), ZoneORM.nom.asc()).all()
+    return [_build_zone_dto(z) for z in zones]
+
+
+@router.post("/zones", response_model=ZoneDetailDTO, status_code=201)
+def create_or_update_zone(
+    data: CreateZoneInputDTO,
+    db: Session = Depends(get_db),
+    current_user: UserORM = Depends(require_roles(["RECEPTIONNISTE", "SUPERVISEUR", "SUPER_ADMIN"])),
+):
+    """Création ou association dynamique d'une nouvelle gare, coopérative ou quartier à un axe.
+    Permet à l'agent d'enregistrer immédiatement une nouvelle gare pour qu'elle soit mémorisée.
+    """
+    clean_nom = data.nom.strip()
+    if not clean_nom:
+        raise HTTPException(status_code=400, detail="Le nom du quartier / gare est requis.")
+
+    # Trouver l'axe par id ou par code
+    axis = None
+    if data.axe_id:
+        axis = db.query(AxisORM).filter(AxisORM.id == data.axe_id, AxisORM.actif == 1).first()
+    elif data.axe_code:
+        axis = db.query(AxisORM).filter(AxisORM.code == data.axe_code.upper().strip(), AxisORM.actif == 1).first()
+
+    if not axis:
+        raise HTTPException(status_code=400, detail="Axe urbain valide requis (axe_id ou axe_code manquant ou inexistant).")
+
+    zone = db.query(ZoneORM).filter(ZoneORM.nom.ilike(clean_nom)).first()
+    if zone:
+        zone.axe_id = axis.id
+        if data.type:
+            zone.type = data.type.lower()
+        if data.tarif_livraison is not None:
+            zone.tarif_livraison = data.tarif_livraison
+        if data.quartier_parent_id is not None:
+            zone.quartier_parent_id = data.quartier_parent_id
+        if data.destinations is not None:
+            zone.destinations = data.destinations.strip()
+    else:
+        zone = ZoneORM(
+            nom=clean_nom,
+            axe_id=axis.id,
+            type=data.type.lower() if data.type else "quartier",
+            tarif_livraison=data.tarif_livraison or 3000,
+            quartier_parent_id=data.quartier_parent_id,
+            destinations=data.destinations.strip() if data.destinations else None,
+        )
+        db.add(zone)
+
+    db.commit()
+    db.refresh(zone)
+    return _build_zone_dto(zone, axis)
 
 
 @router.post("/axes", response_model=AxisResponseDTO, status_code=201)
@@ -425,24 +532,36 @@ def add_zone_to_axis(
     axis_id: int,
     data: CreateZoneInputDTO,
     db: Session = Depends(get_db),
-    current_user: UserORM = Depends(require_roles(["SUPER_ADMIN", "SUPERVISEUR"])),
+    current_user: UserORM = Depends(require_roles(["SUPER_ADMIN", "SUPERVISEUR", "RECEPTIONNISTE"])),
 ):
     axis = db.query(AxisORM).filter(AxisORM.id == axis_id).first()
     if not axis:
         raise HTTPException(status_code=404, detail="Axe introuvable")
 
-    existing_zone = db.query(ZoneORM).filter(ZoneORM.nom == data.nom.strip()).first()
+    clean_nom = data.nom.strip()
+    existing_zone = db.query(ZoneORM).filter(ZoneORM.nom.ilike(clean_nom)).first()
     if existing_zone:
-        if existing_zone.axe_id != axis.id:
-            existing_zone.axe_id = axis.id
-            db.commit()
+        existing_zone.axe_id = axis.id
+        if data.type:
+            existing_zone.type = data.type.lower()
+        if data.tarif_livraison is not None:
+            existing_zone.tarif_livraison = data.tarif_livraison
+        if data.destinations is not None:
+            existing_zone.destinations = data.destinations.strip()
     else:
-        zone = ZoneORM(axe_id=axis.id, nom=data.nom.strip())
+        zone = ZoneORM(
+            axe_id=axis.id,
+            nom=clean_nom,
+            type=data.type.lower() if data.type else "quartier",
+            tarif_livraison=data.tarif_livraison or 3000,
+            quartier_parent_id=data.quartier_parent_id,
+            destinations=data.destinations.strip() if data.destinations else None,
+        )
         db.add(zone)
-        db.commit()
 
+    db.commit()
     db.refresh(axis)
-    zones_detail = [ZoneDetailDTO(id=z.id, nom=z.nom) for z in axis.zones]
+    zones_detail = [_build_zone_dto(z, axis) for z in axis.zones]
     return AxisResponseDTO(
         id=axis.id,
         code=axis.code,

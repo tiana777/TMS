@@ -27,6 +27,7 @@ from backend.app.infrastructure.persistence.models import (
     UserORM,
     VendorORM,
     ZoneORM,
+    LigneDestinationORM,
     ParcelORM,
     TourORM,
     CompanySettingsORM,

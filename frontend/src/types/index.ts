@@ -127,6 +127,12 @@ export interface Vendor {
 export interface ZoneDetail {
   id: number;
   nom: string;
+  type?: "quartier" | "gare" | "cooperative" | string;
+  tarif_livraison?: number;
+  quartier_parent_id?: number | null;
+  destinations?: string | null;
+  axe_id?: number;
+  axe_code?: string;
 }
 
 export interface AxisInfo {

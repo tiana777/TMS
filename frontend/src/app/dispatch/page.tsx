@@ -605,7 +605,7 @@ export default function DispatchPage() {
           data-cy="nav-dispatch-urban"
           className="py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all bg-blue-600 text-white shadow-xs border border-blue-600"
         >
-          <span>🛵 1. LIVRAISON EN VILLE (URBAIN • 7 CORRIDORS)</span>
+          <span>🛵 1. LIVRAISON EN VILLE (URBAIN • 9 CORRIDORS RÉELS)</span>
         </Link>
         <Link
           href="/dispatch/province"

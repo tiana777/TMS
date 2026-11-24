@@ -1024,6 +1024,43 @@ export async function deleteAxis(axisId: number) {
   return await res.json();
 }
 
+export async function fetchMasterZones(params?: { axe_code?: string; type?: string; search?: string }) {
+  try {
+    const q = new URLSearchParams();
+    if (params?.axe_code) q.append("axe_code", params.axe_code);
+    if (params?.type) q.append("type", params.type);
+    if (params?.search) q.append("search", params.search);
+    const qs = q.toString() ? `?${q.toString()}` : "";
+    const res = await fetch(`${getApiBaseUrl()}/master/zones${qs}`);
+    if (!res.ok) throw new Error("Erreur chargement zones");
+    return await res.json();
+  } catch (err) {
+    console.warn("fetchMasterZones warning:", err);
+    return [];
+  }
+}
+
+export async function createMasterZone(data: {
+  nom: string;
+  axe_code?: string;
+  axe_id?: number;
+  type?: "quartier" | "gare" | "cooperative";
+  tarif_livraison?: number;
+  destinations?: string;
+}) {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${getApiBaseUrl()}/master/zones`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erreur lors de l'enregistrement de la gare/zone.");
+  }
+  return await res.json();
+}
+
 export async function addZoneToAxis(axisId: number, nom: string) {
   const headers = getAuthHeaders();
   const res = await fetch(`${getApiBaseUrl()}/master/axes/${axisId}/zones`, {

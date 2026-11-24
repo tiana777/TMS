@@ -221,3 +221,29 @@ def test_courier_not_locked_to_axis_and_can_be_assigned_by_receptionniste(test_d
     # Vérifier que le colis est bien rattaché dans le détail de la tournée
     tour_detail = tour_uc.get_tour_detail(tour.id)
     assert p.id in [item.id for item in tour_detail.parcels]
+
+
+def test_create_dynamic_gare_and_association_to_axis(test_db):
+    """Vérifie l'enregistrement dynamique d'une nouvelle gare par un réceptionniste et son association à un axe."""
+    from backend.app.interfaces.rest.master_data_router import create_or_update_zone, CreateZoneInputDTO
+    from backend.app.infrastructure.persistence.models import ZoneORM
+
+    user = test_db.query(UserORM).filter(UserORM.role == "RECEPTIONNISTE").first()
+
+    dto = CreateZoneInputDTO(
+        nom="Coopérative MadaExpress Talatamaty",
+        axe_code="AXE_IVATO",
+        type="cooperative",
+        tarif_livraison=4000,
+        destinations="Majunga, Ambanja",
+    )
+    res = create_or_update_zone(data=dto, db=test_db, current_user=user)
+    assert res.nom == "Coopérative MadaExpress Talatamaty"
+    assert res.axe_code == "AXE_IVATO"
+    assert res.type == "cooperative"
+
+    # Vérification en base
+    z = test_db.query(ZoneORM).filter(ZoneORM.nom == "Coopérative MadaExpress Talatamaty").first()
+    assert z is not None
+    assert z.axe.code == "AXE_IVATO"
+    assert z.type == "cooperative"

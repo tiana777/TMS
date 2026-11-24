@@ -50,9 +50,12 @@ import { getTodayDateString } from "@/lib/date";
 
 const GARE_FILTERS = [
   { id: "ALL", label: "Toutes les Gares", short: "Toutes Gares" },
-  { id: "Ambodivona", label: "Gare Ambodivona (RN2 Est)", short: "Ambodivona" },
-  { id: "Fasan'ny Karana", label: "Gare Fasan'ny Karana (RN7 Sud)", short: "Fasan'ny Karana" },
-  { id: "Andohatapenaka", label: "Gare Andohatapenaka (RN4 Ouest)", short: "Andohatapenaka" },
+  { id: "Ambodivona", label: "Gare Ambodivona (RN2 Est - AXE_CENTRE_2)", short: "Ambodivona" },
+  { id: "Fasan'ny Karana", label: "Gare Fasan'ny Karana (RN7 Sud - AXE_IAVOLOHA)", short: "Fasan'ny Karana" },
+  { id: "Andohatapenaka", label: "Gare Andohatapenaka (RN4 Ouest - AXE_ITAOSY)", short: "Andohatapenaka" },
+  { id: "Anosibe", label: "Gare Anosibe (AXE_AMPITATAFIKA)", short: "Anosibe" },
+  { id: "Ampasapito", label: "Gare Ampasapito (AXE_AMBOHIMANGAKELY)", short: "Ampasapito" },
+  { id: "Andranobevava", label: "Gare Andranobevava (AXE_SABOTSY_NAMEHANA)", short: "Andranobevava" },
 ];
 
 const RECEPTIONIST_FILTERS = [
@@ -454,7 +457,7 @@ export default function DispatchProvincePage() {
           data-cy="nav-dispatch-urban"
           className="py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-transparent"
         >
-          <span>🛵 1. LIVRAISON EN VILLE (URBAIN • 7 CORRIDORS)</span>
+          <span>🛵 1. LIVRAISON EN VILLE (URBAIN • 9 CORRIDORS RÉELS)</span>
         </Link>
         <Link
           href="/dispatch/province"

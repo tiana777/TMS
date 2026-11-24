@@ -998,8 +998,36 @@ export default function ReferentielPage() {
                     </h3>
 
                     {/* Zones Pill List */}
-                    <div className="mt-2.5 flex flex-wrap gap-1 max-h-32 overflow-y-auto pr-1">
-                      {axe.zones && axe.zones.length > 0 ? (
+                    <div className="mt-2.5 flex flex-wrap gap-1 max-h-36 overflow-y-auto pr-1">
+                      {axe.zones_detail && axe.zones_detail.length > 0 ? (
+                        axe.zones_detail.map((zDetail, zIdx) => {
+                          const isGare = zDetail.type === "gare";
+                          const isCoop = zDetail.type === "cooperative";
+                          return (
+                            <span
+                              key={zDetail.id || zIdx}
+                              title={
+                                zDetail.destinations
+                                  ? `${zDetail.nom} • Destinations : ${zDetail.destinations} (${zDetail.tarif_livraison || 3000} Ar)`
+                                  : `${zDetail.nom} (${zDetail.tarif_livraison || 3000} Ar)`
+                              }
+                              className={`px-1.5 py-0.5 text-[10px] rounded border transition inline-flex items-center gap-1 ${
+                                isGare
+                                  ? "bg-purple-100/80 text-purple-900 border-purple-300 font-bold shadow-2xs"
+                                  : isCoop
+                                  ? "bg-amber-100/80 text-amber-900 border-amber-300 font-bold shadow-2xs"
+                                  : isProvince
+                                  ? "bg-purple-50/70 text-purple-700 border-purple-200/70 font-medium"
+                                  : "bg-blue-50/70 text-blue-700 border-blue-200/70 font-medium"
+                              }`}
+                            >
+                              {isGare && <span className="text-[10px]">🚌</span>}
+                              {isCoop && <span className="text-[10px]">🤝</span>}
+                              <span>{zDetail.nom}</span>
+                            </span>
+                          );
+                        })
+                      ) : axe.zones && axe.zones.length > 0 ? (
                         axe.zones.map((zone, zIdx) => (
                           <span
                             key={zIdx}
@@ -2203,8 +2231,16 @@ export default function ReferentielPage() {
                     return (
                       <span
                         key={zIdx}
-                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium bg-white text-slate-800 border border-slate-200 shadow-xs"
+                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium border shadow-xs ${
+                          detail?.type === "gare"
+                            ? "bg-purple-100 text-purple-900 border-purple-300 font-bold"
+                            : detail?.type === "cooperative"
+                            ? "bg-amber-100 text-amber-900 border-amber-300 font-bold"
+                            : "bg-white text-slate-800 border-slate-200"
+                        }`}
                       >
+                        {detail?.type === "gare" && <span>🚌</span>}
+                        {detail?.type === "cooperative" && <span>🤝</span>}
                         <span>{zoneName}</span>
                         {canManage && detail && (
                           <button

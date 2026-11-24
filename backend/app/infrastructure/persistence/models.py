@@ -97,8 +97,25 @@ class ZoneORM(Base):
     axe_id = Column(Integer, ForeignKey("axes.id"), nullable=False, index=True)
     nom = Column(String(100), unique=True, nullable=False, index=True)
     tarif_livraison = Column(Integer, default=3000, nullable=False)
+    type = Column(String(20), default="quartier", nullable=False)  # 'quartier', 'gare', 'cooperative'
+    quartier_parent_id = Column(Integer, ForeignKey("zones.id"), nullable=True)
+    destinations = Column(Text, nullable=True)
 
     axe = relationship("AxisORM", back_populates="zones")
+    parent = relationship("ZoneORM", remote_side=[id], backref="sous_localites")
+    lignes_destinations = relationship("LigneDestinationORM", back_populates="zone", cascade="all, delete-orphan")
+
+
+class LigneDestinationORM(Base):
+    __tablename__ = "lignes_destinations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    zone_id = Column(Integer, ForeignKey("zones.id"), nullable=False, index=True)
+    destination = Column(String(100), nullable=False)
+    corridor_national = Column(String(50), nullable=True)
+    description = Column(Text, nullable=True)
+
+    zone = relationship("ZoneORM", back_populates="lignes_destinations")
 
 
 class PartnerORM(Base):

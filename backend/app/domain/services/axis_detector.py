@@ -64,7 +64,7 @@ GARE_KEYWORDS: Dict[LogisticAxis, List[str]] = {
 }
 
 
-def get_axis_for_gare(gare_or_axis: str) -> Optional[LogisticAxis]:
+def get_axis_for_gare(gare_or_axis: str, db=None) -> Optional[LogisticAxis]:
     """Resolves a Gare Routière name or axis string to its corresponding official LogisticAxis."""
     if not gare_or_axis:
         return None
@@ -79,6 +79,18 @@ def get_axis_for_gare(gare_or_axis: str) -> Optional[LogisticAxis]:
         norm_gare = normalize_text(gare)
         if norm_gare == norm or norm_gare in norm:
             return axis
+
+    # Check in DB if db session provided
+    if db is not None:
+        try:
+            from backend.app.infrastructure.persistence.models import ZoneORM
+            zone = db.query(ZoneORM).filter(ZoneORM.nom.ilike(cleaned)).first()
+            if zone and zone.axe:
+                for ax in LogisticAxis:
+                    if ax.value == zone.axe.code:
+                        return ax
+        except Exception:
+            pass
     return None
 
 
@@ -278,7 +290,7 @@ class AxisAutoDetector:
         return 3000
 
     @classmethod
-    def detect(cls, address: str) -> AxisDetectionResult:
+    def detect(cls, address: str, db=None) -> AxisDetectionResult:
         if not address:
             return AxisDetectionResult(
                 axis=LogisticAxis.AXE_CENTRE_1,
@@ -299,6 +311,29 @@ class AxisAutoDetector:
                     is_fallback=False,
                     delivery_fee=cz["fee"],
                 )
+
+        # 0.B Registered zones from database (dynamic learning)
+        if db is not None:
+            try:
+                from backend.app.infrastructure.persistence.models import ZoneORM, AxisORM
+                zones = db.query(ZoneORM).join(AxisORM).filter(AxisORM.actif == 1).all()
+                for z in zones:
+                    norm_z = normalize_text(z.nom)
+                    if len(norm_z) >= 3 and norm_z in norm_addr:
+                        axis_enum = None
+                        for ax in LogisticAxis:
+                            if ax.value == z.axe.code:
+                                axis_enum = ax
+                                break
+                        if axis_enum:
+                            return AxisDetectionResult(
+                                axis=axis_enum,
+                                matched_keyword=z.nom,
+                                is_fallback=False,
+                                delivery_fee=z.tarif_livraison or fee,
+                            )
+            except Exception:
+                pass
 
         # 1. Level 1: Gares Routières & Stations for Province shipments (mapped to the 9 real urban axes)
         for axis, keywords in GARE_KEYWORDS.items():

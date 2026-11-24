@@ -4,7 +4,7 @@ import re
 import unicodedata
 from sqlalchemy import text
 from backend.app.infrastructure.database.connection import engine, SessionLocal
-from backend.app.infrastructure.persistence.models import AxisORM, ZoneORM, ParcelORM, CourierORM
+from backend.app.infrastructure.persistence.models import AxisORM, ZoneORM, ParcelORM, CourierORM, LigneDestinationORM
 
 def normalize_text(text_val: str) -> str:
     if not text_val:
@@ -296,6 +296,193 @@ REAL_URBAN_AXES_DATA = {
     },
 }
 
+REAL_URBAN_GARES_DATA = [
+    # AXE_CENTRE_2 (Péri-Centre & Antanimena)
+    {
+        "axe": "AXE_CENTRE_2",
+        "nom": "Gare Routière Ambodivona",
+        "type": "gare",
+        "parent": "Ambodivona",
+        "tarif": 3000,
+        "destinations": "RN2 Est (Tamatave, Moramanga, Brickaville...)",
+        "lignes": [
+            {"destination": "Tamatave (Toamasina)", "corridor": "RN2 Est", "desc": "Liaison principale Côte Est"},
+            {"destination": "Moramanga", "corridor": "RN2 Est", "desc": "Liaison intermédiaire"},
+            {"destination": "Brickaville", "corridor": "RN2 Est", "desc": "Liaison intermédiaire"},
+        ],
+    },
+    {
+        "axe": "AXE_CENTRE_2",
+        "nom": "Cotisse Transport Ambodivona",
+        "type": "cooperative",
+        "parent": "Ambodivona",
+        "tarif": 3000,
+        "destinations": "Liaisons VIP Nationales (Tamatave, Majunga, Fianarantsoa)",
+        "lignes": [
+            {"destination": "Tamatave", "corridor": "RN2 VIP", "desc": "Navette premium"},
+            {"destination": "Majunga", "corridor": "RN4 VIP", "desc": "Navette premium"},
+            {"destination": "Fianarantsoa", "corridor": "RN7 VIP", "desc": "Navette premium"},
+        ],
+    },
+    {
+        "axe": "AXE_CENTRE_2",
+        "nom": "Trans Texpress Ambodivona",
+        "type": "cooperative",
+        "parent": "Ambodivona",
+        "tarif": 3000,
+        "destinations": "RN2 Est Tamatave Express",
+        "lignes": [
+            {"destination": "Tamatave", "corridor": "RN2 Express", "desc": "Transport rapide"},
+        ],
+    },
+    # AXE_IAVOLOHA (RN7 Sud & Atsimondrano)
+    {
+        "axe": "AXE_IAVOLOHA",
+        "nom": "Gare Routière Fasan'ny Karana",
+        "type": "gare",
+        "parent": "Fasan'ny karana",
+        "tarif": 3000,
+        "destinations": "RN7 Sud (Antsirabe, Ambositra, Fianarantsoa, Toliara, Ihosy...)",
+        "lignes": [
+            {"destination": "Antsirabe", "corridor": "RN7 Sud", "desc": "Liaison Vakinankaratra"},
+            {"destination": "Fianarantsoa", "corridor": "RN7 Sud", "desc": "Liaison Haute Matsiatra"},
+            {"destination": "Ambositra", "corridor": "RN7 Sud", "desc": "Liaison Amoron'i Mania"},
+            {"destination": "Toliara (Tuléar)", "corridor": "RN7 Sud", "desc": "Liaison Grand Sud"},
+            {"destination": "Ihosy", "corridor": "RN7 Sud", "desc": "Liaison Ihorombe"},
+        ],
+    },
+    {
+        "axe": "AXE_IAVOLOHA",
+        "nom": "Soatrans Fasan'ny Karana",
+        "type": "cooperative",
+        "parent": "Fasan'ny karana",
+        "tarif": 3000,
+        "destinations": "RN7 Sud (Antsirabe, Fianarantsoa)",
+        "lignes": [
+            {"destination": "Antsirabe", "corridor": "RN7 Sud", "desc": "Ligne régulière"},
+            {"destination": "Fianarantsoa", "corridor": "RN7 Sud", "desc": "Ligne régulière"},
+        ],
+    },
+    {
+        "axe": "AXE_IAVOLOHA",
+        "nom": "Kofmad Fasan'ny Karana",
+        "type": "cooperative",
+        "parent": "Fasan'ny karana",
+        "tarif": 3000,
+        "destinations": "RN7 Sud (Antsirabe)",
+        "lignes": [
+            {"destination": "Antsirabe", "corridor": "RN7 Sud", "desc": "Ligne régionale"},
+        ],
+    },
+    # AXE_ITAOSY (67Ha, Itaosy & Ouest)
+    {
+        "axe": "AXE_ITAOSY",
+        "nom": "Gare Routière Andohatapenaka (Maki)",
+        "type": "gare",
+        "parent": "Andohatapenaka",
+        "tarif": 3000,
+        "destinations": "RN4 Ouest / RN6 Nord (Majunga, Diégo, Nosy Be, Ambanja...)",
+        "lignes": [
+            {"destination": "Majunga (Mahajanga)", "corridor": "RN4 Ouest", "desc": "Liaison Boeny"},
+            {"destination": "Antsiranana (Diégo-Suarez)", "corridor": "RN6 Nord", "desc": "Liaison Diana"},
+            {"destination": "Nosy Be / Ambanja", "corridor": "RN6 Nord", "desc": "Liaison Nord Ouest"},
+            {"destination": "Port-Bergé", "corridor": "RN4/RN6", "desc": "Liaison Sofia"},
+        ],
+    },
+    {
+        "axe": "AXE_ITAOSY",
+        "nom": "Besady Plus Andohatapenaka",
+        "type": "cooperative",
+        "parent": "Andohatapenaka",
+        "tarif": 3000,
+        "destinations": "RN4 Ouest Majunga VIP",
+        "lignes": [
+            {"destination": "Majunga", "corridor": "RN4 VIP", "desc": "Transport VIP"},
+        ],
+    },
+    # AXE_AMPITATAFIKA (Ampefiloha, Fenoarivo & Sud-Ouest)
+    {
+        "axe": "AXE_AMPITATAFIKA",
+        "nom": "Gare Routière Anosibe",
+        "type": "gare",
+        "parent": "Anosibe",
+        "tarif": 3000,
+        "destinations": "Lignes régionales Sud-Ouest & Marché",
+        "lignes": [
+            {"destination": "Arivonimamo", "corridor": "RN1 Ouest", "desc": "Ligne suburbaine"},
+            {"destination": "Miarinarivo", "corridor": "RN1 Ouest", "desc": "Liaison Itasy"},
+        ],
+    },
+    {
+        "axe": "AXE_AMPITATAFIKA",
+        "nom": "Gare Routière Anosizato",
+        "type": "gare",
+        "parent": "Anosizato Andrefana",
+        "tarif": 3000,
+        "destinations": "RN1 Ouest & banlieue Sud-Ouest",
+        "lignes": [
+            {"destination": "Imerintsiatosika", "corridor": "RN1", "desc": "Ligne suburbaine"},
+            {"destination": "Tsiroanomandidy", "corridor": "RN1 bis", "desc": "Liaison Bongolava"},
+        ],
+    },
+    # AXE_AMBOHIMANGAKELY (RN2 Est & By-pass)
+    {
+        "axe": "AXE_AMBOHIMANGAKELY",
+        "nom": "Gare Routière Ampasapito",
+        "type": "gare",
+        "parent": "Besarety",
+        "tarif": 3000,
+        "destinations": "RN2 Est banlieue & Manjakandriana",
+        "lignes": [
+            {"destination": "Manjakandriana", "corridor": "RN2", "desc": "Ligne suburbaine"},
+        ],
+    },
+    # AXE_SABOTSY_NAMEHANA (RN3 Nord & Avaradrano)
+    {
+        "axe": "AXE_SABOTSY_NAMEHANA",
+        "nom": "Gare Routière Andranobevava",
+        "type": "gare",
+        "parent": "Andranobevava",
+        "tarif": 3000,
+        "destinations": "RN3 Nord (Anjozorobe)",
+        "lignes": [
+            {"destination": "Anjozorobe", "corridor": "RN3", "desc": "Liaison Nord"},
+        ],
+    },
+    # AXE_CENTRE_1 (Hyper-Centre & Analakely)
+    {
+        "axe": "AXE_CENTRE_1",
+        "nom": "Gare Routière Behoririka",
+        "type": "gare",
+        "parent": "Behoririka",
+        "tarif": 3000,
+        "destinations": "Lignes urbaines & régionales",
+        "lignes": [],
+    },
+    # AXE_ALASORA (Sud-Est & By-pass Alasora)
+    {
+        "axe": "AXE_ALASORA",
+        "nom": "Gare Routière Amoronakona",
+        "type": "gare",
+        "parent": "Alasora Commune",
+        "tarif": 3000,
+        "destinations": "By-pass Sud-Est",
+        "lignes": [],
+    },
+    # AXE_IVATO (RN4 Digue & Aéroport)
+    {
+        "axe": "AXE_IVATO",
+        "nom": "Gare Fret Aéroport Ivato",
+        "type": "gare",
+        "parent": "Ivato aeroport",
+        "tarif": 5000,
+        "destinations": "Fret Aérien & Provinces éloignées",
+        "lignes": [
+            {"destination": "Toutes Provinces Fret Aérien", "corridor": "Aérien", "desc": "Fret Aérien"},
+        ],
+    },
+]
+
 def detect_new_axis(address: str) -> str:
     norm_addr = normalize_text(address)
     for code, data in REAL_URBAN_AXES_DATA.items():
@@ -308,12 +495,41 @@ def detect_new_axis(address: str) -> str:
 def apply_real_axes_migration(seed_samples: bool = False):
     session = SessionLocal()
     try:
-        with engine.connect() as conn:
-            conn.execute(text("ALTER TABLE zones ADD COLUMN IF NOT EXISTS tarif_livraison INTEGER DEFAULT 3000;"))
-            conn.commit()
+        ddl_statements = [
+            "ALTER TABLE zones ADD COLUMN IF NOT EXISTS tarif_livraison INTEGER DEFAULT 3000;",
+            "ALTER TABLE zones ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'quartier';",
+            "ALTER TABLE zones ADD COLUMN IF NOT EXISTS quartier_parent_id INTEGER;",
+            "ALTER TABLE zones ADD COLUMN IF NOT EXISTS destinations TEXT;",
+            """CREATE TABLE IF NOT EXISTS lignes_destinations (
+                id SERIAL PRIMARY KEY,
+                zone_id INTEGER NOT NULL REFERENCES zones(id) ON DELETE CASCADE,
+                destination VARCHAR(100) NOT NULL,
+                corridor_national VARCHAR(50),
+                description TEXT
+            );""",
+            "UPDATE colis SET axe = 'AXE_CENTRE_2' WHERE axe LIKE 'AXE_PROV%' OR axe NOT IN ('AXE_CENTRE_1', 'AXE_CENTRE_2', 'AXE_ITAOSY', 'AXE_AMPITATAFIKA', 'AXE_AMBOHIMANGAKELY', 'AXE_SABOTSY_NAMEHANA', 'AXE_IVATO', 'AXE_IAVOLOHA', 'AXE_ALASORA');",
+            "DELETE FROM lignes_destinations WHERE zone_id IN (SELECT id FROM zones WHERE axe_id IN (SELECT id FROM axes WHERE code LIKE 'AXE_PROV%' OR code NOT IN ('AXE_CENTRE_1', 'AXE_CENTRE_2', 'AXE_ITAOSY', 'AXE_AMPITATAFIKA', 'AXE_AMBOHIMANGAKELY', 'AXE_SABOTSY_NAMEHANA', 'AXE_IVATO', 'AXE_IAVOLOHA', 'AXE_ALASORA')));",
+            "DELETE FROM zones WHERE axe_id IN (SELECT id FROM axes WHERE code LIKE 'AXE_PROV%' OR code NOT IN ('AXE_CENTRE_1', 'AXE_CENTRE_2', 'AXE_ITAOSY', 'AXE_AMPITATAFIKA', 'AXE_AMBOHIMANGAKELY', 'AXE_SABOTSY_NAMEHANA', 'AXE_IVATO', 'AXE_IAVOLOHA', 'AXE_ALASORA'));",
+            "DELETE FROM axes WHERE code LIKE 'AXE_PROV%' OR code NOT IN ('AXE_CENTRE_1', 'AXE_CENTRE_2', 'AXE_ITAOSY', 'AXE_AMPITATAFIKA', 'AXE_AMBOHIMANGAKELY', 'AXE_SABOTSY_NAMEHANA', 'AXE_IVATO', 'AXE_IAVOLOHA', 'AXE_ALASORA');",
+            "ALTER TABLE axes DROP CONSTRAINT IF EXISTS chk_axes_real_codes;",
+            """ALTER TABLE axes ADD CONSTRAINT chk_axes_real_codes 
+               CHECK (code IN ('AXE_CENTRE_1', 'AXE_CENTRE_2', 'AXE_ITAOSY', 'AXE_AMPITATAFIKA', 
+                               'AXE_AMBOHIMANGAKELY', 'AXE_SABOTSY_NAMEHANA', 'AXE_IVATO', 
+                               'AXE_IAVOLOHA', 'AXE_ALASORA'));""",
+        ]
 
-        # 1. Upsert the 9 real urban axes
-        print("Upserting 9 real urban axes...")
+        with engine.connect() as conn:
+            for stmt in ddl_statements:
+                try:
+                    conn.execute(text(stmt))
+                    conn.commit()
+                except Exception as ex:
+                    conn.rollback()
+                    print(f"Notice DDL execution: {ex}")
+
+        # 1. Upsert the 9 real urban axes and their quartiers
+        print("Upserting 9 real urban axes and quartiers...")
+        axis_map = {}
         for code, data in REAL_URBAN_AXES_DATA.items():
             axis = session.query(AxisORM).filter(AxisORM.code == code).first()
             if not axis:
@@ -331,19 +547,16 @@ def apply_real_axes_migration(seed_samples: bool = False):
                 axis.type_axe = data["type_axe"]
                 axis.actif = 1
                 session.flush()
-
-            # Delete old zones for this axis to replace with exact Excel list
-            session.query(ZoneORM).filter(ZoneORM.axe_id == axis.id).delete()
-            session.flush()
+            axis_map[code] = axis
 
             for zone_name, fee in data["zones"]:
-                # Check if zone exists
                 existing_z = session.query(ZoneORM).filter(ZoneORM.nom == zone_name).first()
                 if existing_z:
                     existing_z.axe_id = axis.id
                     existing_z.tarif_livraison = fee
+                    existing_z.type = "quartier"
                 else:
-                    z = ZoneORM(axe_id=axis.id, nom=zone_name, tarif_livraison=fee)
+                    z = ZoneORM(axe_id=axis.id, nom=zone_name, tarif_livraison=fee, type="quartier")
                     session.add(z)
             session.flush()
 
@@ -353,11 +566,58 @@ def apply_real_axes_migration(seed_samples: bool = False):
             old_axis = session.query(AxisORM).filter(AxisORM.code == lc).first()
             if old_axis:
                 old_axis.actif = 0
+        session.flush()
+
+        # 2. Upsert gares routières, coopératives et lignes de destination
+        print("Upserting gares routières and coopératives across the 9 real axes...")
+        for g in REAL_URBAN_GARES_DATA:
+            axe_code = g["axe"]
+            axis = axis_map.get(axe_code)
+            if not axis:
+                continue
+
+            parent_id = None
+            if g.get("parent"):
+                parent_zone = session.query(ZoneORM).filter(ZoneORM.nom == g["parent"]).first()
+                if parent_zone:
+                    parent_id = parent_zone.id
+
+            existing_g = session.query(ZoneORM).filter(ZoneORM.nom == g["nom"]).first()
+            if existing_g:
+                existing_g.axe_id = axis.id
+                existing_g.type = g["type"]
+                existing_g.tarif_livraison = g.get("tarif", 3000)
+                existing_g.quartier_parent_id = parent_id
+                existing_g.destinations = g.get("destinations")
+                gare_obj = existing_g
+            else:
+                gare_obj = ZoneORM(
+                    axe_id=axis.id,
+                    nom=g["nom"],
+                    type=g["type"],
+                    tarif_livraison=g.get("tarif", 3000),
+                    quartier_parent_id=parent_id,
+                    destinations=g.get("destinations"),
+                )
+                session.add(gare_obj)
+                session.flush()
+
+            # Lignes / destinations
+            session.query(LigneDestinationORM).filter(LigneDestinationORM.zone_id == gare_obj.id).delete()
+            for ld in g.get("lignes", []):
+                session.add(
+                    LigneDestinationORM(
+                        zone_id=gare_obj.id,
+                        destination=ld["destination"],
+                        corridor_national=ld.get("corridor"),
+                        description=ld.get("desc"),
+                    )
+                )
 
         session.commit()
-        print("Axes and zones successfully seeded from Excel.")
+        print("Axes, zones, gares and coopératives successfully seeded.")
 
-        # 2. Re-classify existing parcels based on delivery_address
+        # 3. Re-classify existing parcels based on delivery_address
         print("Reclassifying existing stock parcels...")
         from backend.app.domain.services.axis_detector import AxisAutoDetector
         parcels = session.query(ParcelORM).filter(
@@ -369,18 +629,18 @@ def apply_real_axes_migration(seed_samples: bool = False):
             p.axe = detected.axis.value
             reclassified_count += 1
         session.commit()
-        print(f"Reclassified {reclassified_count} parcels to new real axes.")
+        if reclassified_count > 0:
+            print(f"Reclassified {reclassified_count} parcels to new real axes.")
 
-        # 3. Update couriers to new axes
-        print("Assigning couriers to new real axes...")
+        # 4. Couriers are polyvalents: free them from fixed axis lock
+        print("Freeing couriers from axis locking (polyvalent fleet)...")
         couriers = session.query(CourierORM).all()
-        new_axis_codes = list(REAL_URBAN_AXES_DATA.keys())
-        for idx, c in enumerate(couriers):
-            c.assigned_axis = new_axis_codes[idx % len(new_axis_codes)]
+        for c in couriers:
+            c.assigned_axis = None
         session.commit()
-        print("Couriers updated.")
+        print("Couriers unlocked.")
 
-        # 4. Optionally ensure each urban axis has active parcels in EN_DEPOT
+        # 5. Optionally ensure each urban axis has active parcels in EN_DEPOT
         if seed_samples:
             seed_sample_depot_parcels(session)
 

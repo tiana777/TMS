@@ -47,6 +47,60 @@ export const GARE_KEYWORDS: Record<string, string[]> = {
   ],
 };
 
+export interface DynamicGare {
+  name: string;
+  axis: LogisticAxis;
+  type: "gare" | "cooperative" | "quartier";
+  fee: number;
+  destinations?: string;
+}
+
+export const DYNAMIC_GARES: DynamicGare[] = [];
+
+export function registerDynamicGare(gare: DynamicGare) {
+  const norm = normalizeText(gare.name);
+  const existingIndex = DYNAMIC_GARES.findIndex((g) => normalizeText(g.name) === norm);
+  if (existingIndex >= 0) {
+    DYNAMIC_GARES[existingIndex] = gare;
+  } else {
+    DYNAMIC_GARES.push(gare);
+  }
+  // Register to custom zones
+  registerCustomZone(gare.name, gare.axis, gare.fee);
+  // Add to GARE_KEYWORDS for this axis
+  if (!GARE_KEYWORDS[gare.axis]) {
+    GARE_KEYWORDS[gare.axis] = [];
+  }
+  const lower = gare.name.toLowerCase();
+  if (!GARE_KEYWORDS[gare.axis].includes(lower)) {
+    GARE_KEYWORDS[gare.axis].unshift(lower);
+  }
+  if (gare.destinations) {
+    gare.destinations.split(/[,;\/]+/).forEach((dest) => {
+      const cleanDest = dest.trim().toLowerCase();
+      if (cleanDest.length >= 3 && !GARE_KEYWORDS[gare.axis].includes(cleanDest)) {
+        GARE_KEYWORDS[gare.axis].unshift(cleanDest);
+      }
+    });
+  }
+}
+
+export function syncMasterZones(
+  zones: Array<{ nom: string; type?: string; axe_code?: string; tarif_livraison?: number; destinations?: string }>
+) {
+  if (!Array.isArray(zones)) return;
+  for (const z of zones) {
+    if (!z.nom || !z.axe_code) continue;
+    registerDynamicGare({
+      name: z.nom,
+      axis: z.axe_code as LogisticAxis,
+      type: (z.type as any) || "quartier",
+      fee: z.tarif_livraison || 3000,
+      destinations: z.destinations,
+    });
+  }
+}
+
 export function getAxisForGareClient(gareOrAxis: string): LogisticAxis | null {
   if (!gareOrAxis) return null;
   const clean = gareOrAxis.trim();
@@ -56,6 +110,12 @@ export function getAxisForGareClient(gareOrAxis: string): LogisticAxis | null {
   ];
   if (realAxes.includes(clean as LogisticAxis)) return clean as LogisticAxis;
   const norm = normalizeText(clean);
+  // Check in dynamically registered gares
+  for (const dg of DYNAMIC_GARES) {
+    if (normalizeText(dg.name) === norm || normalizeText(dg.name).includes(norm)) {
+      return dg.axis;
+    }
+  }
   for (const [gare, axis] of Object.entries(GARE_ROUTIERE_TO_AXIS)) {
     if (normalizeText(gare) === norm || normalizeText(gare).includes(norm)) {
       return axis;

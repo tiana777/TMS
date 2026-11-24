@@ -26,8 +26,25 @@ import {
   Bus,
 } from "lucide-react";
 import { detectMalagasyPhone, sanitizePhoneInput } from "../../lib/phone";
-import { detectAxisClient, registerCustomZone, registerProvinceAxisClient } from "../../lib/axis";
-import { fetchVendors, createParcelBatch, addZoneToAxis, fetchAxes, createAxis, createVendor, fetchPartners } from "../../lib/api";
+import {
+  detectAxisClient,
+  registerCustomZone,
+  registerProvinceAxisClient,
+  registerDynamicGare,
+  syncMasterZones,
+  getAxisForGareClient,
+} from "../../lib/axis";
+import {
+  fetchVendors,
+  createParcelBatch,
+  addZoneToAxis,
+  fetchAxes,
+  createAxis,
+  createVendor,
+  fetchPartners,
+  fetchMasterZones,
+  createMasterZone,
+} from "../../lib/api";
 import { OperatorBadge } from "../../components/OperatorBadge";
 import { AxisBadge } from "../../components/AxisBadge";
 import { FluxType, LogisticAxis, SenderType, Vendor, Partner } from "../../types";
@@ -115,7 +132,9 @@ export default function InboundPage() {
   const [isAddZoneModalOpen, setIsAddZoneModalOpen] = useState<boolean>(false);
   const [modalTargetRowIndex, setModalTargetRowIndex] = useState<number>(0);
   const [modalZoneName, setModalZoneName] = useState<string>("");
-  const [modalSelectedAxis, setModalSelectedAxis] = useState<LogisticAxis>("AXE_CENTRE_1");
+  const [modalZoneType, setModalZoneType] = useState<"quartier" | "gare" | "cooperative">("gare");
+  const [modalDestinations, setModalDestinations] = useState<string>("");
+  const [modalSelectedAxis, setModalSelectedAxis] = useState<LogisticAxis>("AXE_CENTRE_2");
   const [modalSelectedFee, setModalSelectedFee] = useState<number>(3000);
   const [modalError, setModalError] = useState<string | null>(null);
   const [zoneSuccessMessage, setZoneSuccessMessage] = useState<string | null>(null);
@@ -326,8 +345,18 @@ export default function InboundPage() {
   const handleOpenAddZoneModal = (rowIndex: number) => {
     setModalTargetRowIndex(rowIndex);
     const row = rows[rowIndex];
-    setModalZoneName(row ? row.deliveryAddress.trim() : "");
-    setModalSelectedAxis(row?.axis || "AXE_CENTRE_1");
+    const rawAddr = row ? row.deliveryAddress.trim() : "";
+    setModalZoneName(rawAddr);
+    const lower = rawAddr.toLowerCase();
+    if (lower.includes("coop") || lower.includes("cotisse") || lower.includes("besady") || lower.includes("soatrans") || lower.includes("kofmad")) {
+      setModalZoneType("cooperative");
+    } else if (lower.includes("gare") || row?.fluxType === "PROVINCE") {
+      setModalZoneType("gare");
+    } else {
+      setModalZoneType("quartier");
+    }
+    setModalDestinations("");
+    setModalSelectedAxis(row?.axis || "AXE_CENTRE_2");
     setModalSelectedFee(row?.deliveryFee || 3000);
     setModalError(null);
     setIsAddZoneModalOpen(true);
@@ -336,15 +365,30 @@ export default function InboundPage() {
   const handleConfirmAddZone = async () => {
     const cleanName = modalZoneName.trim();
     if (!cleanName) {
-      setModalError("Le nom du quartier ou lieu est obligatoire.");
+      setModalError("Le nom du quartier ou de la gare est obligatoire.");
       return;
     }
 
     try {
-      // 1. Register in client-side runtime detector
-      registerCustomZone(cleanName, modalSelectedAxis, modalSelectedFee);
+      // 1. Persist directly to DB via API
+      await createMasterZone({
+        nom: cleanName,
+        axe_code: modalSelectedAxis,
+        type: modalZoneType,
+        tarif_livraison: modalSelectedFee,
+        destinations: modalDestinations.trim() || undefined,
+      });
 
-      // 2. Update the target row immediately
+      // 2. Register in client-side runtime detector (immediate continuous learning)
+      registerDynamicGare({
+        name: cleanName,
+        axis: modalSelectedAxis,
+        type: modalZoneType,
+        fee: modalSelectedFee,
+        destinations: modalDestinations.trim() || undefined,
+      });
+
+      // 3. Update the target row immediately
       setRows((prev) => {
         const copy = [...prev];
         if (copy[modalTargetRowIndex]) {
@@ -354,22 +398,20 @@ export default function InboundPage() {
             deliveryFee: modalSelectedFee,
             isAxisFallback: false,
             isManualAxis: true,
-            fluxType: modalSelectedAxis === "AXE_PROVINCE" ? "PROVINCE" : copy[modalTargetRowIndex].fluxType,
+            fluxType: modalZoneType === "quartier" ? copy[modalTargetRowIndex].fluxType : "PROVINCE",
           };
         }
         return copy;
       });
 
+      const labelType = modalZoneType === "gare" ? "Gare" : modalZoneType === "cooperative" ? "Coopérative" : "Quartier";
       setZoneSuccessMessage(
-        `Nouveau quartier "${cleanName}" rattaché avec succès à ${modalSelectedAxis} (${modalSelectedFee.toLocaleString("fr-FR")} Ar) !`
+        `${labelType} "${cleanName}" enregistrée et rattachée avec succès à ${modalSelectedAxis} (${modalSelectedFee.toLocaleString("fr-FR")} Ar) !`
       );
       setTimeout(() => setZoneSuccessMessage(null), 6000);
       setIsAddZoneModalOpen(false);
-
-      // 3. Persist asynchronously in background (non-blocking)
-      addZoneToAxis(1, cleanName).catch(() => {});
     } catch (err: any) {
-      setModalError(err.message || "Erreur lors du rattachement du quartier.");
+      setModalError(err.message || "Erreur lors de l'enregistrement de la gare/zone.");
     }
   };
 
@@ -419,6 +461,11 @@ export default function InboundPage() {
     });
     loadProvinceAxes();
     loadPartners();
+    fetchMasterZones().then((zones) => {
+      if (zones && Array.isArray(zones)) {
+        syncMasterZones(zones);
+      }
+    }).catch(() => {});
   }, []);
 
   const selectPartnerOrGare = (idx: number, partner: Partner) => {
@@ -1247,12 +1294,14 @@ export default function InboundPage() {
                 </div>
 
                 {/* Form Fields: Grid Layout with Natural Multi-Line Wrapping */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
                   {/* Destinataire Nom (col-span-3 - Facultatif) */}
                   <div className="md:col-span-3 space-y-1">
-                    <label className="text-[11px] font-bold text-slate-700 block">
-                      Destinataire (Nom facultatif)
-                    </label>
+                    <div className="h-5 flex items-center">
+                      <label className="text-[11px] font-bold text-slate-700 block">
+                        Destinataire (Nom facultatif)
+                      </label>
+                    </div>
                     <input
                       type="text"
                       data-testid={`input-name-${idx}`}
@@ -1265,7 +1314,7 @@ export default function InboundPage() {
 
                   {/* Destinataire Téléphone (col-span-3) */}
                   <div className="md:col-span-3 space-y-1">
-                    <div className="flex items-center justify-between">
+                    <div className="h-5 flex items-center justify-between">
                       <label className="text-[11px] font-bold text-slate-700 block">
                         Téléphone Dest. (10 chiffres) *
                       </label>
@@ -1297,9 +1346,11 @@ export default function InboundPage() {
 
                   {/* Désignation de la Marchandise / Colis (col-span-3) */}
                   <div className="md:col-span-3 space-y-1">
-                    <label className="text-[11px] font-bold text-slate-700 block">
-                      Désignation / Nature du Colis
-                    </label>
+                    <div className="h-5 flex items-center">
+                      <label className="text-[11px] font-bold text-slate-700 block">
+                        Désignation / Nature du Colis
+                      </label>
+                    </div>
                     <input
                       type="text"
                       data-testid={`input-designation-${idx}`}
@@ -1312,9 +1363,11 @@ export default function InboundPage() {
 
                   {/* Flux Type (col-span-3) */}
                   <div className="md:col-span-3 space-y-1">
-                    <label className="text-[11px] font-bold text-slate-700 block">
-                      Type de Flux Logistique
-                    </label>
+                    <div className="h-5 flex items-center">
+                      <label className="text-[11px] font-bold text-slate-700 block">
+                        Type de Flux Logistique
+                      </label>
+                    </div>
                     <select
                       value={row.fluxType}
                       onChange={(e) => updateRow(idx, "fluxType", e.target.value as FluxType)}
@@ -1326,19 +1379,18 @@ export default function InboundPage() {
                       <option value="RETOUR">🔄 Retour SAV / Échange</option>
                       <option value="ENTREPRISE">🏢 Compte Entreprise / B2B</option>
                     </select>
-                    <p className="text-[10px] text-slate-500 italic mt-0.5">
-                      Polyvalent : l&apos;agent peut saisir n&apos;importe quel flux.
-                    </p>
                   </div>
 
-                  {/* Delivery Address (Multi-line Textarea with Natural Wrapping, col-span-6) */}
-                  <div className="md:col-span-6 space-y-1">
-                    <label className="text-[11px] font-bold text-slate-700 flex items-center justify-between">
-                      <span>Lieu & Repère de Livraison (Multilignes) *</span>
+                  {/* Delivery Address (col-span-5) */}
+                  <div className="md:col-span-5 space-y-1">
+                    <div className="h-5 flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-slate-700 block">
+                        Lieu & Repère de Livraison *
+                      </label>
                       <span className="text-[10px] text-slate-400 font-normal">
-                        Retour à la ligne automatique sans coupure
+                        Retour auto
                       </span>
-                    </label>
+                    </div>
                     <textarea
                       rows={2}
                       data-testid={`input-address-${idx}`}
@@ -1366,129 +1418,41 @@ export default function InboundPage() {
 
                   {/* Axis Selection & Badge (col-span-3) */}
                   <div className="md:col-span-3 space-y-1">
-                    <div className="flex items-center justify-between">
+                    <div className="h-5 flex items-center justify-between">
                       <label className="text-[11px] font-bold text-slate-700 block">
-                        Axe Logistique (Manuel & Modifiable)
+                        Axe Logistique
                       </label>
-                      {row.isManualAxis && (
-                        <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
-                          Choix Manuel
-                        </span>
-                      )}
                     </div>
                     {row.fluxType === "PROVINCE" ? (
-                      <div className="space-y-2">
-                        {/* Dropdown select for Province Axes & Gares */}
-                        <div className="relative">
-                          <select
-                            data-testid={`select-province-axis-${idx}`}
-                            data-cy={`select-province-axis-${idx}`}
-                            value={row.axis}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (val === "SWITCH_TO_URBAN") {
-                                updateRow(idx, "fluxType", "COD");
-                                updateRow(idx, "axis", "AXE_CENTRE_1");
-                              } else {
-                                selectProvinceAxis(idx, val);
-                              }
-                            }}
-                            className="w-full px-3 py-2 bg-purple-50 border border-purple-300 rounded-xl text-xs font-bold text-purple-950 focus:ring-2 focus:ring-purple-500 focus:outline-none shadow-xs"
-                          >
-                            <option value="" disabled>-- Sélectionner la Gare Routière de Départ --</option>
-                            <optgroup label="🏢 Gares Routières d'Antananarivo (➔ 9 Axes Urbains)">
-                              <option value="AXE_CENTRE_2">🏢 Gare Ambodivona ➔ Axe Centre Ville 2 (RN2 Est - Tamatave)</option>
-                              <option value="AXE_AMBOHIMANGAKELY">🏢 Gare Ampasapito ➔ Axe Ambohimangakely</option>
-                              <option value="AXE_SABOTSY_NAMEHANA">🏢 Gare Andranobevava ➔ Axe Sabotsy Namehana (RN3 Nord)</option>
-                              <option value="AXE_AMPITATAFIKA">🏢 Gare Anosibe ➔ Axe Ampitatafika</option>
-                              <option value="AXE_IAVOLOHA">🏢 Gare Ankadimbahoaka (Fasan'ny Karana) ➔ Axe Iavoloha (RN7 Sud)</option>
-                              <option value="AXE_CENTRE_1">🏢 Gare Behoririka ➔ Axe Centre Ville 1</option>
-                              <option value="AXE_ITAOSY">🏢 Gare Andohatapenaka (Maki) ➔ Axe Itaosy (RN4 Ouest - Majunga)</option>
-                              <option value="AXE_AMPITATAFIKA">🏢 Gare Anosizato ➔ Axe Ampitatafika (RN1)</option>
-                              <option value="AXE_ALASORA">🏢 Gare Amoronakona ➔ Axe Alasora (By-pass / Est)</option>
-                            </optgroup>
-                            <option value="SWITCH_TO_URBAN">← Revenir aux livraisons urbaines (Grand Tanà)</option>
-                          </select>
-                        </div>
-
-                        {/* Inline Button to register new province axis if not yet in database */}
-                        {isNewUnregisteredProvinceAxis(row.axis) && (
-                          <div className="flex items-center justify-between gap-1 bg-purple-100/70 p-1.5 rounded-lg border border-purple-200">
-                            <span className="text-[10px] text-purple-800 font-semibold truncate">
-                              Nouvel axe : {getProvinceDisplayName(row.axis)}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => handleRegisterProvinceAxisFromRow(idx)}
-                              data-cy={`btn-register-province-axis-${idx}`}
-                              className="px-2 py-0.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-[10px] font-bold shadow-xs transition shrink-0"
-                            >
-                              + Enregistrer l'axe
-                            </button>
-                          </div>
-                        )}
-
-                        {/* Suggestions basées sur les 7 Gares & Coopératives Nationales officielles */}
-                        <div className="space-y-1.5 pt-1">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-purple-900 uppercase tracking-wider flex items-center gap-1">
-                              <Bus className="w-3 h-3 text-purple-600" /> Gares & Coopératives Référencées (7) :
-                            </span>
-                            <span className="text-[9px] text-purple-600 font-medium">1-clic pour affecter</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {partners.map((partner) => {
-                              const isSelected =
-                                (row.axis === "AXE_PROVINCE_AMBODIVONA" && (partner.nom.includes("Ambodivona") || partner.nom === "Cotisse Transport" || partner.nom === "Trans Texpress")) ||
-                                (row.axis === "AXE_PROVINCE_FASAN_NY_KARANA" && (partner.nom.includes("Fasan") || partner.nom === "Kofmad Transport")) ||
-                                (row.axis === "AXE_PROVINCE_ANDOHATAPENAKA" && (partner.nom.includes("Andohatapenaka") || partner.nom === "Besady Plus")) ||
-                                (row.deliveryAddress && row.deliveryAddress.toLowerCase().includes(partner.nom.toLowerCase()));
-
-                              const isCoop = partner.type === "COOPERATIVE";
-
-                              return (
-                                <button
-                                  key={partner.id || partner.nom}
-                                  type="button"
-                                  onClick={() => selectPartnerOrGare(idx, partner)}
-                                  title={`${partner.nom} (${partner.type}) • ${partner.gare_rattachement || "Gare"} • Tél : ${partner.contact || "Standard"}`}
-                                  className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition cursor-pointer flex items-center gap-1 shadow-2xs ${
-                                    isSelected
-                                      ? "bg-purple-700 text-white border-purple-700 ring-2 ring-purple-300"
-                                      : isCoop
-                                      ? "bg-purple-50 text-purple-900 border-purple-200 hover:bg-purple-100 hover:border-purple-300"
-                                      : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
-                                  }`}
-                                >
-                                  <span>{isCoop ? "🚐" : "🏢"}</span>
-                                  <span>{partner.nom}</span>
-                                  {partner.gare_rattachement && (
-                                    <span className={`text-[9px] font-normal ${isSelected ? "text-purple-200" : "text-purple-600"}`}>
-                                      ({partner.gare_rattachement.replace("Gare Routière ", "").replace("Gare ", "")})
-                                    </span>
-                                  )}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-0.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              updateRow(idx, "fluxType", "COD");
-                              updateRow(idx, "axis", "AXE_CENTRE_1");
-                            }}
-                            className="text-[10px] text-slate-500 hover:text-blue-600 underline cursor-pointer"
-                          >
-                            ← Revenir aux axes urbains
-                          </button>
-                          <span className="text-[10px] font-bold text-purple-700 bg-purple-100/70 px-2 py-0.5 rounded border border-purple-200 flex items-center gap-1">
-                            📦 Expédition Province
-                          </span>
-                        </div>
-                      </div>
+                      <select
+                        data-testid={`select-province-axis-${idx}`}
+                        data-cy={`select-province-axis-${idx}`}
+                        value={row.axis}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === "SWITCH_TO_URBAN") {
+                            updateRow(idx, "fluxType", "COD");
+                            updateRow(idx, "axis", "AXE_CENTRE_1");
+                          } else {
+                            selectProvinceAxis(idx, val);
+                          }
+                        }}
+                        className="w-full px-3 py-2 bg-purple-50 border border-purple-300 rounded-xl text-xs font-bold text-purple-950 focus:ring-2 focus:ring-purple-500 focus:outline-none shadow-xs"
+                      >
+                        <option value="" disabled>-- Sélectionner la Gare --</option>
+                        <optgroup label="🏢 Gares Routières (➔ Axes)">
+                          <option value="AXE_CENTRE_2">Gare Ambodivona ➔ Centre Ville 2</option>
+                          <option value="AXE_AMBOHIMANGAKELY">Gare Ampasapito ➔ Ambohimangakely</option>
+                          <option value="AXE_SABOTSY_NAMEHANA">Gare Andranobevava ➔ Sabotsy Namehana</option>
+                          <option value="AXE_AMPITATAFIKA">Gare Anosibe ➔ Ampitatafika</option>
+                          <option value="AXE_IAVOLOHA">Gare Fasan'ny Karana ➔ Iavoloha</option>
+                          <option value="AXE_CENTRE_1">Gare Behoririka ➔ Centre Ville 1</option>
+                          <option value="AXE_ITAOSY">Gare Andohatapenaka ➔ Itaosy</option>
+                          <option value="AXE_AMPITATAFIKA">Gare Anosizato ➔ Ampitatafika</option>
+                          <option value="AXE_ALASORA">Gare Amoronakona ➔ Alasora</option>
+                        </optgroup>
+                        <option value="SWITCH_TO_URBAN">← Revenir aux livraisons urbaines</option>
+                      </select>
                     ) : (
                       <select
                         data-testid={`select-axis-${idx}`}
@@ -1509,142 +1473,131 @@ export default function InboundPage() {
                             : "border-slate-300"
                         }`}
                       >
-                        <optgroup label="📍 Réseau Urbain (Grand Tanà - 9 Axes Réels)">
-                          <option value="AXE_CENTRE_1">1. Axe Centre Ville 1 (Hyper-Centre & Analakely)</option>
-                          <option value="AXE_CENTRE_2">2. Axe Centre Ville 2 (Péri-Centre & Antanimena)</option>
-                          <option value="AXE_ITAOSY">3. Axe Itaosy (67Ha, Itaosy & Ouest)</option>
-                          <option value="AXE_AMPITATAFIKA">4. Axe Ampitatafika (Ampefiloha & Fenoarivo)</option>
-                          <option value="AXE_AMBOHIMANGAKELY">5. Axe Ambohimangakely (Besarety & RN2)</option>
-                          <option value="AXE_SABOTSY_NAMEHANA">6. Axe Sabotsy Namehana (Ankadikely & RN3)</option>
-                          <option value="AXE_IVATO">7. Axe Ivato (RN4 Digue & Aéroport)</option>
-                          <option value="AXE_IAVOLOHA">8. Axe Iavoloha (RN7 Sud & Tanjombato)</option>
-                          <option value="AXE_ALASORA">9. Axe Alasora (Mandroseza & By-pass)</option>
+                        <optgroup label="📍 Réseau Urbain (9 Axes)">
+                          <option value="AXE_CENTRE_1">1. Centre Ville 1 (Analakely)</option>
+                          <option value="AXE_CENTRE_2">2. Centre Ville 2 (Antanimena)</option>
+                          <option value="AXE_ITAOSY">3. Itaosy (67Ha, Ouest)</option>
+                          <option value="AXE_AMPITATAFIKA">4. Ampitatafika (Ampefiloha)</option>
+                          <option value="AXE_AMBOHIMANGAKELY">5. Ambohimangakely (RN2)</option>
+                          <option value="AXE_SABOTSY_NAMEHANA">6. Sabotsy Namehana (RN3)</option>
+                          <option value="AXE_IVATO">7. Ivato (RN4, Aéroport)</option>
+                          <option value="AXE_IAVOLOHA">8. Iavoloha (RN7 Sud)</option>
+                          <option value="AXE_ALASORA">9. Alasora (By-pass)</option>
                         </optgroup>
-                        <optgroup label="🏢 Gares Routières d'Antananarivo (➔ 9 Axes Urbains)">
-                          <option value="AXE_CENTRE_2">🏢 Gare Ambodivona ➔ Axe Centre Ville 2 (RN2 Est - Tamatave)</option>
-                          <option value="AXE_AMBOHIMANGAKELY">🏢 Gare Ampasapito ➔ Axe Ambohimangakely</option>
-                          <option value="AXE_SABOTSY_NAMEHANA">🏢 Gare Andranobevava ➔ Axe Sabotsy Namehana (RN3 Nord)</option>
-                          <option value="AXE_AMPITATAFIKA">🏢 Gare Anosibe ➔ Axe Ampitatafika</option>
-                          <option value="AXE_IAVOLOHA">🏢 Gare Ankadimbahoaka (Fasan'ny Karana) ➔ Axe Iavoloha (RN7 Sud)</option>
-                          <option value="AXE_CENTRE_1">🏢 Gare Behoririka ➔ Axe Centre Ville 1</option>
-                          <option value="AXE_ITAOSY">🏢 Gare Andohatapenaka (Maki) ➔ Axe Itaosy (RN4 Ouest - Majunga)</option>
-                          <option value="AXE_AMPITATAFIKA">🏢 Gare Anosizato ➔ Axe Ampitatafika (RN1)</option>
-                          <option value="AXE_ALASORA">🏢 Gare Amoronakona ➔ Axe Alasora (By-pass / Est)</option>
+                        <optgroup label="🏢 Gares Routières (➔ Axes)">
+                          <option value="AXE_CENTRE_2">Gare Ambodivona ➔ Centre Ville 2</option>
+                          <option value="AXE_AMBOHIMANGAKELY">Gare Ampasapito ➔ Ambohimangakely</option>
+                          <option value="AXE_SABOTSY_NAMEHANA">Gare Andranobevava ➔ Sabotsy Namehana</option>
+                          <option value="AXE_AMPITATAFIKA">Gare Anosibe ➔ Ampitatafika</option>
+                          <option value="AXE_IAVOLOHA">Gare Fasan'ny Karana ➔ Iavoloha</option>
+                          <option value="AXE_CENTRE_1">Gare Behoririka ➔ Centre Ville 1</option>
+                          <option value="AXE_ITAOSY">Gare Andohatapenaka ➔ Itaosy</option>
+                          <option value="AXE_AMPITATAFIKA">Gare Anosizato ➔ Ampitatafika</option>
+                          <option value="AXE_ALASORA">Gare Amoronakona ➔ Alasora</option>
                         </optgroup>
                       </select>
                     )}
-                    <div className="pt-0.5 flex items-center justify-between gap-1 flex-wrap">
-                      <AxisBadge
-                        axis={row.axis}
-                        isFallback={row.isAxisFallback}
-                        isManual={row.isManualAxis}
-                      />
-                      <button
-                        type="button"
-                        data-cy={`btn-open-add-zone-${idx}`}
-                        data-testid={`btn-open-add-zone-${idx}`}
-                        onClick={() => handleOpenAddZoneModal(idx)}
-                        className="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100/80 px-2 py-0.5 rounded border border-blue-200 flex items-center gap-1 transition cursor-pointer"
-                        title="Rattacher un nouveau quartier inconnu à un axe et définir son tarif"
-                      >
-                        <Plus className="w-3 h-3" />
-                        <span>Nouveau Quartier ?</span>
-                      </button>
-                    </div>
+                    <AxisBadge
+                      axis={row.axis}
+                      isFallback={row.isAxisFallback}
+                      isManual={row.isManualAxis}
+                    />
                   </div>
 
-                  {/* Financial Amounts (col-span-3) */}
-                  <div className="md:col-span-3 grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
+                  {/* Marchandise (col-span-2) */}
+                  <div className="md:col-span-2 space-y-1">
+                    <div className="h-5 flex items-center">
                       <label className="text-[11px] font-bold text-slate-700 block">
                         Marchandise (Ar)
                       </label>
-                      <input
-                        type="number"
-                        data-testid={`input-merch-${idx}`}
-                        disabled={row.fluxType === "SIMPLE"}
-                        value={row.merchandiseAmount === 0 ? "" : row.merchandiseAmount}
-                        onChange={(e) =>
-                          updateRow(idx, "merchandiseAmount", Number(e.target.value) || 0)
-                        }
-                        placeholder="0"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold text-right focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
-                      />
                     </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[11px] font-bold text-slate-700 block">
-                          Frais Livraison (Ar)
-                        </label>
-                        <span
-                          className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded border uppercase tracking-wider ${
-                            row.deliveryFee === 3000
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : row.deliveryFee === 4000
-                              ? "bg-blue-50 text-blue-700 border-blue-200"
-                              : row.deliveryFee === 5000
-                              ? "bg-purple-50 text-purple-700 border-purple-200"
-                              : "bg-slate-50 text-slate-600 border-slate-200"
-                          }`}
-                        >
-                          {row.deliveryFee === 3000
-                            ? "3 000 Ar • CUA"
+                    <input
+                      type="number"
+                      data-testid={`input-merch-${idx}`}
+                      disabled={row.fluxType === "SIMPLE"}
+                      value={row.merchandiseAmount === 0 ? "" : row.merchandiseAmount}
+                      onChange={(e) =>
+                        updateRow(idx, "merchandiseAmount", Number(e.target.value) || 0)
+                      }
+                      placeholder="0"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold text-right focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+                  </div>
+
+                  {/* Frais Livraison (col-span-2) */}
+                  <div className="md:col-span-2 space-y-1">
+                    <div className="h-5 flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-slate-700 block">
+                        Frais (Ar)
+                      </label>
+                      <span
+                        className={`text-[9px] font-extrabold px-1 py-0.5 rounded border uppercase tracking-wider ${
+                          row.deliveryFee === 3000
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                             : row.deliveryFee === 4000
-                            ? "4 000 Ar • Péri-Urbain"
+                            ? "bg-blue-50 text-blue-700 border-blue-200"
                             : row.deliveryFee === 5000
-                            ? "5 000 Ar • Couronne"
-                            : "Tarif Manuel"}
-                        </span>
-                      </div>
-                      <input
-                        type="number"
-                        data-testid={`input-fee-${idx}`}
-                        value={row.deliveryFee === 0 ? "" : row.deliveryFee}
-                        onChange={(e) =>
-                          updateRow(idx, "deliveryFee", Number(e.target.value) || 0)
-                        }
-                        placeholder="3000"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold text-right focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                      />
-                      {/* One-click Tariff Pills */}
-                      <div className="flex items-center gap-1 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => updateRow(idx, "deliveryFee", 3000)}
-                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition cursor-pointer ${
-                            row.deliveryFee === 3000
-                              ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
-                              : "bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50"
-                          }`}
-                          title="Tarif CUA standard (1er au 6ème Arr.)"
-                        >
-                          3k
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => updateRow(idx, "deliveryFee", 4000)}
-                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition cursor-pointer ${
-                            row.deliveryFee === 4000
-                              ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
-                              : "bg-white text-blue-700 border-blue-200 hover:bg-blue-50"
-                          }`}
-                          title="Tarif Péri-Urbain (1ère Couronne)"
-                        >
-                          4k
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => updateRow(idx, "deliveryFee", 5000)}
-                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition cursor-pointer ${
-                            row.deliveryFee === 5000
-                              ? "bg-purple-600 text-white border-purple-600 shadow-2xs"
-                              : "bg-white text-purple-700 border-purple-200 hover:bg-purple-50"
-                          }`}
-                          title="Tarif Grande Couronne / Périphérie"
-                        >
-                          5k
-                        </button>
-                      </div>
+                            ? "bg-purple-50 text-purple-700 border-purple-200"
+                            : "bg-slate-50 text-slate-600 border-slate-200"
+                        }`}
+                      >
+                        {row.deliveryFee === 3000
+                          ? "CUA"
+                          : row.deliveryFee === 4000
+                          ? "Péri"
+                          : row.deliveryFee === 5000
+                          ? "Couronne"
+                          : "Manuel"}
+                      </span>
+                    </div>
+                    <input
+                      type="number"
+                      data-testid={`input-fee-${idx}`}
+                      value={row.deliveryFee === 0 ? "" : row.deliveryFee}
+                      onChange={(e) =>
+                        updateRow(idx, "deliveryFee", Number(e.target.value) || 0)
+                      }
+                      placeholder="3000"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold text-right focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                    {/* One-click Tariff Pills */}
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => updateRow(idx, "deliveryFee", 3000)}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition cursor-pointer ${
+                          row.deliveryFee === 3000
+                            ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
+                            : "bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                        }`}
+                        title="Tarif CUA standard"
+                      >
+                        3k
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateRow(idx, "deliveryFee", 4000)}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition cursor-pointer ${
+                          row.deliveryFee === 4000
+                            ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
+                            : "bg-white text-blue-700 border-blue-200 hover:bg-blue-50"
+                        }`}
+                        title="Tarif Péri-Urbain"
+                      >
+                        4k
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateRow(idx, "deliveryFee", 5000)}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition cursor-pointer ${
+                          row.deliveryFee === 5000
+                            ? "bg-purple-600 text-white border-purple-600 shadow-2xs"
+                            : "bg-white text-purple-700 border-purple-200 hover:bg-purple-50"
+                        }`}
+                        title="Tarif Grande Couronne"
+                      >
+                        5k
+                      </button>
                     </div>
                   </div>
 
@@ -2172,17 +2125,17 @@ export default function InboundPage() {
             <div className="p-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center font-bold text-base">
-                  📍
+                  🚌
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold tracking-wide">Rattacher un Nouveau Quartier</h3>
-                  <p className="text-[11px] text-blue-100">Enrichir le référentiel des axes logistiques</p>
+                  <h3 className="text-sm font-bold tracking-wide">Rattacher une Gare, Coopérative ou Quartier</h3>
+                  <p className="text-[11px] text-blue-100">Associer immédiatement à l'un des 9 axes urbains réels</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsAddZoneModalOpen(false)}
-                className="text-white/80 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition"
+                className="text-white/80 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition cursor-pointer"
                 data-cy="btn-close-add-zone-modal"
               >
                 ✕
@@ -2191,25 +2144,100 @@ export default function InboundPage() {
 
             {/* Body Form */}
             <div className="p-5 space-y-4">
-              {/* Zone Name */}
+              {/* Type Selection */}
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-700 block">
-                  Nom du Quartier / Lieu Inconnu *
+                  Type d'Élément *
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setModalZoneType("gare")}
+                    className={`p-2 rounded-xl border text-center transition cursor-pointer flex flex-col items-center gap-0.5 ${
+                      modalZoneType === "gare"
+                        ? "border-purple-600 bg-purple-50 text-purple-900 ring-2 ring-purple-500 font-bold"
+                        : "border-slate-200 hover:border-slate-300 text-slate-600"
+                    }`}
+                  >
+                    <span className="text-sm">🚌</span>
+                    <span className="text-xs font-bold">Gare Routière</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModalZoneType("cooperative")}
+                    className={`p-2 rounded-xl border text-center transition cursor-pointer flex flex-col items-center gap-0.5 ${
+                      modalZoneType === "cooperative"
+                        ? "border-amber-600 bg-amber-50 text-amber-900 ring-2 ring-amber-500 font-bold"
+                        : "border-slate-200 hover:border-slate-300 text-slate-600"
+                    }`}
+                  >
+                    <span className="text-sm">🤝</span>
+                    <span className="text-xs font-bold">Coopérative</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModalZoneType("quartier")}
+                    className={`p-2 rounded-xl border text-center transition cursor-pointer flex flex-col items-center gap-0.5 ${
+                      modalZoneType === "quartier"
+                        ? "border-blue-600 bg-blue-50 text-blue-900 ring-2 ring-blue-500 font-bold"
+                        : "border-slate-200 hover:border-slate-300 text-slate-600"
+                    }`}
+                  >
+                    <span className="text-sm">🏘️</span>
+                    <span className="text-xs font-bold">Quartier Urbain</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Zone / Gare Name */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 block">
+                  {modalZoneType === "gare"
+                    ? "Nom de la Gare Routière *"
+                    : modalZoneType === "cooperative"
+                    ? "Nom de la Coopérative / Transporteur *"
+                    : "Nom du Quartier / Lieu *"}
                 </label>
                 <input
                   type="text"
                   data-cy="input-modal-zone-name"
                   value={modalZoneName}
                   onChange={(e) => setModalZoneName(e.target.value)}
-                  placeholder="Ex : Ampitatafika Avaratra, Ambohitrandriana..."
+                  placeholder={
+                    modalZoneType === "gare"
+                      ? "Ex : Gare Routière Ambodivona, Gare Maki Andohatapenaka..."
+                      : modalZoneType === "cooperative"
+                      ? "Ex : Cotisse Transport, Besady Plus, Kofmad..."
+                      : "Ex : Ampitatafika Avaratra, Ambohitrandriana..."
+                  }
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />
               </div>
 
+              {/* Destinations (If Gare or Cooperative) */}
+              {(modalZoneType === "gare" || modalZoneType === "cooperative") && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-purple-900 block flex items-center justify-between">
+                    <span>Villes de destination Province desservies (optionnel)</span>
+                    <span className="text-[10px] text-purple-600 font-normal">Reconnaissance auto</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={modalDestinations}
+                    onChange={(e) => setModalDestinations(e.target.value)}
+                    placeholder="Ex : Tamatave, Moramanga, Brickaville..."
+                    className="w-full px-3 py-2 border border-purple-200 bg-purple-50/30 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                  />
+                  <p className="text-[10px] text-slate-500">
+                    💡 Les colis mentionnant ces villes seront automatiquement dirigés vers cette gare et cet axe urbain !
+                  </p>
+                </div>
+              )}
+
               {/* Axis Selection */}
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-700 block">
-                  Axe Logistique de Rattachement *
+                  Axe Urbain Physique d'Antananarivo où se situe la gare / le quartier *
                 </label>
                 <select
                   data-cy="select-modal-axis"
@@ -2217,16 +2245,16 @@ export default function InboundPage() {
                   onChange={(e) => setModalSelectedAxis(e.target.value as LogisticAxis)}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 >
-                  <optgroup label="📍 Réseau Urbain (Grand Tanà - 9 Axes Réels)">
+                  <optgroup label="📍 Réseau Urbain Réel (9 Axes de Livraison)">
                     <option value="AXE_CENTRE_1">1. Axe Centre Ville 1 (Hyper-Centre & Analakely)</option>
-                    <option value="AXE_CENTRE_2">2. Axe Centre Ville 2 (Péri-Centre & Antanimena)</option>
-                    <option value="AXE_ITAOSY">3. Axe Itaosy (67Ha, Itaosy & Ouest)</option>
-                    <option value="AXE_AMPITATAFIKA">4. Axe Ampitatafika (Ampefiloha & Fenoarivo)</option>
-                    <option value="AXE_AMBOHIMANGAKELY">5. Axe Ambohimangakely (Besarety & RN2)</option>
-                    <option value="AXE_SABOTSY_NAMEHANA">6. Axe Sabotsy Namehana (Ankadikely & RN3)</option>
-                    <option value="AXE_IVATO">7. Axe Ivato (RN4 Digue & Aéroport)</option>
-                    <option value="AXE_IAVOLOHA">8. Axe Iavoloha (RN7 Sud & Tanjombato)</option>
-                    <option value="AXE_ALASORA">9. Axe Alasora (Mandroseza & By-pass)</option>
+                    <option value="AXE_CENTRE_2">2. Axe Centre Ville 2 (Péri-Centre & Antanimena - Gare Ambodivona)</option>
+                    <option value="AXE_ITAOSY">3. Axe Itaosy (67Ha, Itaosy & Ouest - Gare Andohatapenaka)</option>
+                    <option value="AXE_AMPITATAFIKA">4. Axe Ampitatafika (Ampefiloha & Fenoarivo - Gares Anosibe/Anosizato)</option>
+                    <option value="AXE_AMBOHIMANGAKELY">5. Axe Ambohimangakely (Besarety & RN2 - Gare Ampasapito)</option>
+                    <option value="AXE_SABOTSY_NAMEHANA">6. Axe Sabotsy Namehana (Ankadikely & RN3 - Gare Andranobevava)</option>
+                    <option value="AXE_IVATO">7. Axe Ivato (RN4 Digue & Aéroport - Fret Ivato)</option>
+                    <option value="AXE_IAVOLOHA">8. Axe Iavoloha (RN7 Sud & Tanjombato - Gare Fasan'ny Karana)</option>
+                    <option value="AXE_ALASORA">9. Axe Alasora (Mandroseza & By-pass - Gare Amoronakona)</option>
                   </optgroup>
                 </select>
               </div>
@@ -2234,7 +2262,7 @@ export default function InboundPage() {
               {/* Tariff Selection according to CDC 5.3 */}
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-700 block">
-                  Grille Tarifaire Applicable (CDC 5.3) *
+                  Frais de livraison / acheminement jusqu'à la gare ou adresse (CDC 5.3) *
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   <button
@@ -2303,7 +2331,7 @@ export default function InboundPage() {
                 className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5 cursor-pointer"
               >
                 <span>✓</span>
-                <span>Enregistrer & Rattacher</span>
+                <span>Enregistrer & Mémoriser</span>
               </button>
             </div>
           </div>
