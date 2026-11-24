@@ -26,6 +26,8 @@ class Tour:
     parcels: List[Parcel] = field(default_factory=list)
     theoretical_total: Money = field(default_factory=Money.zero)
     actual_remitted: Money = field(default_factory=Money.zero)
+    expenses_amount: Money = field(default_factory=Money.zero)
+    expenses_reason: Optional[str] = None
     closed_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
@@ -51,12 +53,28 @@ class Tour:
         self.theoretical_total = total
         return total
 
-    def compute_cash_discrepancy(self, cash_and_mobile_remitted: Money) -> int:
-        """Computes discrepancy: Remitted - Theoretical.
-        Ecart = Remitted - Theoretical
-        If < 0, it is a cash deficit (Déficit de caisse).
+    def compute_cash_discrepancy(
+        self,
+        cash_and_mobile_remitted: Money,
+        expenses_amount: Optional[Money] = None,
+        expenses_reason: Optional[str] = None,
+    ) -> int:
+        """Computes discrepancy: (Remitted Cash/Mobile + Justified Expenses) - Theoretical Due.
+        Règle Métier 7 : Les dépenses d'exploitation (carburant, frais de route/fret) justifiées
+        sont des charges de la société. Elles viennent justifier la décharge et réduire le montant
+        net à verser sans AUCUN litige ni dette imputable au livreur.
+        Ecart = (Remitted + Expenses) - Theoretical
+        Si < 0, il s'agit d'un vrai déficit net injustifié (Déficit de caisse).
         """
         theor = self.calculate_theoretical_total().amount
         actual = cash_and_mobile_remitted.amount
+        exp = expenses_amount.amount if expenses_amount else 0
+
         self.actual_remitted = cash_and_mobile_remitted
-        return actual - theor
+        if expenses_amount:
+            self.expenses_amount = expenses_amount
+        if expenses_reason:
+            self.expenses_reason = expenses_reason
+
+        total_justified = actual + exp
+        return total_justified - theor

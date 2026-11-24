@@ -705,13 +705,31 @@ export async function fetchParcelHistory(parcelId: number): Promise<ParcelHistor
   return await res.json();
 }
 
-export async function closeTour(tourId: number, cashAndMobileRemitted: number) {
+export async function closeTour(
+  tourId: number,
+  cashAndMobileRemitted: number,
+  options?: {
+    cashAmount?: number;
+    mobileAmount?: number;
+    expensesAmount?: number;
+    expensesReason?: string;
+  }
+) {
   const headers = getAuthHeaders();
+  const payload: any = {
+    cash_and_mobile_remitted: cashAndMobileRemitted,
+  };
+  if (options) {
+    if (options.cashAmount !== undefined) payload.cash_amount = options.cashAmount;
+    if (options.mobileAmount !== undefined) payload.mobile_amount = options.mobileAmount;
+    if (options.expensesAmount !== undefined) payload.expenses_amount = options.expensesAmount;
+    if (options.expensesReason !== undefined) payload.expenses_reason = options.expensesReason;
+  }
 
   const res = await fetch(`${getApiBaseUrl()}/tours/${tourId}/close`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ cash_and_mobile_remitted: cashAndMobileRemitted }),
+    body: JSON.stringify(payload),
   });
 
   if (!res.ok) {

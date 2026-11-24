@@ -84,12 +84,14 @@ export default function CashAndClosurePage() {
   const [remittedCash, setRemittedCash] = useState<number>(0);
   const [remittedMobile, setRemittedMobile] = useState<number>(0);
   const [remittedExpenses, setRemittedExpenses] = useState<number>(0);
+  const [remittedExpensesReason, setRemittedExpensesReason] = useState<string>("Carburant moto / Frais de tournée");
   const [isClosingTour, setIsClosingTour] = useState(false);
   const [receiptData, setReceiptData] = useState<{
     tour: Tour;
     cash: number;
     mobile: number;
     expenses: number;
+    expensesReason?: string;
     discrepancy: number;
     closedAt: string;
     grossTotal?: number;
@@ -109,7 +111,8 @@ export default function CashAndClosurePage() {
         if (detail.status === "CLOTURE") {
           setRemittedCash(detail.actual_remitted || 0);
           setRemittedMobile(0);
-          setRemittedExpenses(0);
+          setRemittedExpenses(detail.expenses_amount || 0);
+          setRemittedExpensesReason(detail.expenses_reason || "Carburant moto");
         } else {
           // Calculer le total encaissé par le coursier sur le terrain
           let cashSum = 0;
@@ -139,6 +142,7 @@ export default function CashAndClosurePage() {
           setRemittedCash(cashSum);
           setRemittedMobile(mobileSum);
           setRemittedExpenses(0);
+          setRemittedExpensesReason("Carburant moto / Frais de tournée");
         }
       }
       return detail;
@@ -222,7 +226,8 @@ export default function CashAndClosurePage() {
                 if (detail.status === "CLOTURE") {
                   setRemittedCash(detail.actual_remitted || 0);
                   setRemittedMobile(0);
-                  setRemittedExpenses(0);
+                  setRemittedExpenses(detail.expenses_amount || 0);
+                  setRemittedExpensesReason(detail.expenses_reason || "Carburant moto");
                 }
                 return detail;
               }
@@ -514,11 +519,21 @@ export default function CashAndClosurePage() {
   // Clôture définitive de la tournée
   const handleConfirmCloseTour = async () => {
     if (!selectedTourDetail) return;
+    // Règle Métier 7 : toute dépense d'exploitation doit être motivée (justificatif)
+    if (remittedExpenses > 0 && !remittedExpensesReason.trim()) {
+      setError("Veuillez préciser le motif des dépenses d'exploitation (ex : carburant, stationnement).");
+      return;
+    }
     setIsClosingTour(true);
     setError(null);
     try {
-      // 1. Appel API de clôture de la tournée
-      const res = await closeTour(selectedTourDetail.id, totalRemitted);
+      // 1. Appel API de clôture de la tournée (Séparation stricte Dépenses d'exploitation vs Litiges)
+      const res = await closeTour(selectedTourDetail.id, remittedCash + remittedMobile, {
+        cashAmount: remittedCash,
+        mobileAmount: remittedMobile,
+        expensesAmount: remittedExpenses,
+        expensesReason: remittedExpensesReason,
+      });
 
       // 2. Recharger immédiatement en temps réel le détail scellé de la tournée
       const updatedTourDetail = await loadTourDetail(selectedTourDetail.id);
@@ -526,7 +541,9 @@ export default function CashAndClosurePage() {
       const finalTour = updatedTourDetail || {
         ...selectedTourDetail,
         status: "CLOTURE" as const,
-        actual_remitted: totalRemitted,
+        actual_remitted: remittedCash + remittedMobile,
+        expenses_amount: remittedExpenses,
+        expenses_reason: remittedExpensesReason,
         discrepancy: cashDiscrepancy,
       };
 
@@ -546,6 +563,7 @@ export default function CashAndClosurePage() {
         cash: remittedCash,
         mobile: remittedMobile,
         expenses: remittedExpenses,
+        expensesReason: remittedExpensesReason,
         discrepancy: cashDiscrepancy,
         closedAt: new Date().toISOString(),
         grossTotal: tourFinancials.grossTotal,
@@ -1478,33 +1496,58 @@ export default function CashAndClosurePage() {
                                   : "text-purple-600"
                               }`}
                             />
-                            3. Dépenses & Fret Justifiés par Récépissés (MGA)
+                            3. Dépenses d&apos;Exploitation Justifiées (Carburant, Frais de tournée)
                           </label>
                           <span
                             className={`text-xs font-mono ${
                               selectedTourDetail.status === "CLOTURE"
                                 ? "text-slate-400"
-                                : "text-slate-500"
+                                : "text-purple-700 font-semibold"
                             }`}
                           >
-                            {selectedTourDetail.status === "CLOTURE" ? "🔒 Scellé" : "Souches coopératives"}
+                            {selectedTourDetail.status === "CLOTURE" ? "🔒 Scellé" : "Reçus / Tickets"}
                           </span>
                         </div>
-                        <input
-                          type="number"
-                          min={0}
-                          step={500}
-                          placeholder="0"
-                          value={remittedExpenses === 0 ? "" : remittedExpenses}
-                          onChange={(e) => setRemittedExpenses(Number(e.target.value) || 0)}
-                          disabled={selectedTourDetail.status === "CLOTURE"}
-                          className={`w-full px-4 py-2.5 rounded-lg text-lg font-mono font-black border transition-all ${
-                            selectedTourDetail.status === "CLOTURE"
-                              ? "bg-slate-200/70 text-slate-500 border-slate-300 cursor-not-allowed shadow-none select-none"
-                              : "bg-white border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                          }`}
-                          data-cy="input-remitted-expenses"
-                        />
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                          <div className="sm:col-span-5">
+                            <input
+                              type="number"
+                              min={0}
+                              step={500}
+                              placeholder="0"
+                              value={remittedExpenses === 0 ? "" : remittedExpenses}
+                              onChange={(e) => setRemittedExpenses(Number(e.target.value) || 0)}
+                              disabled={selectedTourDetail.status === "CLOTURE"}
+                              className={`w-full px-4 py-2.5 rounded-lg text-lg font-mono font-black border transition-all ${
+                                selectedTourDetail.status === "CLOTURE"
+                                  ? "bg-slate-200/70 text-slate-500 border-slate-300 cursor-not-allowed shadow-none select-none"
+                                  : "bg-white border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                              }`}
+                              data-cy="input-remitted-expenses"
+                            />
+                          </div>
+                          <div className="sm:col-span-7">
+                            <input
+                              type="text"
+                              placeholder="Motif (ex: Plein carburant SP95, Stationnement...)"
+                              value={remittedExpensesReason}
+                              onChange={(e) => setRemittedExpensesReason(e.target.value)}
+                              disabled={selectedTourDetail.status === "CLOTURE"}
+                              className={`w-full px-3 py-2.5 rounded-lg text-xs border font-medium transition-all ${
+                                selectedTourDetail.status === "CLOTURE"
+                                  ? "bg-slate-200/70 text-slate-500 border-slate-300 cursor-not-allowed"
+                                  : "bg-white border-slate-300 text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                              }`}
+                              data-cy="input-remitted-expenses-reason"
+                            />
+                          </div>
+                        </div>
+                        <div className="mt-2 flex items-center gap-1.5 text-[11px] text-purple-700 font-semibold bg-purple-50/80 p-2 rounded-lg border border-purple-200">
+                          <span>🛡️</span>
+                          <span>
+                            <strong>Règle Métier 7 :</strong> Ces dépenses sont des charges d&apos;exploitation prises en compte dans la décharge. Elles ne sont <strong>en aucun cas comptabilisées ou mélangées dans les litiges livreurs</strong>.
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1971,8 +2014,15 @@ export default function CashAndClosurePage() {
                 <span>{formatMGA(receiptData.mobile)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Frais Fret / Dépenses Justifiées :</span>
-                <span>{formatMGA(receiptData.expenses)}</span>
+                <span className="text-slate-500">
+                  Dépenses d&apos;exploitation (Carburant / Frais) :
+                  {receiptData.expensesReason && (
+                    <span className="block text-[10px] text-purple-700 italic font-semibold">
+                      Motif : {receiptData.expensesReason} (Charge société)
+                    </span>
+                  )}
+                </span>
+                <span className="font-semibold text-purple-700">{formatMGA(receiptData.expenses)}</span>
               </div>
               <div className="border-t-2 border-dashed border-slate-400 pt-2 flex justify-between text-sm font-black">
                 <span>Écart de Décharge au Quai :</span>

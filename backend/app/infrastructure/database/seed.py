@@ -47,6 +47,9 @@ def seed_master_data():
             """))
             conn.execute(text("ALTER TABLE colis ADD COLUMN IF NOT EXISTS receptionniste_id INTEGER REFERENCES utilisateurs(id);"))
             conn.execute(text("ALTER TABLE colis ADD COLUMN IF NOT EXISTS receptionniste_nom VARCHAR(100);"))
+            # Priorité 7 : dépenses d'exploitation séparées des litiges
+            conn.execute(text("ALTER TABLE tournees ADD COLUMN IF NOT EXISTS total_depenses DOUBLE PRECISION DEFAULT 0 NOT NULL;"))
+            conn.execute(text("ALTER TABLE tournees ADD COLUMN IF NOT EXISTS motif_depenses VARCHAR(255);"))
             conn.commit()
     except Exception as e:
         print(f"Notice during constraint update: {e}")

@@ -55,7 +55,11 @@ class CreateTourDTO(BaseModel):
 
 
 class CloseTourDTO(BaseModel):
-    cash_and_mobile_remitted: int
+    cash_and_mobile_remitted: Optional[int] = None
+    cash_amount: Optional[int] = None
+    mobile_amount: Optional[int] = None
+    expenses_amount: int = 0
+    expenses_reason: Optional[str] = None
 
 
 class TourResponseDTO(BaseModel):
@@ -66,6 +70,8 @@ class TourResponseDTO(BaseModel):
     theoretical_total: int
     actual_remitted: int
     discrepancy: int
+    expenses_amount: int = 0
+    expenses_reason: Optional[str] = None
     closed_at: Optional[str] = None
 
 

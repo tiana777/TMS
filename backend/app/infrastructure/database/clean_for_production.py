@@ -165,6 +165,9 @@ def clean_database_for_production():
             ALTER TABLE colis_statut_historique ADD COLUMN IF NOT EXISTS agent_nom VARCHAR(255);
             ALTER TABLE colis_statut_historique ADD COLUMN IF NOT EXISTS agent_role VARCHAR(100);
             ALTER TABLE colis_statut_historique ADD COLUMN IF NOT EXISTS details TEXT;
+
+            ALTER TABLE tournees ADD COLUMN IF NOT EXISTS total_depenses DOUBLE PRECISION DEFAULT 0 NOT NULL;
+            ALTER TABLE tournees ADD COLUMN IF NOT EXISTS motif_depenses VARCHAR(255);
         """))
         db.commit()
 

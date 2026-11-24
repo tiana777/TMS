@@ -34,8 +34,14 @@ Ce document centralise et suit l'avancement des fonctionnalités prioritaires de
 - [ ] **6. Déduction des frais de livraison prépayés**  
   Gérer la déduction des frais de livraison lorsque l'expéditeur les a déjà encaissés à l'avance auprès de son client (frais déjà payés au vendeur).
 
-- [ ] **7. Gestion des litiges & Dépenses livreurs**  
+- [x] **7. Gestion des litiges & Dépenses livreurs** *(Terminé)*  
   Corriger les litiges livreurs : les dépenses (carburant, frais annexes, etc.) ne doivent pas être comptabilisées ou mélangées dans les litiges.
+  - ✅ **Backend Domain** : `Tour` porte désormais `expenses_amount` / `expenses_reason` ; `compute_cash_discrepancy()` calcule l'écart net `(espèces + mobile + dépenses justifiées) − dû théorique`.
+  - ✅ **Backend Application** : `close_tour` reçoit espèces, mobile et dépenses séparément (`CloseTourDTO`) ; motif obligatoire si dépenses > 0 ; le litige `DEFICIT_COD` automatique n'est ouvert que sur le **déficit net non justifié**.
+  - ✅ **Garde-fou litiges** : `CourierDebt.open_new()` refuse la création manuelle d'un litige dont le motif est une dépense d'exploitation (carburant, essence, gasoil, péage, stationnement, frais de route/annexes). Vérification uniquement à la création : les litiges historiques restent consultables.
+  - ✅ **Persistance** : colonnes `tournees.total_depenses` et `tournees.motif_depenses` (migration `migrate_tour_expenses.py`, également intégrée à `seed.py` et `clean_for_production.py`).
+  - ✅ **Frontend** : saisie montant + motif des dépenses dans la clôture de caisse (`/cash`), affichage sur le reçu, bandeau explicatif et blocage côté formulaire dans `/disputes`.
+  - ✅ **Tests unitaires** : scénarios dépenses sans litige, déficit net seul en litige, refus d'un litige carburant, rechargement des litiges historiques.
 
 - [x] **8. Tableau de bord / Récapitulatif général du jour** *(Terminé)*  
   Afficher un récapitulatif global bien visible indiquant :
