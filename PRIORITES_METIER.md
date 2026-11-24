@@ -48,6 +48,10 @@ Ce document centralise et suit l'avancement des fonctionnalités prioritaires de
   - ✅ Bloc Bleu « Frais Encaissés Aujourd'hui » (Chiffre d'Affaires net transporteur TMS perçu sur la journée).
   - ✅ Build validé et données de test en temps réel synchronisées.
 
-- [ ] **9. Modification d'adresse et de tarif selon le statut**  
+- [x] **9. Modification d'adresse et de tarif selon le statut** *(Terminé)*  
   - Si le colis est encore « En dépôt » : autoriser la modification du lieu de livraison.
   - Si le colis est déjà « En cours de livraison » : autoriser la modification du lieu ET des frais de livraison.
+  - ✅ **Backend Domain** : Implémentation de `Parcel.update_delivery_details()` avec gardes-fous stricts. Interdiction de modifier les frais en dépôt (`BusinessRuleViolationException`), autorisation adresse + frais sous `EN_COURS`, et interdiction formelle de toute modification sur statuts finaux (`LIVRE`, `ENCAISSE`, `CLOTURE_CAISSE`).
+  - ✅ **Backend Application** : Cas d'usage `update_parcel_contact` avec recalcul automatique d'axe via `AxisAutoDetector` si l'adresse change en dépôt, recalcul du montant COD total, et enregistrement dans l'historique d'audit (`MODIFICATION_ADRESSE_TARIF`).
+  - ✅ **Tests Unitaires Domain** : Suite de tests couvrant les 4 scénarios (adresse sous `EN_DEPOT`, refus de tarif sous `EN_DEPOT`, adresse + tarif sous `EN_COURS` avec recalcul COD, refus sur statuts terminaux).
+  - ✅ **Frontend** : Modal contextuel dédié `MODAL 7` dans l'écran de suivi (`/tracking`) et boutons d'action rapide « Modifier ». Verrouillage dynamique du champ tarif avec cadenas et explications lorsque le colis n'est pas encore en cours de livraison. Impact financier COD visualisé en temps réel.

@@ -476,21 +476,34 @@ class ParcelUseCases:
             notes.append(f"Téléphone destinataire corrigé : {validated_phone.formatted}")
         if recipient_name and recipient_name.strip():
             notes.append(f"Nom destinataire : {recipient_name.strip()}")
-        if delivery_address and delivery_address.strip():
+
+        # Règle Métier 9 : Modification d'adresse et de tarif selon le statut
+        new_fee_obj = Money(delivery_fee) if delivery_fee is not None else None
+        old_fee = parcel.delivery_fee.amount
+        old_addr = parcel.delivery_address
+
+        parcel.update_delivery_details(
+            delivery_address=delivery_address,
+            delivery_fee=new_fee_obj,
+        )
+
+        if delivery_address and delivery_address.strip() and delivery_address.strip() != old_addr:
             new_addr = delivery_address.strip()
-            if new_addr != parcel.delivery_address:
-                notes.append(f"Adresse : {new_addr}")
-                # Réaffectation automatique de l'axe si le colis est en dépôt ou assigné
-                if parcel.status in (ParcelStatus.EN_DEPOT, ParcelStatus.ASSIGNE):
-                    detection = self.axis_detector.detect(new_addr)
-                    if detection.axis != parcel.axis:
-                        old_axis_val = parcel.axis.value
-                        parcel.axis = detection.axis
-                        parcel.is_manual_axis = False
-                        notes.append(f"Axe réaffecté : {old_axis_val} ➔ {detection.axis.value}")
-                        if parcel.status == ParcelStatus.ASSIGNE:
-                            parcel.unassign()
-                            notes.append("Désassigné de l'ancienne tournée suite à changement d'axe")
+            notes.append(f"Adresse modifiée : {new_addr}")
+            # Réaffectation automatique de l'axe si le colis est en dépôt ou assigné
+            if parcel.status in (ParcelStatus.EN_DEPOT, ParcelStatus.ASSIGNE):
+                detection = AxisAutoDetector.detect(new_addr, db=self.db)
+                if detection.axis != parcel.axis:
+                    old_axis_val = parcel.axis.value
+                    parcel.axis = detection.axis
+                    parcel.is_manual_axis = False
+                    notes.append(f"Axe réaffecté : {old_axis_val} ➔ {detection.axis.value}")
+                    if parcel.status == ParcelStatus.ASSIGNE:
+                        parcel.unassign()
+                        notes.append("Désassigné de l'ancienne tournée suite à changement d'axe")
+
+        if delivery_fee is not None and delivery_fee != old_fee:
+            notes.append(f"Frais de livraison ajustés : {delivery_fee} Ar (Nouveau total COD : {parcel.total_to_collect.amount} Ar)")
 
         if designation is not None:
             parcel.designation = designation.strip() if designation.strip() else None
@@ -501,21 +514,18 @@ class ParcelUseCases:
         if merchandise_amount is not None:
             parcel.merchandise_amount = Money(merchandise_amount)
             notes.append(f"Montant marchandise : {merchandise_amount} Ar")
-        if delivery_fee is not None:
-            parcel.delivery_fee = Money(delivery_fee)
-            notes.append(f"Frais de livraison : {delivery_fee} Ar")
 
         parcel.update_contact_info(
             recipient_phone=validated_phone,
             recipient_name=recipient_name,
-            delivery_address=delivery_address,
         )
         saved = self.repo.save(parcel)
 
         if notes:
+            action_name = "MODIFICATION_ADRESSE_TARIF" if (delivery_fee is not None or (delivery_address and delivery_address.strip() != old_addr)) else "MODIFICATION_INFOS"
             self.record_history(
                 colis_id=saved.id,
-                action="MODIFICATION_INFOS",
+                action=action_name,
                 user_id=user_id,
                 user_nom=user_nom,
                 user_role=user_role,
