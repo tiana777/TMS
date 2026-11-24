@@ -37,11 +37,16 @@ Ce document centralise et suit l'avancement des fonctionnalités prioritaires de
 - [ ] **7. Gestion des litiges & Dépenses livreurs**  
   Corriger les litiges livreurs : les dépenses (carburant, frais annexes, etc.) ne doivent pas être comptabilisées ou mélangées dans les litiges.
 
-- [ ] **8. Tableau de bord / Récapitulatif général du jour**  
+- [x] **8. Tableau de bord / Récapitulatif général du jour** *(Terminé)*  
   Afficher un récapitulatif global bien visible indiquant :
   - Le nombre de colis livrés,
   - Le nombre de retours,
   - Le montant total des frais encaissés aujourd'hui.
+  - ✅ Bandeau Récapitulatif en 3 blocs majeurs en haut du Tableau de Bord (`/`).
+  - ✅ Bloc Vert « Colis Livrés » (nombre total et pourcentage d'aboutissement).
+  - ✅ Bloc Rose « Retours Colis » (colis refusés/annulés à traiter).
+  - ✅ Bloc Bleu « Frais Encaissés Aujourd'hui » (Chiffre d'Affaires net transporteur TMS perçu sur la journée).
+  - ✅ Build validé et données de test en temps réel synchronisées.
 
 - [ ] **9. Modification d'adresse et de tarif selon le statut**  
   - Si le colis est encore « En dépôt » : autoriser la modification du lieu de livraison.

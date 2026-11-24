@@ -7,6 +7,7 @@ import {
   FileSpreadsheet,
   Truck,
   CheckCircle2,
+  XCircle,
   AlertTriangle,
   ArrowRight,
   TrendingUp,
@@ -147,6 +148,9 @@ export default function CockpitDashboardPage() {
 
     let totalCODCollected = 0;
     let totalTheoreticalToCollect = 0;
+    let totalDeliveryFeesCollected = 0;
+    let totalDeliveryFeesExpected = 0;
+    let totalReturns = 0;
     let totalFluxCOD = 0;
     let totalFluxSimple = 0;
     let totalFluxProvince = 0;
@@ -156,9 +160,19 @@ export default function CockpitDashboardPage() {
         countByStatus[p.status]++;
       }
       totalTheoreticalToCollect += p.total_to_collect || 0;
+      totalDeliveryFeesExpected += p.delivery_fee || 0;
 
       if (p.status === "ENCAISSE" || p.status === "LIVRE_ENCAISSE" || p.status === "CLOTURE_CAISSE") {
         totalCODCollected += p.total_to_collect || 0;
+        totalDeliveryFeesCollected += p.delivery_fee || 0;
+      } else if (p.status === "LIVRE") {
+        if (p.flux_type === "SIMPLE" || p.total_to_collect === 0) {
+          totalDeliveryFeesCollected += p.delivery_fee || 0;
+        }
+      }
+
+      if (p.status === "ANNULE_RETOUR" || p.status === "RETOUR_BOUTIQUE") {
+        totalReturns++;
       }
 
       if (p.flux_type === "COD") totalFluxCOD++;
@@ -180,6 +194,9 @@ export default function CockpitDashboardPage() {
       total,
       countByStatus,
       totalDelivered,
+      totalReturns,
+      totalDeliveryFeesCollected,
+      totalDeliveryFeesExpected,
       totalCODCollected,
       totalTheoreticalToCollect,
       totalFluxCOD,
@@ -295,6 +312,96 @@ export default function CockpitDashboardPage() {
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
+        </div>
+      </div>
+
+      {/* ================= BANDEAU RÉCAPITULATIF GÉNÉRAL DU JOUR (PRIORITÉ 8) ================= */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+        {/* 1. Nombre de colis livrés */}
+        <div
+          data-cy="recap-colis-livres"
+          className="bg-gradient-to-br from-emerald-50/80 via-white to-white p-4 rounded-xl border border-emerald-200/90 shadow-xs flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              Colis Livrés
+            </span>
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+              {metrics.successRate}% réussis
+            </span>
+          </div>
+          <div className="my-2 flex items-baseline gap-2">
+            <p className="text-3xl font-black text-emerald-900 tabular-nums">
+              {metrics.totalDelivered}
+            </p>
+            <span className="text-xs text-slate-500 font-medium">
+              colis remis sur {metrics.total}
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-500 pt-2 border-t border-emerald-100/80 flex items-center justify-between">
+            <span>Encaissés & déchargés</span>
+            <span className="font-semibold text-emerald-700">{metrics.totalDelivered} aboutis</span>
+          </p>
+        </div>
+
+        {/* 2. Nombre de retours */}
+        <div
+          data-cy="recap-colis-retours"
+          className="bg-gradient-to-br from-rose-50/80 via-white to-white p-4 rounded-xl border border-rose-200/90 shadow-xs flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-rose-800 flex items-center gap-1.5">
+              <XCircle className="w-4 h-4 text-rose-600" />
+              Retours Colis
+            </span>
+            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+              metrics.totalReturns > 0
+                ? "bg-rose-100 text-rose-800 border-rose-200"
+                : "bg-slate-100 text-slate-600 border-slate-200"
+            }`}>
+              {metrics.totalReturns > 0 ? "À traiter / réintégrer" : "Zéro retour"}
+            </span>
+          </div>
+          <div className="my-2 flex items-baseline gap-2">
+            <p className="text-3xl font-black text-rose-900 tabular-nums">
+              {metrics.totalReturns}
+            </p>
+            <span className="text-xs text-slate-500 font-medium">
+              colis refusés / annulés
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-500 pt-2 border-t border-rose-100/80 flex items-center justify-between">
+            <span>Annulés ou retour boutique</span>
+            <span className="font-semibold text-rose-700">{metrics.countByStatus.ANNULE_RETOUR || 0} refus</span>
+          </p>
+        </div>
+
+        {/* 3. Total des frais de livraison encaissés aujourd'hui (Chiffre d'Affaires TMS) */}
+        <div
+          data-cy="recap-frais-encaisses"
+          className="bg-gradient-to-br from-blue-50/80 via-white to-white p-4 rounded-xl border border-blue-200/90 shadow-xs flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-blue-800 flex items-center gap-1.5">
+              <Wallet className="w-4 h-4 text-blue-600" />
+              Frais Encaissés Aujourd'hui
+            </span>
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+              CA Net TMS
+            </span>
+          </div>
+          <div className="my-2 flex items-baseline gap-1.5">
+            <p className="text-3xl font-black text-blue-950 font-mono tabular-nums">
+              {metrics.totalDeliveryFeesCollected.toLocaleString("fr-FR")} Ar
+            </p>
+          </div>
+          <p className="text-[11px] text-slate-500 pt-2 border-t border-blue-100/80 flex items-center justify-between">
+            <span>Revenu transport perçu</span>
+            <span className="font-semibold text-blue-700">
+              sur {metrics.totalDeliveryFeesExpected.toLocaleString("fr-FR")} Ar prévus
+            </span>
+          </p>
         </div>
       </div>
 
