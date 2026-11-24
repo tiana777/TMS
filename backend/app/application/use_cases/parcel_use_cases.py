@@ -370,11 +370,13 @@ class ParcelUseCases:
         elif target_status == ParcelStatus.EN_DEPOT:
             if old_status == ParcelStatus.ASSIGNE:
                 parcel.unassign()
-            elif old_status == ParcelStatus.REPORTE:
+            elif old_status in [ParcelStatus.REPORTE, ParcelStatus.ANNULE_RETOUR]:
                 parcel.reintegrate_to_hub()
             else:
                 ParcelStateMachine.validate_transition(old_status, ParcelStatus.EN_DEPOT)
                 parcel.status = ParcelStatus.EN_DEPOT
+                parcel.courier_id = None
+                parcel.tour_id = None
 
         elif target_status == ParcelStatus.RETOUR_BOUTIQUE:
             parcel.return_to_merchant()

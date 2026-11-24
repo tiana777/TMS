@@ -235,6 +235,8 @@ class Parcel:
         """Physically return parcel to Central Hub warehouse for subsequent action."""
         ParcelStateMachine.validate_transition(self.status, ParcelStatus.EN_DEPOT)
         self.status = ParcelStatus.EN_DEPOT
+        self.courier_id = None
+        self.tour_id = None
 
     def return_to_merchant(self) -> None:
         """Handover back to cybermerchant against receipt."""

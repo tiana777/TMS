@@ -857,6 +857,115 @@ export default function TrackingPage() {
     setRepartitionVendeur("COD_SEUL");
   };
 
+  const handleReturnToHub = async (parcel: Parcel) => {
+    const tracking = parcel.tracking_number;
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        `Confirmer la réintégration physique du colis BDR-${tracking} au Hub / Bureau ?\n\nCela acte que le livreur a bien rapporté le colis au bureau et le réintègre dans le stock 'En Dépôt'.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const activeUserNom =
+        typeof window !== "undefined"
+          ? localStorage.getItem("tms_user_nom") || "Superviseur Hub"
+          : "Superviseur Hub";
+
+      await updateParcelStatus(parcel.id, {
+        status: "EN_DEPOT",
+        incident_reason: `Colis physique rapporté et remis au bureau par le livreur (validé par ${activeUserNom})`,
+      });
+
+      setFeedbackMessage({
+        type: "success",
+        text: `Colis BDR-${tracking} réintégré au Hub (En Dépôt) avec succès ! Le livreur est déchargé du colis physique.`,
+      });
+
+      setParcels((prev) =>
+        prev.map((p) =>
+          p.id === parcel.id
+            ? {
+                ...p,
+                status: "EN_DEPOT",
+                courier_id: undefined,
+                tour_id: undefined,
+                dernier_agent_nom: activeUserNom,
+                derniere_action: "Remis au bureau (Retour Hub)",
+                derniere_action_at: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+              }
+            : p
+        )
+      );
+    } catch (err: any) {
+      setFeedbackMessage({
+        type: "error",
+        text: err.message || "Erreur lors de la remise au bureau.",
+      });
+    }
+  };
+
+  const handleBulkReturnToHub = async () => {
+    const eligibleParcels = parcels.filter(
+      (p) => selectedTrackingParcelIds.includes(p.id) && (p.status === "REPORTE" || p.status === "ANNULE_RETOUR")
+    );
+
+    if (eligibleParcels.length === 0) {
+      alert("Aucun colis sélectionné n'est au statut Reporté ou Annulé/Retour.");
+      return;
+    }
+
+    if (
+      !confirm(
+        `Confirmer la réintégration physique de ${eligibleParcels.length} colis rapportés au bureau par les livreurs ?\n\nCes colis redeviendront 'En Dépôt' au Hub Tsiazotafo.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const activeUserNom =
+        typeof window !== "undefined"
+          ? localStorage.getItem("tms_user_nom") || "Superviseur Hub"
+          : "Superviseur Hub";
+
+      for (const p of eligibleParcels) {
+        await updateParcelStatus(p.id, {
+          status: "EN_DEPOT",
+          incident_reason: `Colis physique rapporté et remis au bureau (lot validé par ${activeUserNom})`,
+        });
+      }
+
+      setFeedbackMessage({
+        type: "success",
+        text: `${eligibleParcels.length} colis réintégrés au stock Bureau (En Dépôt) avec succès !`,
+      });
+
+      setParcels((prev) =>
+        prev.map((p) =>
+          selectedTrackingParcelIds.includes(p.id) && (p.status === "REPORTE" || p.status === "ANNULE_RETOUR")
+            ? {
+                ...p,
+                status: "EN_DEPOT",
+                courier_id: undefined,
+                tour_id: undefined,
+                dernier_agent_nom: activeUserNom,
+                derniere_action: "Remis au bureau (Retour Hub)",
+              }
+            : p
+        )
+      );
+      setSelectedTrackingParcelIds([]);
+    } catch (err: any) {
+      setFeedbackMessage({
+        type: "error",
+        text: err.message || "Erreur lors de la remise au bureau groupée.",
+      });
+    }
+  };
+
   // Status badge renderer according to CDC section 9
   const renderStatusBadge = (status: string) => {
     const map: Record<string, { bg: string; text: string; label: string }> = {
@@ -1334,6 +1443,28 @@ export default function TrackingPage() {
                 <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
                   {selectedTrackingParcelIds.length} sélectionné(s)
                 </span>
+                {parcels.some(
+                  (p) =>
+                    selectedTrackingParcelIds.includes(p.id) &&
+                    (p.status === "REPORTE" || p.status === "ANNULE_RETOUR")
+                ) && (
+                  <button
+                    type="button"
+                    onClick={handleBulkReturnToHub}
+                    data-cy="btn-bulk-return-hub"
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    title="Confirmer la remise physique au bureau pour tous les colis sélectionnés reportés ou refusés"
+                  >
+                    <Building2 className="w-3.5 h-3.5 text-amber-200" />
+                    <span>Remis au bureau ({
+                      parcels.filter(
+                        (p) =>
+                          selectedTrackingParcelIds.includes(p.id) &&
+                          (p.status === "REPORTE" || p.status === "ANNULE_RETOUR")
+                      ).length
+                    })</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setDeleteConfirmModal({ isOpen: true, isBulk: true })}
@@ -1737,6 +1868,16 @@ export default function TrackingPage() {
                             Encaisser COD ({parcel.total_to_collect?.toLocaleString()} Ar)
                           </button>
                         )
+                      ) : (parcel.status === "REPORTE" || parcel.status === "ANNULE_RETOUR") ? (
+                        <button
+                          data-cy={`btn-return-hub-${parcel.id}`}
+                          onClick={() => handleReturnToHub(parcel)}
+                          className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                          title="Confirmer la remise physique du colis au bureau / Hub par le livreur (réintègre le stock EN_DEPOT et décharge le livreur)"
+                        >
+                          <Building2 className="w-3.5 h-3.5 text-amber-200" />
+                          Remis au bureau
+                        </button>
                       ) : (
                         <span className="text-xs font-semibold text-slate-400 italic px-2 py-1">
                           Pointage clôturé

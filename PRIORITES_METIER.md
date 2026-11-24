@@ -15,8 +15,12 @@ Ce document centralise et suit l'avancement des fonctionnalités prioritaires de
 - [ ] **2. Feuille de route & Clôture livreur**  
   La feuille de route du livreur ne doit pas être supprimée lors de la clôture de la tournée / du compte : elle doit rester enregistrée et consultable comme archive pour les vérifications et contrôles ultérieurs.
 
-- [ ] **3. Validation des retours colis**  
+- [x] **3. Validation des retours colis** *(Terminé)*  
   Ajouter un bouton explicite « Remis au bureau » (ou « Retour Hub / Dépôt ») pour acter formellement la réintégration des colis non livrés rapportés au bureau par le livreur.
+  - ✅ Bouton d'action direct « Remis au bureau » présent sur chaque colis au statut `REPORTE` ou `ANNULE_RETOUR` dans l'écran de suivi/pointage (`/tracking`).
+  - ✅ Bouton d'action groupée « Remis au bureau (N) » pour valider par lot la réintégration de tous les retours physiques du soir.
+  - ✅ Réintégration automatique en stock `EN_DEPOT`, désaffectation du coursier et de la tournée, et horodatage nominatif dans l'historique d'audit.
+  - ✅ Backend domain `reintegrate_to_hub()` et tests unitaires validés (25/25 tests passés).
 
 - [ ] **4. Détail financier dans le compte-rendu**  
   Dans le compte-rendu de tournée / débriefing financier, détailler clairement les montants encaissés par expéditeur (donneur d'ordre).
