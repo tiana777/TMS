@@ -26,6 +26,7 @@ import {
   Sparkles,
   CreditCard,
   History,
+  Lock,
 } from "lucide-react";
 import { ParcelHistoryModal } from "../../components/ParcelHistoryModal";
 import {
@@ -209,6 +210,16 @@ export default function TrackingPage() {
     isBulk?: boolean;
   } | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
+  // Modal for modifying address & fee according to status (Priorité 9)
+  const [editLocationModal, setEditLocationModal] = useState<{
+    isOpen: boolean;
+    parcel: Parcel | null;
+  }>({ isOpen: false, parcel: null });
+  const [editAddressInput, setEditAddressInput] = useState<string>("");
+  const [editFeeInput, setEditFeeInput] = useState<number>(3000);
+  const [isSubmittingEdit, setIsSubmittingEdit] = useState<boolean>(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const toggleSelectParcel = (id: number) => {
     setSelectedTrackingParcelIds((prev) =>
@@ -966,6 +977,78 @@ export default function TrackingPage() {
     }
   };
 
+  // Handlers for modifying address & fee according to status (Priorité 9)
+  const handleOpenEditModal = (parcel: Parcel) => {
+    setEditLocationModal({ isOpen: true, parcel });
+    setEditAddressInput(parcel.delivery_address || "");
+    setEditFeeInput(parcel.delivery_fee ?? 3000);
+    setEditError(null);
+  };
+
+  const handleCloseEditModal = () => {
+    setEditLocationModal({ isOpen: false, parcel: null });
+    setEditError(null);
+  };
+
+  const handleSaveEdit = async () => {
+    const parcel = editLocationModal.parcel;
+    if (!parcel) return;
+
+    const trimmedAddress = editAddressInput.trim();
+    if (!trimmedAddress) {
+      setEditError("Le lieu de livraison ne peut pas être vide.");
+      return;
+    }
+
+    const isEnCours = parcel.status === "EN_COURS";
+    const payload: any = {
+      delivery_address: trimmedAddress,
+    };
+
+    if (isEnCours) {
+      const feeNum = Number(editFeeInput);
+      if (isNaN(feeNum) || feeNum < 0) {
+        setEditError("Le montant des frais de livraison est invalide.");
+        return;
+      }
+      payload.delivery_fee = feeNum;
+    }
+
+    try {
+      setIsSubmittingEdit(true);
+      setEditError(null);
+
+      const updated = await updateParcelContact(parcel.id, payload);
+
+      setParcels((prev) =>
+        prev.map((p) =>
+          p.id === parcel.id
+            ? {
+                ...p,
+                delivery_address: updated.delivery_address || trimmedAddress,
+                delivery_fee: updated.delivery_fee ?? (isEnCours ? Number(editFeeInput) : p.delivery_fee),
+                axis: updated.axis || p.axis,
+                total_to_collect: (p.merchandise_amount || 0) + (isEnCours ? Number(editFeeInput) : p.delivery_fee),
+              }
+            : p
+        )
+      );
+
+      setFeedbackMessage({
+        type: "success",
+        text: isEnCours
+          ? `Colis BDR-${parcel.tracking_number} : Lieu et tarif (${Number(editFeeInput).toLocaleString()} Ar) mis à jour avec succès !`
+          : `Colis BDR-${parcel.tracking_number} : Lieu de livraison mis à jour (axe : ${updated.axis || parcel.axis}). Frais verrouillés à ${(parcel.delivery_fee ?? 3000).toLocaleString()} Ar.`,
+      });
+
+      handleCloseEditModal();
+    } catch (err: any) {
+      setEditError(err.message || "Erreur lors de la mise à jour du colis.");
+    } finally {
+      setIsSubmittingEdit(false);
+    }
+  };
+
   // Status badge renderer according to CDC section 9
   const renderStatusBadge = (status: string) => {
     const map: Record<string, { bg: string; text: string; label: string }> = {
@@ -1509,6 +1592,22 @@ export default function TrackingPage() {
                   {/* Top Tier: Identifiers, Status Badges and Montant COD */}
                   <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
                     <div className="flex items-center gap-2 flex-wrap">
+                      {(parcel.status === "EN_DEPOT" || parcel.status === "ASSIGNE" || parcel.status === "EN_COURS" || parcel.status === "REPORTE") && (
+                        <button
+                          data-cy={`btn-edit-parcel-${parcel.id}`}
+                          onClick={() => handleOpenEditModal(parcel)}
+                          className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 hover:border-indigo-300 font-bold text-xs rounded-lg transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                          title={
+                            parcel.status === "EN_COURS"
+                              ? "Modifier le lieu et ajuster les frais de livraison (En cours)"
+                              : "Modifier le lieu de livraison (En dépôt - frais verrouillés)"
+                          }
+                        >
+                          <MapPin className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>{parcel.status === "EN_COURS" ? "Lieu / Tarif" : "Modifier Lieu"}</span>
+                        </button>
+                      )}
+
                       <button
                         data-cy={`btn-history-${parcel.id}`}
                         onClick={() => setHistoryModalParcel(parcel)}
@@ -1882,6 +1981,22 @@ export default function TrackingPage() {
                         <span className="text-xs font-semibold text-slate-400 italic px-2 py-1">
                           Pointage clôturé
                         </span>
+                      )}
+
+                      {(parcel.status === "EN_DEPOT" || parcel.status === "ASSIGNE" || parcel.status === "EN_COURS" || parcel.status === "REPORTE") && (
+                        <button
+                          data-cy={`btn-edit-parcel-${parcel.id}`}
+                          onClick={() => handleOpenEditModal(parcel)}
+                          className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 hover:border-indigo-300 font-bold text-xs rounded-lg transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                          title={
+                            parcel.status === "EN_COURS"
+                              ? "Modifier le lieu et ajuster les frais de livraison (En cours)"
+                              : "Modifier le lieu de livraison (En dépôt - frais verrouillés)"
+                          }
+                        >
+                          <MapPin className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>{parcel.status === "EN_COURS" ? "Lieu / Tarif" : "Modifier Lieu"}</span>
+                        </button>
                       )}
 
                       <button
@@ -3281,6 +3396,221 @@ export default function TrackingPage() {
               >
                 <Trash2 className="w-4 h-4" />
                 {isDeleting ? "Suppression en cours..." : "Supprimer définitivement"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL PRIORITÉ 9: MODIFICATION LIEU ET FRAIS SELON STATUT ================= */}
+      {editLocationModal.isOpen && editLocationModal.parcel && (
+        <div
+          data-cy="modal-edit-location-fee"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in"
+        >
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`p-3 rounded-xl ${
+                    editLocationModal.parcel.status === "EN_COURS"
+                      ? "bg-blue-100 text-blue-700"
+                      : "bg-amber-100 text-amber-700"
+                  }`}
+                >
+                  <MapPin className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-black text-lg text-slate-800">
+                      {editLocationModal.parcel.status === "EN_COURS"
+                        ? "Modifier Lieu & Tarif"
+                        : "Modifier Lieu de Livraison"}
+                    </h3>
+                    <span
+                      className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                        editLocationModal.parcel.status === "EN_COURS"
+                          ? "bg-blue-100 text-blue-800 border border-blue-200"
+                          : "bg-amber-100 text-amber-800 border border-amber-200"
+                      }`}
+                    >
+                      {editLocationModal.parcel.status === "EN_COURS" ? "En cours de livraison" : "En dépôt"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Colis <strong className="font-mono text-blue-700">BDR-{editLocationModal.parcel.tracking_number}</strong> • Destinataire : {editLocationModal.parcel.recipient_name}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseEditModal}
+                className="text-slate-400 hover:text-slate-600 transition p-1 rounded-lg hover:bg-slate-100"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Error banner */}
+            {editError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{editError}</span>
+              </div>
+            )}
+
+            {/* Form Fields */}
+            <div className="space-y-4">
+              {/* Field 1: Delivery Address */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                  <span>Lieu / Adresse de livraison</span>
+                  <span className="text-[11px] font-normal text-slate-400">
+                    Axe actuel : <strong className="text-slate-700">{editLocationModal.parcel.axis}</strong>
+                  </span>
+                </label>
+                <input
+                  data-cy="input-edit-address"
+                  type="text"
+                  value={editAddressInput}
+                  onChange={(e) => setEditAddressInput(e.target.value)}
+                  placeholder="Ex: Analakely, Itaosy Cité, Ankorondrano..."
+                  className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-800 transition"
+                />
+                <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
+                  💡 <span>L'axe de livraison sera automatiquement mis à jour selon le quartier saisi.</span>
+                </p>
+              </div>
+
+              {/* Field 2: Delivery Fee */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    {editLocationModal.parcel.status === "EN_COURS" ? (
+                      <span className="text-emerald-700">Frais de livraison (Ajustable)</span>
+                    ) : (
+                      <span className="text-slate-600 flex items-center gap-1">
+                        <Lock className="w-3.5 h-3.5 text-amber-600" />
+                        Frais de livraison (Verrouillés)
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-xs font-black text-blue-700">
+                    {editLocationModal.parcel.status === "EN_COURS"
+                      ? `${Number(editFeeInput).toLocaleString()} Ar`
+                      : `${(editLocationModal.parcel.delivery_fee ?? 3000).toLocaleString()} Ar`}
+                  </span>
+                </label>
+
+                {editLocationModal.parcel.status === "EN_COURS" ? (
+                  <div className="space-y-2">
+                    <input
+                      data-cy="input-edit-fee"
+                      type="number"
+                      step={500}
+                      min={0}
+                      value={editFeeInput}
+                      onChange={(e) => setEditFeeInput(Number(e.target.value))}
+                      className="w-full px-3.5 py-2.5 text-sm bg-emerald-50/50 border border-emerald-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-900 transition"
+                    />
+
+                    {/* Quick tariff pills */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-semibold text-slate-500">Tarifs rapides :</span>
+                      {[
+                        { label: "3 000 Ar (CUA)", val: 3000 },
+                        { label: "4 000 Ar (Couronne)", val: 4000 },
+                        { label: "5 000 Ar (Périphérie)", val: 5000 },
+                      ].map((preset) => (
+                        <button
+                          key={preset.val}
+                          type="button"
+                          onClick={() => setEditFeeInput(preset.val)}
+                          className={`px-2.5 py-1 text-xs rounded-lg font-bold transition border ${
+                            editFeeInput === preset.val
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                              : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-blue-800 text-[11px] leading-relaxed">
+                      ⚡ <strong>En cours de livraison</strong> : Le client a changé d'adresse pendant la course. Vous pouvez ajuster les frais selon la nouvelle zone convenue.
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-500 text-sm font-semibold select-none">
+                      <span className="flex items-center gap-2">
+                        <Lock className="w-4 h-4 text-amber-600" />
+                        <span>{(editLocationModal.parcel.delivery_fee ?? 3000).toLocaleString()} Ar</span>
+                      </span>
+                      <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                        Verrouillé au dépôt
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-[11px] leading-relaxed">
+                      🔒 <strong>Règle métier (Priorité 9)</strong> : Tant que le colis est <em>En dépôt</em>, les frais restent verrouillés (3 000 Ar standard). Le tarif ne pourra être réajusté que si le colis passe <em>En cours de livraison</em>.
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Summary box */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1">
+                <div className="flex items-center justify-between text-slate-600">
+                  <span>Marchandise :</span>
+                  <span className="font-bold">{(editLocationModal.parcel.merchandise_amount ?? 0).toLocaleString()} Ar</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-600">
+                  <span>Frais de livraison :</span>
+                  <span className="font-bold">
+                    {(editLocationModal.parcel.status === "EN_COURS"
+                      ? Number(editFeeInput)
+                      : (editLocationModal.parcel.delivery_fee ?? 3000)
+                    ).toLocaleString()}{" "}
+                    Ar
+                  </span>
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-slate-200 font-black text-slate-900 text-sm">
+                  <span>Nouveau Total COD à encaisser :</span>
+                  <span className="text-emerald-700">
+                    {(
+                      (editLocationModal.parcel.merchandise_amount ?? 0) +
+                      (editLocationModal.parcel.status === "EN_COURS"
+                        ? Number(editFeeInput)
+                        : (editLocationModal.parcel.delivery_fee ?? 3000))
+                    ).toLocaleString()}{" "}
+                    Ar
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={isSubmittingEdit}
+                onClick={handleCloseEditModal}
+                className="px-4 py-2 font-bold text-xs text-slate-600 hover:bg-slate-100 rounded-xl transition disabled:opacity-50"
+              >
+                Annuler
+              </button>
+              <button
+                data-cy="btn-confirm-save-location-fee"
+                type="button"
+                disabled={isSubmittingEdit}
+                onClick={handleSaveEdit}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-lg transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                {isSubmittingEdit ? "Enregistrement..." : "Enregistrer les modifications"}
               </button>
             </div>
           </div>

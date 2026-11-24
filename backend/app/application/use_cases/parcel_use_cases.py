@@ -466,6 +466,9 @@ class ParcelUseCases:
         if not parcel:
             raise BusinessRuleViolationException(f"Colis introuvable (ID: {parcel_id})")
 
+        if parcel.status in (ParcelStatus.LIVRE, ParcelStatus.ANNULE_RETOUR):
+            raise BusinessRuleViolationException(f"Impossible de modifier les informations d'un colis déjà {parcel.status.value}.")
+
         validated_phone = None
         notes = []
         if encaissement_lieu is not None:
@@ -482,7 +485,7 @@ class ParcelUseCases:
                 notes.append(f"Adresse : {new_addr}")
                 # Réaffectation automatique de l'axe si le colis est en dépôt ou assigné
                 if parcel.status in (ParcelStatus.EN_DEPOT, ParcelStatus.ASSIGNE):
-                    detection = self.axis_detector.detect(new_addr)
+                    detection = AxisAutoDetector.detect(new_addr)
                     if detection.axis != parcel.axis:
                         old_axis_val = parcel.axis.value
                         parcel.axis = detection.axis
@@ -502,6 +505,11 @@ class ParcelUseCases:
             parcel.merchandise_amount = Money(merchandise_amount)
             notes.append(f"Montant marchandise : {merchandise_amount} Ar")
         if delivery_fee is not None:
+            if parcel.status == ParcelStatus.EN_DEPOT and delivery_fee != parcel.delivery_fee.amount:
+                raise BusinessRuleViolationException(
+                    "Les frais de livraison restent verrouillés tant que le colis est En dépôt. "
+                    "La modification du tarif n'est autorisée que lorsque le colis est En cours de livraison."
+                )
             parcel.delivery_fee = Money(delivery_fee)
             notes.append(f"Frais de livraison : {delivery_fee} Ar")
 

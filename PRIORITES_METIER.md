@@ -48,6 +48,10 @@ Ce document centralise et suit l'avancement des fonctionnalités prioritaires de
   - ✅ Bloc Bleu « Frais Encaissés Aujourd'hui » (Chiffre d'Affaires net transporteur TMS perçu sur la journée).
   - ✅ Build validé et données de test en temps réel synchronisées.
 
-- [ ] **9. Modification d'adresse et de tarif selon le statut**  
-  - Si le colis est encore « En dépôt » : autoriser la modification du lieu de livraison.
-  - Si le colis est déjà « En cours de livraison » : autoriser la modification du lieu ET des frais de livraison.
+- [x] **9. Modification d'adresse et de tarif selon le statut** *(Terminé)*  
+  - Si le colis est encore « En dépôt » : autoriser la modification du lieu de livraison (frais verrouillés).
+  - Si le colis est déjà « En cours de livraison » : autoriser la modification du lieu ET des frais de livraison (pills 3k/4k/5k ou montant libre).
+  - ✅ Contrôle strict backend dans `update_parcel_contact` (lève `BusinessRuleViolationException` si tentative de changer les frais en dépôt).
+  - ✅ Recalcul automatique de l'axe logistique à la saisie de la nouvelle adresse.
+  - ✅ Modale d'édition ergonomique avec badge de statut, verrouillage dynamique et recalcul instantané du total COD sur `/tracking`.
+  - ✅ Tests unitaires automatisés validés (`test_parcel_address_fee_update.py`).
