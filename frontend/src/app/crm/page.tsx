@@ -480,27 +480,63 @@ export default function CRMVendorsPage() {
                       <tr>
                         <th className="px-4 py-2.5">Bordereau</th>
                         <th className="px-4 py-2.5">Destinataire</th>
-                        <th className="px-4 py-2.5">Axe</th>
+                        <th className="px-4 py-2.5">Lieu / Quartier Précis</th>
                         <th className="px-4 py-2.5 text-right">Marchandise</th>
                         <th className="px-4 py-2.5 text-center">Statut</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {vendorParcels.map((p) => (
-                        <tr key={p.id} className="hover:bg-slate-50">
-                          <td className="px-4 py-2 font-mono font-bold text-slate-900">{p.tracking_number}</td>
-                          <td className="px-4 py-2 font-semibold text-slate-800">{p.recipient_name}</td>
-                          <td className="px-4 py-2 text-[11px] text-slate-600">{p.axis}</td>
-                          <td className="px-4 py-2 text-right font-bold text-slate-900">
-                            {p.merchandise_amount.toLocaleString("fr-FR")} Ar
-                          </td>
-                          <td className="px-4 py-2 text-center">
-                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-                              {p.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                      {vendorParcels.map((p) => {
+                        const isProvince = p.flux_type === "PROVINCE" || (p.axis && p.axis.includes("PROV"));
+                        return (
+                          <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-4 py-2.5 font-mono font-bold text-slate-900 whitespace-nowrap">
+                              {p.tracking_number}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <span className="font-semibold text-slate-800 block text-xs">
+                                {p.recipient_name || "Client"}
+                              </span>
+                              {p.recipient_phone && (
+                                <span className="text-[10px] text-slate-400 font-mono block">
+                                  {p.recipient_phone}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <span className="text-xs font-bold text-slate-800 block leading-tight" title={p.delivery_address}>
+                                {p.delivery_address || "Lieu non précisé"}
+                              </span>
+                              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500 mt-0.5">
+                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                  isProvince ? "bg-purple-500" : "bg-blue-500"
+                                }`} />
+                                <span>
+                                  {isProvince
+                                    ? "Gare / Province"
+                                    : (p.axis_label || p.axis?.replace("AXE_", "").replace(/_/g, " ") || "Axe Urbain")}
+                                </span>
+                              </span>
+                            </td>
+                            <td className="px-4 py-2.5 text-right font-bold text-slate-900 whitespace-nowrap">
+                              {p.merchandise_amount.toLocaleString("fr-FR")} Ar
+                            </td>
+                            <td className="px-4 py-2.5 text-center whitespace-nowrap">
+                              <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
+                                ["LIVRE", "ENCAISSE", "LIVRE_ENCAISSE", "CLOTURE_CAISSE"].includes(p.status)
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : p.status === "REPORTE"
+                                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                                  : p.status === "ANNULE_RETOUR" || p.status === "RETOUR_BOUTIQUE"
+                                  ? "bg-rose-50 text-rose-700 border-rose-200"
+                                  : "bg-slate-100 text-slate-700 border-slate-200"
+                              }`}>
+                                {p.status}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
                       {vendorParcels.length === 0 && (
                         <tr>
                           <td colSpan={5} className="px-4 py-8 text-center text-slate-400">

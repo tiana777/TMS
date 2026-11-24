@@ -21,8 +21,11 @@ Ce document centralise et suit l'avancement des fonctionnalités prioritaires de
 - [ ] **4. Détail financier dans le compte-rendu**  
   Dans le compte-rendu de tournée / débriefing financier, détailler clairement les montants encaissés par expéditeur (donneur d'ordre).
 
-- [ ] **5. Affichage dans la vue par expéditeur**  
+- [x] **5. Affichage dans la vue par expéditeur** *(Terminé)*  
   Lors de la consultation des colis par expéditeur, afficher le lieu / quartier précis de livraison plutôt que le nom générique de l'axe.
+  - ✅ Dans l'écran CRM & Expéditeurs (`/crm`), remplacement de la colonne `Axe` par `Lieu / Quartier Précis`.
+  - ✅ Affichage en gras du lieu/quartier exact de livraison (`delivery_address`) avec sous-titre badge indiquant l'axe urbain ou provincial.
+  - ✅ Données de test réalistes injectées (Cybermarchands, Entreprises, Particuliers) avec quartiers réels de Tanà et gares de province.
 
 - [ ] **6. Déduction des frais de livraison prépayés**  
   Gérer la déduction des frais de livraison lorsque l'expéditeur les a déjà encaissés à l'avance auprès de son client (frais déjà payés au vendeur).
