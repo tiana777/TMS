@@ -472,6 +472,15 @@ export default function CashAndClosurePage() {
   };
 
   // Calculs financiers détaillés pour la décharge de tournée au Quai (Écran 08)
+  const getClientCollectedAmount = (p: Parcel): number => {
+    const splitSum = (p.montant_encaisse_livreur || 0) + (p.montant_encaisse_vendeur || 0);
+    if (splitSum > 0) return splitSum;
+    if (["ENCAISSE", "LIVRE_ENCAISSE", "CLOTURE_CAISSE", "SOUS_TRAITE"].includes(p.status)) {
+      return p.total_to_collect || 0;
+    }
+    return 0;
+  };
+
   const tourFinancials = useMemo(() => {
     const empty = {
       allParcels: [] as Parcel[],
@@ -495,6 +504,11 @@ export default function CashAndClosurePage() {
       expectedOtherCount: 0,
       pendingTotal: 0,
       failedTotal: 0,
+      clientCollectedTotal: 0,
+      clientCollectedCount: 0,
+      clientCollectedCourierTotal: 0,
+      clientCollectedVendorTotal: 0,
+      deliveredUnconfirmedTotal: 0,
     };
 
     if (!selectedTourDetail || !selectedTourDetail.parcels) {
@@ -526,13 +540,36 @@ export default function CashAndClosurePage() {
     let expectedOtherCount = 0;
     let pendingTotal = 0;
     let failedTotal = 0;
+    let clientCollectedTotal = 0;
+    let clientCollectedCount = 0;
+    let clientCollectedCourierTotal = 0;
+    let clientCollectedVendorTotal = 0;
+    let deliveredUnconfirmedTotal = 0;
 
     allParcels.forEach((p) => {
+      const collected = getClientCollectedAmount(p);
+      if (collected > 0) {
+        clientCollectedTotal += collected;
+        clientCollectedCount += 1;
+        if (p.montant_encaisse_vendeur && p.montant_encaisse_vendeur > 0) {
+          clientCollectedVendorTotal += p.montant_encaisse_vendeur;
+        }
+        if (p.montant_encaisse_livreur && p.montant_encaisse_livreur > 0) {
+          clientCollectedCourierTotal += p.montant_encaisse_livreur;
+        } else if (p.encaissement_lieu !== "SIEGE" && p.encaissement_lieu !== "DIRECT_VENDEUR") {
+          clientCollectedCourierTotal += collected;
+        }
+      }
+
       if (deliveredStatuses.includes(p.status)) {
         deliveredParcels.push(p);
         grossTotal += p.total_to_collect;
         grossMerchandise += p.merchandise_amount;
         grossDeliveryFee += p.delivery_fee;
+
+        if (collected === 0 && p.status === "LIVRE") {
+          deliveredUnconfirmedTotal += p.total_to_collect;
+        }
 
         if (p.encaissement_lieu === "SIEGE") {
           siegeTotal += p.total_to_collect;
@@ -588,6 +625,11 @@ export default function CashAndClosurePage() {
       expectedOtherCount,
       pendingTotal,
       failedTotal,
+      clientCollectedTotal,
+      clientCollectedCount,
+      clientCollectedCourierTotal,
+      clientCollectedVendorTotal,
+      deliveredUnconfirmedTotal,
     };
   }, [selectedTourDetail]);
 
@@ -1791,15 +1833,32 @@ return (
                         </span>
                       </div>
 
-                      <div className="flex items-center justify-between text-slate-600">
-                        <span>Total Remis au Quai (1+2+3) :</span>
-                        <span className="font-bold text-slate-900">
-                          {formatMGA(totalRemitted)}
-                        </span>
-                      </div>
-
-                      {/* Ventilation COD (Marchandise vs Frais) & Modes attendus */}
+                      {/* Encaissé Client & Ventilation COD */}
                       <div className="bg-white/80 rounded-xl border border-slate-200/80 p-3 space-y-1.5 text-[11px]">
+                        <div className="flex items-center justify-between text-teal-800 pb-1.5 border-b border-slate-100">
+                          <span className="font-sans font-bold">
+                            Encaissé auprès des Clients ({tourFinancials.clientCollectedCount} colis) :
+                          </span>
+                          <span className="font-black whitespace-nowrap">
+                            {formatMGA(tourFinancials.clientCollectedTotal)}
+                          </span>
+                        </div>
+                        {tourFinancials.clientCollectedVendorTotal > 0 && (
+                          <div className="flex items-center justify-between text-indigo-700">
+                            <span className="font-sans">Dont Direct Vendeur :</span>
+                            <span className="font-bold whitespace-nowrap">
+                              {formatMGA(tourFinancials.clientCollectedVendorTotal)}
+                            </span>
+                          </div>
+                        )}
+                        {tourFinancials.deliveredUnconfirmedTotal > 0 && (
+                          <div className="flex items-center justify-between text-amber-700">
+                            <span className="font-sans">Livré (encaissement non confirmé) :</span>
+                            <span className="font-bold whitespace-nowrap">
+                              {formatMGA(tourFinancials.deliveredUnconfirmedTotal)}
+                            </span>
+                          </div>
+                        )}
                         <div className="flex items-center justify-between text-slate-600">
                           <span className="font-sans">Dont COD Marchandise :</span>
                           <span className="font-bold text-slate-800 whitespace-nowrap">
@@ -2293,6 +2352,31 @@ return (
                                       {formatMGA(p.total_to_collect)}
                                     </span>
                                   </div>
+                                  <div className="flex items-center justify-between text-[11px] pt-1 border-t border-dashed border-slate-200">
+                                    <span className="font-semibold text-teal-800">Encaissé Client :</span>
+                                    {(() => {
+                                      const collected = getClientCollectedAmount(p);
+                                      if (collected > 0) {
+                                        return (
+                                          <span className="font-mono font-bold text-teal-700 tabular-nums">
+                                            {formatMGA(collected)}
+                                          </span>
+                                        );
+                                      }
+                                      if (p.status === "LIVRE") {
+                                        return (
+                                          <span className="text-[10px] font-semibold text-amber-600">
+                                            Non confirmé
+                                          </span>
+                                        );
+                                      }
+                                      return (
+                                        <span className="font-mono text-slate-400 tabular-nums">
+                                          0&nbsp;Ar
+                                        </span>
+                                      );
+                                    })()}
+                                  </div>
                                 </div>
                               </div>
 
@@ -2333,6 +2417,10 @@ return (
                   const sumMerch = visibleParcels.reduce((s, p) => s + (p.merchandise_amount || 0), 0);
                   const sumFee = visibleParcels.reduce((s, p) => s + (p.delivery_fee || 0), 0);
                   const sumTotal = visibleParcels.reduce((s, p) => s + (p.total_to_collect || 0), 0);
+                  const sumClientCollected = visibleParcels.reduce(
+                    (s, p) => s + getClientCollectedAmount(p),
+                    0
+                  );
                   const sumDue = visibleParcels.reduce((s, p) => {
                     const isDelivered = deliveredStatuses.includes(p.status);
                     return s + (isDelivered && p.encaissement_lieu !== "SIEGE" ? p.total_to_collect : 0);
@@ -2356,6 +2444,9 @@ return (
                             </th>
                             <th className="py-2.5 px-3 whitespace-nowrap text-right">
                               Total Colis
+                            </th>
+                            <th className="py-2.5 px-3 whitespace-nowrap text-right text-teal-800">
+                              Encaissé Client
                             </th>
                             <th className="py-2.5 px-3 whitespace-nowrap text-right font-black">
                               Dû Livreur
@@ -2441,6 +2532,26 @@ return (
                                 <td className="p-3 text-right font-mono font-semibold tabular-nums whitespace-nowrap text-slate-900">
                                   {formatMGA(p.total_to_collect)}
                                 </td>
+                                <td className="p-3 text-right font-mono tabular-nums whitespace-nowrap">
+                                  {(() => {
+                                    const collected = getClientCollectedAmount(p);
+                                    if (collected > 0) {
+                                      return (
+                                        <span className="font-bold text-teal-700">
+                                          {formatMGA(collected)}
+                                        </span>
+                                      );
+                                    }
+                                    if (p.status === "LIVRE") {
+                                      return (
+                                        <span className="text-[10px] font-semibold text-amber-600">
+                                          Non confirmé
+                                        </span>
+                                      );
+                                    }
+                                    return <span className="text-slate-400">0&nbsp;Ar</span>;
+                                  })()}
+                                </td>
                                 <td className="p-3 text-right whitespace-nowrap">
                                   {isSiege ? (
                                     <div className="text-right">
@@ -2478,6 +2589,9 @@ return (
                             <td className="p-3 text-right tabular-nums">{formatMGA(sumMerch)}</td>
                             <td className="p-3 text-right tabular-nums">{formatMGA(sumFee)}</td>
                             <td className="p-3 text-right tabular-nums">{formatMGA(sumTotal)}</td>
+                            <td className="p-3 text-right tabular-nums text-teal-800">
+                              {formatMGA(sumClientCollected)}
+                            </td>
                             <td className="p-3 text-right tabular-nums text-emerald-800 font-black">
                               {formatMGA(sumDue)}
                             </td>
