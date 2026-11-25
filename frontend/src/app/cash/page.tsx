@@ -29,6 +29,9 @@ import {
   Archive,
   ShieldCheck,
   Lock,
+  LayoutGrid,
+  List,
+  Phone,
 } from "lucide-react";
 import { HeaderUserRole } from "@/components/HeaderUserRole";
 import { AxisBadge } from "@/components/AxisBadge";
@@ -76,6 +79,7 @@ export default function CashAndClosurePage() {
   const [encaissementLieuFilter, setEncaissementLieuFilter] = useState<string>("ALL");
   const [selectedParcelIds, setSelectedParcelIds] = useState<number[]>([]);
   const [isSubmittingBulk, setIsSubmittingBulk] = useState(false);
+  const [displayMode, setDisplayMode] = useState<"cards" | "table">("cards");
 
   // Écran 08 (Décharge) states
   const [selectedTourId, setSelectedTourId] = useState<number | null>(null);
@@ -905,8 +909,38 @@ export default function CashAndClosurePage() {
                 </select>
               </div>
 
-              {/* Bulk Actions */}
-              <div className="flex items-center gap-2 shrink-0">
+              {/* View Toggle & Bulk Actions */}
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                {/* View Mode Toggle */}
+                <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setDisplayMode("cards")}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition flex items-center gap-1.5 cursor-pointer ${
+                      displayMode === "cards"
+                        ? "bg-white text-emerald-800 shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                    title="Affichage en Cartes (0% défilement horizontal)"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <span>Cartes</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDisplayMode("table")}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition flex items-center gap-1.5 cursor-pointer ${
+                      displayMode === "table"
+                        ? "bg-white text-emerald-800 shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                    title="Affichage en Tableau compact (Colonnes condensées)"
+                  >
+                    <List className="w-3.5 h-3.5" />
+                    <span>Tableau</span>
+                  </button>
+                </div>
+
                 {selectedParcelIds.length > 0 && (
                   <button
                     onClick={handleBulkValidate}
@@ -921,54 +955,236 @@ export default function CashAndClosurePage() {
               </div>
             </div>
 
-            {/* Parcels Table */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-w-0 max-w-full">
-              <div className="overflow-x-auto w-full max-w-full">
-                <table className="min-w-[1040px] w-full text-left border-collapse" data-cy="cash-parcels-table">
-                  <thead>
-                    <tr className="bg-slate-50 text-slate-500 text-[11px] uppercase font-bold tracking-wider border-b border-slate-200">
-                      <th className="py-3 px-3 w-10 text-center">
-                        <input
-                          type="checkbox"
-                          checked={
-                            filteredParcels.length > 0 &&
-                            filteredParcels
-                              .filter((p) =>
-                                ["ENCAISSE", "LIVRE_ENCAISSE", "LIVRE", "SOUS_TRAITE"].includes(p.status)
-                              )
-                              .every((p) => selectedParcelIds.includes(p.id))
-                          }
-                          onChange={handleToggleSelectAll}
-                          className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
-                          data-cy="select-all-cash-checkbox"
-                          title="Sélectionner tous les colis éligibles à la clôture"
-                        />
-                      </th>
-                      <th className="py-3 px-3 w-28 whitespace-nowrap">N° BDR & Suivi</th>
-                      <th className="py-3 px-3 min-w-[180px]">Expéditeur & Destinataire</th>
-                      <th className="py-3 px-3 w-32 whitespace-nowrap">Axe & Type</th>
-                      <th className="py-3 px-3 w-32 whitespace-nowrap text-center">Lieu Recouvrement</th>
-                      <th className="py-3 px-3 w-32 whitespace-nowrap">Règlement</th>
-                      <th className="py-3 px-3 w-24 whitespace-nowrap text-right">Marchandise</th>
-                      <th className="py-3 px-3 w-20 whitespace-nowrap text-right">Frais</th>
-                      <th className="py-3 px-3 w-24 whitespace-nowrap text-right font-black">Total COD</th>
-                      <th className="py-3 px-3 w-36 whitespace-nowrap text-center">Statut</th>
-                      <th className="py-3 px-3 w-32 whitespace-nowrap text-center">Action Caisse</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm">
-                    {filteredParcels.length === 0 ? (
-                      <tr>
-                        <td colSpan={11} className="p-12 text-center text-slate-400">
-                          <Coins className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-                          <p className="font-semibold text-slate-600">Aucun colis COD trouvé pour ces critères</p>
-                          <p className="text-xs text-slate-400 mt-1">
-                            Ajustez vos filtres ou sélectionnez une autre date.
-                          </p>
-                        </td>
+            {/* Empty State */}
+            {filteredParcels.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400">
+                <Coins className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                <p className="font-semibold text-slate-600">Aucun colis COD trouvé pour ces critères</p>
+                <p className="text-xs text-slate-400 mt-1">
+                  Ajustez vos filtres ou sélectionnez une autre date.
+                </p>
+              </div>
+            ) : displayMode === "cards" ? (
+              /* VUE 1 : AFFICHAGE EN CARTES (AUCUN DÉBORDEMENT HORIZONTAL) */
+              <div className="space-y-3 min-w-0 max-w-full" data-cy="cash-parcels-cards">
+                {/* Select All Bar */}
+                <div className="bg-white px-4 py-2.5 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between text-xs">
+                  <label className="flex items-center gap-2.5 cursor-pointer font-bold text-slate-700 select-none">
+                    <input
+                      type="checkbox"
+                      checked={
+                        filteredParcels.length > 0 &&
+                        filteredParcels
+                          .filter((p) =>
+                            ["ENCAISSE", "LIVRE_ENCAISSE", "LIVRE", "SOUS_TRAITE"].includes(p.status)
+                          )
+                          .every((p) => selectedParcelIds.includes(p.id))
+                      }
+                      onChange={handleToggleSelectAll}
+                      className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                      data-cy="select-all-cash-cards"
+                    />
+                    <span>Tout sélectionner pour validation caisse ({filteredParcels.length} colis)</span>
+                  </label>
+                  {selectedParcelIds.length > 0 && (
+                    <span className="text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                      {selectedParcelIds.length} colis sélectionné(s)
+                    </span>
+                  )}
+                </div>
+
+                {/* Cards Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {filteredParcels.map((parcel) => {
+                    const isSelectable =
+                      ["ENCAISSE", "LIVRE_ENCAISSE", "LIVRE", "SOUS_TRAITE"].includes(parcel.status);
+                    const isSelected = selectedParcelIds.includes(parcel.id);
+                    const isClosed = parcel.status === "CLOTURE_CAISSE";
+
+                    return (
+                      <div
+                        key={parcel.id}
+                        data-cy={`cash-parcel-card-${parcel.id}`}
+                        className={`p-4 rounded-2xl border transition shadow-xs flex flex-col justify-between gap-3 ${
+                          isClosed
+                            ? "bg-slate-50/80 border-slate-200/90 opacity-75"
+                            : isSelected
+                            ? "bg-emerald-50/40 border-emerald-300 ring-2 ring-emerald-500/10"
+                            : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm"
+                        }`}
+                      >
+                        {/* Top: Selection, BDR, Date, Status Badges */}
+                        <div className="space-y-2 border-b border-slate-100 pb-2.5">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {isSelectable ? (
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => handleToggleSelectParcel(parcel.id)}
+                                  className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                                  data-cy={`select-cash-parcel-${parcel.id}`}
+                                />
+                              ) : isClosed ? (
+                                <span title="Validé et scellé en caisse centrale" className="inline-block">
+                                  <Lock className="w-3.5 h-3.5 text-slate-400" />
+                                </span>
+                              ) : (
+                                <span className="text-slate-300 text-xs">•</span>
+                              )}
+
+                              <span className="font-mono font-bold text-xs text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200">
+                                BDR-{parcel.tracking_number}
+                              </span>
+
+                              <span className="text-[11px] text-slate-400 font-mono">
+                                {parcel.reception_date}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 ${
+                                  isClosed
+                                    ? "bg-slate-100 text-slate-500 border-slate-200"
+                                    : parcel.encaissement_lieu === "SIEGE"
+                                    ? "bg-blue-50 text-blue-800 border-blue-200"
+                                    : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                }`}
+                              >
+                                {parcel.encaissement_lieu === "SIEGE" ? "🏢 Au Siège" : "🛵 Par Livreur"}
+                              </span>
+                              <StatusBadge status={parcel.status} encaissement_lieu={parcel.encaissement_lieu} />
+                            </div>
+                          </div>
+
+                          {/* Axe and Type Badges */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <AxisBadge axis={parcel.axis} />
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-600 uppercase border border-slate-200">
+                              {parcel.flux_type}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Middle: Client, Sender, Payment */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                              Destinataire & Expéditeur
+                            </span>
+                            <div className="font-bold text-slate-900">
+                              {parcel.recipient_name}
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1">
+                              <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                              {parcel.recipient_phone_formatted || parcel.recipient_phone}
+                            </div>
+                            {parcel.sender_name && (
+                              <div className="text-[11px] text-blue-700 font-medium truncate" title={parcel.sender_name}>
+                                Exp: <strong>{parcel.sender_name}</strong>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="space-y-0.5 sm:border-l sm:border-slate-100 sm:pl-3">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                              Règlement & Détail
+                            </span>
+                            <div>{getPaymentBadge(parcel.payment_method)}</div>
+                            <div className="text-[11px] text-slate-500 mt-1">
+                              Marchandise : <span className="font-mono font-medium">{formatMGA(parcel.merchandise_amount)}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              Frais de port : <span className="font-mono font-medium">{formatMGA(parcel.delivery_fee)}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bottom: Financial Total & Action */}
+                        <div className="flex items-center justify-between gap-3 pt-2.5 border-t border-slate-100 bg-slate-50/60 -mx-4 -mb-4 p-3 rounded-b-2xl">
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                              Total COD à Encaisser
+                            </span>
+                            <span className="font-mono font-black text-sm text-emerald-800">
+                              {formatMGA(parcel.total_to_collect)}
+                            </span>
+                          </div>
+
+                          <div>
+                            {parcel.status === "CLOTURE_CAISSE" ? (
+                              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-300 shadow-2xs">
+                                <Lock className="w-3.5 h-3.5 text-slate-400" />
+                                Scellé
+                              </span>
+                            ) : isSelectable ? (
+                              <button
+                                onClick={() => handleValidateSingleParcel(parcel.id)}
+                                disabled={isSubmittingBulk}
+                                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                                data-cy={`btn-validate-cash-${parcel.id}`}
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                Valider Caisse
+                              </button>
+                            ) : parcel.status === "EN_COURS" || parcel.status === "ASSIGNE" ? (
+                              <span className="text-[11px] text-sky-600 font-medium italic flex items-center gap-1">
+                                <Truck className="w-3.5 h-3.5" /> En cours
+                              </span>
+                            ) : parcel.status === "EN_DEPOT" ? (
+                              <span className="text-[11px] text-amber-600 font-medium italic flex items-center gap-1">
+                                <Package className="w-3.5 h-3.5" /> En stock
+                              </span>
+                            ) : parcel.status === "REPORTE" ? (
+                              <span className="text-[11px] text-orange-600 font-medium flex items-center gap-1">
+                                <Clock className="w-3.5 h-3.5" /> Reporté
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-rose-600 font-medium flex items-center gap-1">
+                                <XCircle className="w-3.5 h-3.5" /> Annulé
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              /* VUE 2 : TABLEAU COMPACT AVEC COLONNES CONDENSÉES */
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-w-0 max-w-full">
+                <div className="overflow-x-auto w-full max-w-full">
+                  <table className="w-full text-left border-collapse" data-cy="cash-parcels-table">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-500 text-[11px] uppercase font-bold tracking-wider border-b border-slate-200">
+                        <th className="py-3 px-3 w-10 text-center">
+                          <input
+                            type="checkbox"
+                            checked={
+                              filteredParcels.length > 0 &&
+                              filteredParcels
+                                .filter((p) =>
+                                  ["ENCAISSE", "LIVRE_ENCAISSE", "LIVRE", "SOUS_TRAITE"].includes(p.status)
+                                )
+                                .every((p) => selectedParcelIds.includes(p.id))
+                            }
+                            onChange={handleToggleSelectAll}
+                            className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                            data-cy="select-all-cash-checkbox"
+                            title="Sélectionner tous les colis éligibles à la clôture"
+                          />
+                        </th>
+                        <th className="py-3 px-3 min-w-[240px]">Colis, Destinataire & Axe</th>
+                        <th className="py-3 px-3 w-40 whitespace-nowrap">Règlement & Lieu</th>
+                        <th className="py-3 px-3 w-36 whitespace-nowrap text-right">Montants & COD</th>
+                        <th className="py-3 px-3 w-36 whitespace-nowrap text-center">Statut</th>
+                        <th className="py-3 px-3 w-32 whitespace-nowrap text-center">Action Caisse</th>
                       </tr>
-                    ) : (
-                      filteredParcels.map((parcel) => {
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-sm">
+                      {filteredParcels.map((parcel) => {
                         const isSelectable =
                           ["ENCAISSE", "LIVRE_ENCAISSE", "LIVRE", "SOUS_TRAITE"].includes(parcel.status);
                         const isSelected = selectedParcelIds.includes(parcel.id);
@@ -986,6 +1202,7 @@ export default function CashAndClosurePage() {
                             }`}
                             data-cy={`cash-parcel-row-${parcel.id}`}
                           >
+                            {/* Checkbox */}
                             <td className="py-2.5 px-3 text-center">
                               {isSelectable ? (
                                 <input
@@ -1003,89 +1220,76 @@ export default function CashAndClosurePage() {
                                 <span className="text-slate-300 text-xs">•</span>
                               )}
                             </td>
-                            <td className="py-2.5 px-3 whitespace-nowrap font-mono">
-                              <span
-                                className={`block text-xs ${
-                                  isClosed ? "font-semibold text-slate-500" : "font-bold text-slate-900"
-                                }`}
-                              >
-                                BDR-{parcel.tracking_number}
-                              </span>
-                              <span className="text-[10px] text-slate-400 block">
-                                {parcel.reception_date}
-                              </span>
-                            </td>
+
+                            {/* Colonne Unique Condensée : Colis, Destinataire & Axe */}
                             <td className="py-2.5 px-3">
-                              <div
-                                className={`text-xs ${
-                                  isClosed ? "font-medium text-slate-500" : "font-bold text-slate-900"
-                                }`}
-                              >
-                                {parcel.recipient_name}
-                              </div>
-                              <div className="text-[11px] text-slate-400 font-mono">
-                                {parcel.recipient_phone_formatted || parcel.recipient_phone}
-                              </div>
-                              {parcel.sender_name && (
-                                <div
-                                  className={`text-[10px] font-medium truncate max-w-[200px] ${
-                                    isClosed ? "text-slate-400" : "text-blue-600"
-                                  }`}
-                                  title={parcel.sender_name}
-                                >
-                                  Exp: {parcel.sender_name}
-                                </div>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3 whitespace-nowrap">
-                              <div className={`flex flex-col gap-1 items-start ${isClosed ? "opacity-60 grayscale-[30%]" : ""}`}>
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <span className="font-mono font-bold text-xs text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                  BDR-{parcel.tracking_number}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  {parcel.reception_date}
+                                </span>
                                 <AxisBadge axis={parcel.axis} />
                                 <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-600 uppercase border border-slate-200">
                                   {parcel.flux_type}
                                 </span>
                               </div>
+                              <div className="font-bold text-slate-900 text-xs">
+                                {parcel.recipient_name}
+                              </div>
+                              <div className="text-[11px] text-slate-500 font-mono">
+                                {parcel.recipient_phone_formatted || parcel.recipient_phone}
+                              </div>
+                              {parcel.sender_name && (
+                                <div className="text-[10px] text-blue-600 font-medium truncate max-w-[260px]" title={parcel.sender_name}>
+                                  Exp: {parcel.sender_name}
+                                </div>
+                              )}
                             </td>
-                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                              <span
-                                className={`px-2 py-0.5 rounded-full text-[11px] font-bold border inline-flex items-center gap-1 ${
-                                  isClosed
-                                    ? "bg-slate-100 text-slate-500 border-slate-200"
-                                    : parcel.encaissement_lieu === "SIEGE"
-                                    ? "bg-blue-50 text-blue-800 border-blue-200"
-                                    : "bg-emerald-50 text-emerald-800 border-emerald-200"
-                                }`}
-                              >
-                                {parcel.encaissement_lieu === "SIEGE" ? "🏢 Au Siège" : "🛵 Par Livreur"}
-                              </span>
+
+                            {/* Règlement & Lieu */}
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              <div>{getPaymentBadge(parcel.payment_method)}</div>
+                              <div className="mt-1">
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 ${
+                                    isClosed
+                                      ? "bg-slate-100 text-slate-500 border-slate-200"
+                                      : parcel.encaissement_lieu === "SIEGE"
+                                      ? "bg-blue-50 text-blue-800 border-blue-200"
+                                      : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                  }`}
+                                >
+                                  {parcel.encaissement_lieu === "SIEGE" ? "🏢 Siège" : "🛵 Livreur"}
+                                </span>
+                              </div>
                             </td>
-                            <td className={`py-2.5 px-3 whitespace-nowrap ${isClosed ? "opacity-60 grayscale-[30%]" : ""}`}>
-                              {getPaymentBadge(parcel.payment_method)}
-                            </td>
-                            <td className={`py-2.5 px-3 text-right font-mono font-medium whitespace-nowrap text-xs ${isClosed ? "text-slate-400" : "text-slate-600"}`}>
-                              {formatMGA(parcel.merchandise_amount)}
-                            </td>
-                            <td className={`py-2.5 px-3 text-right font-mono font-medium whitespace-nowrap text-xs ${isClosed ? "text-slate-400" : "text-slate-600"}`}>
-                              {formatMGA(parcel.delivery_fee)}
-                            </td>
+
+                            {/* Montants & COD */}
                             <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                              <span
-                                className={`font-mono px-2 py-0.5 rounded-lg border inline-block text-xs ${
-                                  isClosed
-                                    ? "font-semibold text-slate-400 bg-slate-100/70 border-slate-200"
-                                    : "font-black text-slate-900 bg-slate-100 border-slate-200/80"
-                                }`}
-                              >
+                              <div className="font-mono font-black text-slate-900 text-xs">
                                 {formatMGA(parcel.total_to_collect)}
-                              </span>
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-mono">
+                                March: {formatNumber(parcel.merchandise_amount || 0)}
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-mono">
+                                Port: {formatNumber(parcel.delivery_fee || 0)}
+                              </div>
                             </td>
+
+                            {/* Statut */}
                             <td className={`py-2.5 px-3 text-center whitespace-nowrap ${isClosed ? "opacity-75" : ""}`}>
                               <StatusBadge status={parcel.status} encaissement_lieu={parcel.encaissement_lieu} />
                             </td>
+
+                            {/* Action */}
                             <td className="py-2.5 px-3 text-center whitespace-nowrap">
                               {parcel.status === "CLOTURE_CAISSE" ? (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-300 whitespace-nowrap shadow-2xs">
                                   <Lock className="w-3.5 h-3.5 text-slate-400" />
-                                  Scellé en Caisse
+                                  Scellé
                                 </span>
                               ) : isSelectable ? (
                                 <button
@@ -1095,38 +1299,34 @@ export default function CashAndClosurePage() {
                                   data-cy={`btn-validate-cash-${parcel.id}`}
                                 >
                                   <CheckCircle2 className="w-3.5 h-3.5" />
-                                  Valider Caisse
+                                  Valider
                                 </button>
                               ) : parcel.status === "EN_COURS" || parcel.status === "ASSIGNE" ? (
                                 <span className="text-[11px] text-sky-600 font-medium italic flex items-center justify-center gap-1">
-                                  <Truck className="w-3.5 h-3.5" /> En cours tournée
+                                  <Truck className="w-3.5 h-3.5" /> En cours
                                 </span>
                               ) : parcel.status === "EN_DEPOT" ? (
                                 <span className="text-[11px] text-amber-600 font-medium italic flex items-center justify-center gap-1">
-                                  <Package className="w-3.5 h-3.5" /> En stock Hub
+                                  <Package className="w-3.5 h-3.5" /> En stock
                                 </span>
                               ) : parcel.status === "REPORTE" ? (
                                 <span className="text-[11px] text-orange-600 font-medium flex items-center justify-center gap-1">
-                                  <Clock className="w-3.5 h-3.5" /> Reporté ({parcel.reschedule_date || "À planifier"})
-                                </span>
-                              ) : parcel.status === "ANNULE_RETOUR" ? (
-                                <span className="text-[11px] text-rose-600 font-medium flex items-center justify-center gap-1">
-                                  <XCircle className="w-3.5 h-3.5" /> Refus / Annulé
+                                  <Clock className="w-3.5 h-3.5" /> Reporté
                                 </span>
                               ) : (
-                                <span className="text-xs text-slate-400 font-medium">
-                                  -
+                                <span className="text-[11px] text-rose-600 font-medium flex items-center justify-center gap-1">
+                                  <XCircle className="w-3.5 h-3.5" /> Annulé
                                 </span>
                               )}
                             </td>
                           </tr>
                         );
-                      })
-                    )}
-                  </tbody>
-                </table>
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -1800,46 +2000,131 @@ export default function CashAndClosurePage() {
               </div>
             </div>
 
-            {/* Table des Encaissements au Siège */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-w-0 max-w-full">
-              <div className="overflow-x-auto w-full max-w-full">
-                <table className="min-w-[960px] w-full text-left border-collapse" data-cy="siege-parcels-table">
-                  <thead>
-                    <tr className="bg-slate-50 text-slate-500 text-[11px] uppercase font-bold tracking-wider border-b border-slate-200">
-                      <th className="py-3 px-3 w-28 whitespace-nowrap">N° BDR & Suivi</th>
-                      <th className="py-3 px-3 min-w-[180px]">Expéditeur & Destinataire</th>
-                      <th className="py-3 px-3 w-32 whitespace-nowrap">Axe & Type</th>
-                      <th className="py-3 px-3 w-32 whitespace-nowrap">Règlement Siège</th>
-                      <th className="py-3 px-3 w-24 whitespace-nowrap text-right">Marchandise</th>
-                      <th className="py-3 px-3 w-20 whitespace-nowrap text-right">Frais Port</th>
-                      <th className="py-3 px-3 w-24 whitespace-nowrap text-right font-black">Total COD Siège</th>
-                      <th className="py-3 px-3 w-36 whitespace-nowrap text-center">Statut</th>
-                      <th className="py-3 px-3 w-28 whitespace-nowrap text-center">Action Caisse</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm">
-                    {siegeParcels.length === 0 ? (
-                      <tr>
-                        <td colSpan={9} className="p-12 text-center text-slate-400">
-                          <Building2 className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-                          <p className="font-semibold text-slate-600">Aucun encaissement au siège pour le {selectedDate}</p>
-                          <p className="text-xs text-slate-400 mt-1">
-                            Tous les colis réglés par virement ou direct au siège apparaissent automatiquement ici.
-                          </p>
-                        </td>
+            {/* Empty State or Content */}
+            {siegeParcels.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400">
+                <Building2 className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                <p className="font-semibold text-slate-600">Aucun encaissement au siège pour le {selectedDate}</p>
+                <p className="text-xs text-slate-400 mt-1">
+                  Tous les colis réglés par virement ou direct au siège apparaissent automatiquement ici.
+                </p>
+              </div>
+            ) : displayMode === "cards" ? (
+              /* VUE CARTES SIÈGE */
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 min-w-0 max-w-full" data-cy="siege-parcels-cards">
+                {siegeParcels.map((sp) => (
+                  <div
+                    key={sp.id}
+                    className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 shadow-xs flex flex-col justify-between gap-3"
+                  >
+                    <div className="space-y-2 border-b border-slate-100 pb-2.5">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-xs text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200">
+                            BDR-{sp.tracking_number}
+                          </span>
+                          <span className="text-[11px] text-slate-400 font-mono">
+                            {sp.reception_date}
+                          </span>
+                        </div>
+                        <StatusBadge status={sp.status} encaissement_lieu="SIEGE" />
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <AxisBadge axis={sp.axis} />
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                          🏢 Récupéré au Siège
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      <div className="space-y-0.5">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                          Destinataire & Expéditeur
+                        </span>
+                        <div className="font-bold text-slate-900">{sp.recipient_name}</div>
+                        <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1">
+                          <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                          {sp.recipient_phone_formatted || sp.recipient_phone}
+                        </div>
+                        {sp.sender_name && (
+                          <div className="text-[11px] text-blue-700 font-medium truncate" title={sp.sender_name}>
+                            Exp: <strong>{sp.sender_name}</strong>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-0.5 sm:border-l sm:border-slate-100 sm:pl-3">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                          Règlement
+                        </span>
+                        <div>{getPaymentBadge(sp.payment_method)}</div>
+                        <div className="text-[11px] text-slate-500 mt-1">
+                          Marchandise : <span className="font-mono font-medium">{formatMGA(sp.merchandise_amount)}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Frais port : <span className="font-mono font-medium">{formatMGA(sp.delivery_fee)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3 pt-2.5 border-t border-slate-100 bg-blue-50/40 -mx-4 -mb-4 p-3 rounded-b-2xl">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                          Total COD Siège
+                        </span>
+                        <span className="font-mono font-black text-sm text-blue-900">
+                          {formatMGA(sp.total_to_collect)}
+                        </span>
+                      </div>
+
+                      <div>
+                        {sp.status === "CLOTURE_CAISSE" ? (
+                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            Scellé en Caisse
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleValidateSingleParcel(sp.id)}
+                            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Valider Caisse
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              /* VUE TABLEAU CONDENSÉ SIÈGE */
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-w-0 max-w-full">
+                <div className="overflow-x-auto w-full max-w-full">
+                  <table className="w-full text-left border-collapse" data-cy="siege-parcels-table">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-500 text-[11px] uppercase font-bold tracking-wider border-b border-slate-200">
+                        <th className="py-3 px-3 min-w-[240px]">Colis, Destinataire & Axe</th>
+                        <th className="py-3 px-3 w-40 whitespace-nowrap">Règlement Siège</th>
+                        <th className="py-3 px-3 w-36 whitespace-nowrap text-right">Montants & COD</th>
+                        <th className="py-3 px-3 w-36 whitespace-nowrap text-center">Statut</th>
+                        <th className="py-3 px-3 w-32 whitespace-nowrap text-center">Action Caisse</th>
                       </tr>
-                    ) : (
-                      siegeParcels.map((sp) => (
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-sm">
+                      {siegeParcels.map((sp) => (
                         <tr key={sp.id} className="hover:bg-slate-50/80 transition">
-                          <td className="py-2.5 px-3 whitespace-nowrap font-mono">
-                            <span className="font-bold text-slate-900 block text-xs">
-                              BDR-{sp.tracking_number}
-                            </span>
-                            <span className="text-[10px] text-slate-400 block">
-                              {sp.reception_date}
-                            </span>
-                          </td>
                           <td className="py-2.5 px-3">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              <span className="font-mono font-bold text-xs text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                BDR-{sp.tracking_number}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                {sp.reception_date}
+                              </span>
+                              <AxisBadge axis={sp.axis} />
+                            </div>
                             <div className="font-bold text-slate-900 text-xs">
                               {sp.recipient_name}
                             </div>
@@ -1847,34 +2132,36 @@ export default function CashAndClosurePage() {
                               {sp.recipient_phone_formatted || sp.recipient_phone}
                             </div>
                             {sp.sender_name && (
-                              <div className="text-[10px] text-blue-600 font-medium truncate max-w-[200px]" title={sp.sender_name}>
+                              <div className="text-[10px] text-blue-600 font-medium truncate max-w-[260px]" title={sp.sender_name}>
                                 Exp: {sp.sender_name}
                               </div>
                             )}
                           </td>
                           <td className="py-2.5 px-3 whitespace-nowrap">
-                            <AxisBadge axis={sp.axis} />
-                          </td>
-                          <td className="py-2.5 px-3 whitespace-nowrap">{getPaymentBadge(sp.payment_method)}</td>
-                          <td className="py-2.5 px-3 text-right font-mono font-medium text-slate-600 whitespace-nowrap text-xs">
-                            {formatMGA(sp.merchandise_amount)}
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-mono font-medium text-slate-600 whitespace-nowrap text-xs">
-                            {formatMGA(sp.delivery_fee)}
+                            <div>{getPaymentBadge(sp.payment_method)}</div>
+                            <span className="mt-1 inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                              🏢 Direct Siège
+                            </span>
                           </td>
                           <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                            <span className="font-mono font-black text-blue-900 px-2 py-0.5 rounded-lg bg-blue-50 border border-blue-200 inline-block text-xs">
+                            <div className="font-mono font-black text-blue-900 text-xs">
                               {formatMGA(sp.total_to_collect)}
-                            </span>
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-mono">
+                              March: {formatNumber(sp.merchandise_amount || 0)}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-mono">
+                              Port: {formatNumber(sp.delivery_fee || 0)}
+                            </div>
                           </td>
                           <td className="py-2.5 px-3 text-center whitespace-nowrap">
                             <StatusBadge status={sp.status} encaissement_lieu="SIEGE" />
                           </td>
                           <td className="py-2.5 px-3 text-center whitespace-nowrap">
                             {sp.status === "CLOTURE_CAISSE" ? (
-                              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap shadow-2xs">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap shadow-2xs">
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                Scellé en Caisse
+                                Scellé
                               </span>
                             ) : (
                               <button
@@ -1882,17 +2169,17 @@ export default function CashAndClosurePage() {
                                 className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
-                                Valider Caisse
+                                Valider
                               </button>
                             )}
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </div>
