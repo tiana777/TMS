@@ -618,13 +618,13 @@ export default function CashAndClosurePage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 pb-16">
-      {/* Top Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
+    <div className="w-full max-w-7xl mx-auto space-y-5 pb-12 min-w-0">
+      {/* Top Header & Tab Navigation Card */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+        <div className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2.5">
-              <span className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg">
+              <span className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
                 <Wallet className="w-5 h-5" />
               </span>
               <div>
@@ -663,19 +663,17 @@ export default function CashAndClosurePage() {
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
             </button>
-
-            <HeaderUserRole />
           </div>
         </div>
 
         {/* Tab navigation */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex border-t border-slate-100 flex-wrap">
+        <div className="flex border-t border-slate-100 flex-wrap bg-slate-50/50">
           <button
             onClick={() => setActiveTab("caisse")}
-            className={`py-2 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition ${
+            className={`py-2.5 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition ${
               activeTab === "caisse"
-                ? "border-emerald-600 text-emerald-700 bg-emerald-50/50"
-                : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                ? "border-emerald-600 text-emerald-700 bg-white"
+                : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/50"
             }`}
             data-cy="tab-caisse"
           >
@@ -688,10 +686,10 @@ export default function CashAndClosurePage() {
 
           <button
             onClick={() => setActiveTab("decharge")}
-            className={`py-2 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition ${
+            className={`py-2.5 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition ${
               activeTab === "decharge"
-                ? "border-blue-600 text-blue-700 bg-blue-50/50"
-                : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                ? "border-blue-600 text-blue-700 bg-white"
+                : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/50"
             }`}
             data-cy="tab-decharge"
           >
@@ -704,10 +702,10 @@ export default function CashAndClosurePage() {
 
           <button
             onClick={() => setActiveTab("siege")}
-            className={`py-2 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition ${
+            className={`py-2.5 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition ${
               activeTab === "siege"
-                ? "border-purple-600 text-purple-700 bg-purple-50/50"
-                : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                ? "border-purple-600 text-purple-700 bg-white"
+                : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/50"
             }`}
             data-cy="tab-siege"
           >
@@ -718,10 +716,10 @@ export default function CashAndClosurePage() {
             </span>
           </button>
         </div>
-      </header>
+      </div>
 
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-4">
+      <div className="w-full min-w-0 max-w-full space-y-4">
         {/* Banner Alert Feedback */}
         {error && (
           <div
@@ -763,9 +761,9 @@ export default function CashAndClosurePage() {
         {activeTab === "caisse" && (
           <div className="space-y-4" data-cy="view-caisse">
             {/* KPI Cards Bar */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5 min-w-0">
               {/* Card 1: Total COD Encaissé / Dû */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 border-l-4 border-l-emerald-500 shadow-xs flex flex-col justify-between">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 border-l-4 border-l-emerald-500 shadow-xs flex flex-col justify-between min-w-0">
                 <div>
                   <div className="flex items-center justify-between text-slate-500 mb-1.5">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -784,7 +782,7 @@ export default function CashAndClosurePage() {
               </div>
 
               {/* Card 2: Espèces Remises */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 border-l-4 border-l-teal-500 shadow-xs flex flex-col justify-between">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 border-l-4 border-l-teal-500 shadow-xs flex flex-col justify-between min-w-0">
                 <div>
                   <div className="flex items-center justify-between text-slate-500 mb-1.5">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -802,7 +800,7 @@ export default function CashAndClosurePage() {
               </div>
 
               {/* Card 3: Mobile Money Réconcilié */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 border-l-4 border-l-amber-500 shadow-xs flex flex-col justify-between">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 border-l-4 border-l-amber-500 shadow-xs flex flex-col justify-between min-w-0">
                 <div>
                   <div className="flex items-center justify-between text-slate-500 mb-1.5">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -828,7 +826,7 @@ export default function CashAndClosurePage() {
               </div>
 
               {/* Card 4: À Valider en Caisse vs Scellé */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 border-l-4 border-l-indigo-500 shadow-xs flex flex-col justify-between">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 border-l-4 border-l-indigo-500 shadow-xs flex flex-col justify-between min-w-0">
                 <div>
                   <div className="flex items-center justify-between text-slate-500 mb-1.5">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -848,10 +846,10 @@ export default function CashAndClosurePage() {
             </div>
 
             {/* Action & Filter Toolbar */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-2.5 flex-1">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-3 min-w-0 max-w-full">
+              <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
                 {/* Search */}
-                <div className="relative min-w-[220px] flex-1 max-w-sm">
+                <div className="relative min-w-[200px] flex-1 max-w-sm">
                   <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                   <input
                     type="text"
@@ -867,7 +865,7 @@ export default function CashAndClosurePage() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 focus:bg-white focus:outline-none cursor-pointer"
+                  className="w-full sm:w-auto px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 focus:bg-white focus:outline-none cursor-pointer"
                   data-cy="status-cash-filter"
                 >
                   <option value="ALL">Tous les statuts ({codParcels.length})</option>
@@ -883,7 +881,7 @@ export default function CashAndClosurePage() {
                 <select
                   value={paymentFilter}
                   onChange={(e) => setPaymentFilter(e.target.value)}
-                  className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 focus:bg-white focus:outline-none cursor-pointer"
+                  className="w-full sm:w-auto px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 focus:bg-white focus:outline-none cursor-pointer"
                   data-cy="payment-cash-filter"
                 >
                   <option value="ALL">Tous les règlements</option>
@@ -898,7 +896,7 @@ export default function CashAndClosurePage() {
                 <select
                   value={encaissementLieuFilter}
                   onChange={(e) => setEncaissementLieuFilter(e.target.value)}
-                  className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 focus:bg-white focus:outline-none cursor-pointer"
+                  className="w-full sm:w-auto px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 focus:bg-white focus:outline-none cursor-pointer"
                   data-cy="encaissement-lieu-filter"
                 >
                   <option value="ALL">Tous les lieux de recouvrement</option>
@@ -913,7 +911,7 @@ export default function CashAndClosurePage() {
                   <button
                     onClick={handleBulkValidate}
                     disabled={isSubmittingBulk}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-2 cursor-pointer"
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-2 cursor-pointer whitespace-nowrap"
                     data-cy="btn-bulk-validate-cash"
                   >
                     <CheckCircle2 className="w-4 h-4" />
@@ -924,12 +922,12 @@ export default function CashAndClosurePage() {
             </div>
 
             {/* Parcels Table */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="min-w-[1260px] w-full text-left border-collapse" data-cy="cash-parcels-table">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-w-0 max-w-full">
+              <div className="overflow-x-auto w-full max-w-full">
+                <table className="min-w-[1040px] w-full text-left border-collapse" data-cy="cash-parcels-table">
                   <thead>
                     <tr className="bg-slate-50 text-slate-500 text-[11px] uppercase font-bold tracking-wider border-b border-slate-200">
-                      <th className="p-3.5 w-12 text-center">
+                      <th className="py-3 px-3 w-10 text-center">
                         <input
                           type="checkbox"
                           checked={
@@ -946,16 +944,16 @@ export default function CashAndClosurePage() {
                           title="Sélectionner tous les colis éligibles à la clôture"
                         />
                       </th>
-                      <th className="p-3.5 w-32 whitespace-nowrap">N° BDR & Suivi</th>
-                      <th className="p-3.5 min-w-[210px]">Expéditeur & Destinataire</th>
-                      <th className="p-3.5 w-40 whitespace-nowrap">Axe & Type</th>
-                      <th className="p-3.5 w-36 whitespace-nowrap text-center">Lieu Encaissement</th>
-                      <th className="p-3.5 w-36 whitespace-nowrap">Mode Règlement</th>
-                      <th className="p-3.5 w-28 whitespace-nowrap text-right">Marchandise</th>
-                      <th className="p-3.5 w-24 whitespace-nowrap text-right">Frais Port</th>
-                      <th className="p-3.5 w-28 whitespace-nowrap text-right">Total COD</th>
-                      <th className="p-3.5 w-44 whitespace-nowrap text-center">Statut Atomique</th>
-                      <th className="p-3.5 w-36 whitespace-nowrap text-center">Action Caisse</th>
+                      <th className="py-3 px-3 w-28 whitespace-nowrap">N° BDR & Suivi</th>
+                      <th className="py-3 px-3 min-w-[180px]">Expéditeur & Destinataire</th>
+                      <th className="py-3 px-3 w-32 whitespace-nowrap">Axe & Type</th>
+                      <th className="py-3 px-3 w-32 whitespace-nowrap text-center">Lieu Recouvrement</th>
+                      <th className="py-3 px-3 w-32 whitespace-nowrap">Règlement</th>
+                      <th className="py-3 px-3 w-24 whitespace-nowrap text-right">Marchandise</th>
+                      <th className="py-3 px-3 w-20 whitespace-nowrap text-right">Frais</th>
+                      <th className="py-3 px-3 w-24 whitespace-nowrap text-right font-black">Total COD</th>
+                      <th className="py-3 px-3 w-36 whitespace-nowrap text-center">Statut</th>
+                      <th className="py-3 px-3 w-32 whitespace-nowrap text-center">Action Caisse</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
@@ -988,7 +986,7 @@ export default function CashAndClosurePage() {
                             }`}
                             data-cy={`cash-parcel-row-${parcel.id}`}
                           >
-                            <td className="p-3.5 text-center">
+                            <td className="py-2.5 px-3 text-center">
                               {isSelectable ? (
                                 <input
                                   type="checkbox"
@@ -1005,7 +1003,7 @@ export default function CashAndClosurePage() {
                                 <span className="text-slate-300 text-xs">•</span>
                               )}
                             </td>
-                            <td className="p-3.5 whitespace-nowrap font-mono">
+                            <td className="py-2.5 px-3 whitespace-nowrap font-mono">
                               <span
                                 className={`block text-xs ${
                                   isClosed ? "font-semibold text-slate-500" : "font-bold text-slate-900"
@@ -1017,7 +1015,7 @@ export default function CashAndClosurePage() {
                                 {parcel.reception_date}
                               </span>
                             </td>
-                            <td className="p-3.5">
+                            <td className="py-2.5 px-3">
                               <div
                                 className={`text-xs ${
                                   isClosed ? "font-medium text-slate-500" : "font-bold text-slate-900"
@@ -1039,7 +1037,7 @@ export default function CashAndClosurePage() {
                                 </div>
                               )}
                             </td>
-                            <td className="p-3.5 whitespace-nowrap">
+                            <td className="py-2.5 px-3 whitespace-nowrap">
                               <div className={`flex flex-col gap-1 items-start ${isClosed ? "opacity-60 grayscale-[30%]" : ""}`}>
                                 <AxisBadge axis={parcel.axis} />
                                 <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-600 uppercase border border-slate-200">
@@ -1047,9 +1045,9 @@ export default function CashAndClosurePage() {
                                 </span>
                               </div>
                             </td>
-                            <td className="p-3.5 text-center whitespace-nowrap">
+                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
                               <span
-                                className={`px-2.5 py-1 rounded-full text-xs font-bold border inline-flex items-center gap-1 ${
+                                className={`px-2 py-0.5 rounded-full text-[11px] font-bold border inline-flex items-center gap-1 ${
                                   isClosed
                                     ? "bg-slate-100 text-slate-500 border-slate-200"
                                     : parcel.encaissement_lieu === "SIEGE"
@@ -1060,16 +1058,16 @@ export default function CashAndClosurePage() {
                                 {parcel.encaissement_lieu === "SIEGE" ? "🏢 Au Siège" : "🛵 Par Livreur"}
                               </span>
                             </td>
-                            <td className={`p-3.5 whitespace-nowrap ${isClosed ? "opacity-60 grayscale-[30%]" : ""}`}>
+                            <td className={`py-2.5 px-3 whitespace-nowrap ${isClosed ? "opacity-60 grayscale-[30%]" : ""}`}>
                               {getPaymentBadge(parcel.payment_method)}
                             </td>
-                            <td className={`p-3.5 text-right font-mono font-medium whitespace-nowrap text-xs ${isClosed ? "text-slate-400" : "text-slate-600"}`}>
+                            <td className={`py-2.5 px-3 text-right font-mono font-medium whitespace-nowrap text-xs ${isClosed ? "text-slate-400" : "text-slate-600"}`}>
                               {formatMGA(parcel.merchandise_amount)}
                             </td>
-                            <td className={`p-3.5 text-right font-mono font-medium whitespace-nowrap text-xs ${isClosed ? "text-slate-400" : "text-slate-600"}`}>
+                            <td className={`py-2.5 px-3 text-right font-mono font-medium whitespace-nowrap text-xs ${isClosed ? "text-slate-400" : "text-slate-600"}`}>
                               {formatMGA(parcel.delivery_fee)}
                             </td>
-                            <td className="p-3.5 text-right whitespace-nowrap">
+                            <td className="py-2.5 px-3 text-right whitespace-nowrap">
                               <span
                                 className={`font-mono px-2 py-0.5 rounded-lg border inline-block text-xs ${
                                   isClosed
@@ -1080,12 +1078,12 @@ export default function CashAndClosurePage() {
                                 {formatMGA(parcel.total_to_collect)}
                               </span>
                             </td>
-                            <td className={`p-3.5 text-center whitespace-nowrap ${isClosed ? "opacity-75" : ""}`}>
+                            <td className={`py-2.5 px-3 text-center whitespace-nowrap ${isClosed ? "opacity-75" : ""}`}>
                               <StatusBadge status={parcel.status} encaissement_lieu={parcel.encaissement_lieu} />
                             </td>
-                            <td className="p-3.5 text-center whitespace-nowrap">
+                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
                               {parcel.status === "CLOTURE_CAISSE" ? (
-                                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-300 whitespace-nowrap shadow-2xs">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-300 whitespace-nowrap shadow-2xs">
                                   <Lock className="w-3.5 h-3.5 text-slate-400" />
                                   Scellé en Caisse
                                 </span>
@@ -1668,18 +1666,18 @@ export default function CashAndClosurePage() {
                       </span>
                     )}
                   </div>
-                  <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-2xs">
-                    <table className="min-w-[1000px] w-full text-left text-xs border-collapse">
+                  <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-2xs w-full max-w-full">
+                    <table className="min-w-[850px] w-full text-left text-xs border-collapse">
                       <thead>
                         <tr className="bg-slate-50 text-slate-500 uppercase font-bold tracking-wider border-b border-slate-200">
-                          <th className="p-3 w-28 whitespace-nowrap">N° BDR</th>
-                          <th className="p-3 min-w-[180px]">Destinataire</th>
-                          <th className="p-3 w-40 whitespace-nowrap text-center">Statut Atomique</th>
-                          <th className="p-3 w-36 whitespace-nowrap text-center">Lieu Encaissement</th>
-                          <th className="p-3 w-36 whitespace-nowrap">Mode Règlement</th>
-                          <th className="p-3 w-28 whitespace-nowrap text-right">Marchandise</th>
-                          <th className="p-3 w-24 whitespace-nowrap text-right">Frais Port</th>
-                          <th className="p-3 w-32 whitespace-nowrap text-right">Total Dû Livreur</th>
+                          <th className="py-2.5 px-3 w-28 whitespace-nowrap">N° BDR</th>
+                          <th className="py-2.5 px-3 min-w-[170px]">Destinataire</th>
+                          <th className="py-2.5 px-3 w-36 whitespace-nowrap text-center">Statut</th>
+                          <th className="py-2.5 px-3 w-32 whitespace-nowrap text-center">Lieu Encaissement</th>
+                          <th className="py-2.5 px-3 w-32 whitespace-nowrap">Mode Règlement</th>
+                          <th className="py-2.5 px-3 w-24 whitespace-nowrap text-right">Marchandise</th>
+                          <th className="py-2.5 px-3 w-20 whitespace-nowrap text-right">Frais Port</th>
+                          <th className="py-2.5 px-3 w-28 whitespace-nowrap text-right font-black">Total Dû Livreur</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -1803,20 +1801,20 @@ export default function CashAndClosurePage() {
             </div>
 
             {/* Table des Encaissements au Siège */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="min-w-[1100px] w-full text-left border-collapse" data-cy="siege-parcels-table">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-w-0 max-w-full">
+              <div className="overflow-x-auto w-full max-w-full">
+                <table className="min-w-[960px] w-full text-left border-collapse" data-cy="siege-parcels-table">
                   <thead>
                     <tr className="bg-slate-50 text-slate-500 text-[11px] uppercase font-bold tracking-wider border-b border-slate-200">
-                      <th className="p-3.5 w-32 whitespace-nowrap">N° BDR & Suivi</th>
-                      <th className="p-3.5 min-w-[200px]">Expéditeur & Destinataire</th>
-                      <th className="p-3.5 w-36 whitespace-nowrap">Axe & Type</th>
-                      <th className="p-3.5 w-36 whitespace-nowrap">Règlement Siège</th>
-                      <th className="p-3.5 w-28 whitespace-nowrap text-right">Marchandise</th>
-                      <th className="p-3.5 w-24 whitespace-nowrap text-right">Frais Port</th>
-                      <th className="p-3.5 w-28 whitespace-nowrap text-right">Total COD Siège</th>
-                      <th className="p-3.5 w-40 whitespace-nowrap text-center">Statut Atomique</th>
-                      <th className="p-3.5 w-36 whitespace-nowrap text-center">Action Caisse</th>
+                      <th className="py-3 px-3 w-28 whitespace-nowrap">N° BDR & Suivi</th>
+                      <th className="py-3 px-3 min-w-[180px]">Expéditeur & Destinataire</th>
+                      <th className="py-3 px-3 w-32 whitespace-nowrap">Axe & Type</th>
+                      <th className="py-3 px-3 w-32 whitespace-nowrap">Règlement Siège</th>
+                      <th className="py-3 px-3 w-24 whitespace-nowrap text-right">Marchandise</th>
+                      <th className="py-3 px-3 w-20 whitespace-nowrap text-right">Frais Port</th>
+                      <th className="py-3 px-3 w-24 whitespace-nowrap text-right font-black">Total COD Siège</th>
+                      <th className="py-3 px-3 w-36 whitespace-nowrap text-center">Statut</th>
+                      <th className="py-3 px-3 w-28 whitespace-nowrap text-center">Action Caisse</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
@@ -1833,7 +1831,7 @@ export default function CashAndClosurePage() {
                     ) : (
                       siegeParcels.map((sp) => (
                         <tr key={sp.id} className="hover:bg-slate-50/80 transition">
-                          <td className="p-3.5 whitespace-nowrap font-mono">
+                          <td className="py-2.5 px-3 whitespace-nowrap font-mono">
                             <span className="font-bold text-slate-900 block text-xs">
                               BDR-{sp.tracking_number}
                             </span>
@@ -1841,7 +1839,7 @@ export default function CashAndClosurePage() {
                               {sp.reception_date}
                             </span>
                           </td>
-                          <td className="p-3.5">
+                          <td className="py-2.5 px-3">
                             <div className="font-bold text-slate-900 text-xs">
                               {sp.recipient_name}
                             </div>
@@ -1854,25 +1852,25 @@ export default function CashAndClosurePage() {
                               </div>
                             )}
                           </td>
-                          <td className="p-3.5 whitespace-nowrap">
+                          <td className="py-2.5 px-3 whitespace-nowrap">
                             <AxisBadge axis={sp.axis} />
                           </td>
-                          <td className="p-3.5 whitespace-nowrap">{getPaymentBadge(sp.payment_method)}</td>
-                          <td className="p-3.5 text-right font-mono font-medium text-slate-600 whitespace-nowrap text-xs">
+                          <td className="py-2.5 px-3 whitespace-nowrap">{getPaymentBadge(sp.payment_method)}</td>
+                          <td className="py-2.5 px-3 text-right font-mono font-medium text-slate-600 whitespace-nowrap text-xs">
                             {formatMGA(sp.merchandise_amount)}
                           </td>
-                          <td className="p-3.5 text-right font-mono font-medium text-slate-600 whitespace-nowrap text-xs">
+                          <td className="py-2.5 px-3 text-right font-mono font-medium text-slate-600 whitespace-nowrap text-xs">
                             {formatMGA(sp.delivery_fee)}
                           </td>
-                          <td className="p-3.5 text-right whitespace-nowrap">
+                          <td className="py-2.5 px-3 text-right whitespace-nowrap">
                             <span className="font-mono font-black text-blue-900 px-2 py-0.5 rounded-lg bg-blue-50 border border-blue-200 inline-block text-xs">
                               {formatMGA(sp.total_to_collect)}
                             </span>
                           </td>
-                          <td className="p-3.5 text-center whitespace-nowrap">
+                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
                             <StatusBadge status={sp.status} encaissement_lieu="SIEGE" />
                           </td>
-                          <td className="p-3.5 text-center whitespace-nowrap">
+                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
                             {sp.status === "CLOTURE_CAISSE" ? (
                               <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap shadow-2xs">
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
@@ -1897,7 +1895,7 @@ export default function CashAndClosurePage() {
             </div>
           </div>
         )}
-      </main>
+      </div>
 
       {/* PRINTABLE RECEIPT MODAL */}
       {receiptData && (
