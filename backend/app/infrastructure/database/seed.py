@@ -50,6 +50,13 @@ def seed_master_data():
             # Priorité 7 : dépenses d'exploitation séparées des litiges
             conn.execute(text("ALTER TABLE tournees ADD COLUMN IF NOT EXISTS total_depenses DOUBLE PRECISION DEFAULT 0 NOT NULL;"))
             conn.execute(text("ALTER TABLE tournees ADD COLUMN IF NOT EXISTS motif_depenses VARCHAR(255);"))
+            # Priorité 6 : frais de livraison prépayés au vendeur
+            conn.execute(text("ALTER TABLE colis ADD COLUMN IF NOT EXISTS frais_prepayes_vendeur BOOLEAN DEFAULT FALSE NOT NULL;"))
+            # Détails versement au quai (espèces, moyen mobile, référence)
+            conn.execute(text("ALTER TABLE tournees ADD COLUMN IF NOT EXISTS montant_especes_remis DOUBLE PRECISION DEFAULT 0 NOT NULL;"))
+            conn.execute(text("ALTER TABLE tournees ADD COLUMN IF NOT EXISTS montant_mobile_remis DOUBLE PRECISION DEFAULT 0 NOT NULL;"))
+            conn.execute(text("ALTER TABLE tournees ADD COLUMN IF NOT EXISTS moyen_mobile VARCHAR(40);"))
+            conn.execute(text("ALTER TABLE tournees ADD COLUMN IF NOT EXISTS reference_mobile VARCHAR(120);"))
             conn.commit()
     except Exception as e:
         print(f"Notice during constraint update: {e}")

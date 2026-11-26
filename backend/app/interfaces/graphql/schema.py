@@ -56,6 +56,7 @@ class ParcelType:
     driver_contact: Optional[str] = None
     vehicle_plate: Optional[str] = None
     encaissement_lieu: Optional[str] = "LIVREUR"
+    frais_prepayes_vendeur: bool = False
     repartition_vendeur: Optional[str] = None
     montant_encaisse_livreur: Optional[float] = None
     montant_encaisse_vendeur: Optional[float] = None

@@ -168,6 +168,13 @@ def clean_database_for_production():
 
             ALTER TABLE tournees ADD COLUMN IF NOT EXISTS total_depenses DOUBLE PRECISION DEFAULT 0 NOT NULL;
             ALTER TABLE tournees ADD COLUMN IF NOT EXISTS motif_depenses VARCHAR(255);
+
+            ALTER TABLE colis ADD COLUMN IF NOT EXISTS frais_prepayes_vendeur BOOLEAN DEFAULT FALSE NOT NULL;
+
+            ALTER TABLE tournees ADD COLUMN IF NOT EXISTS montant_especes_remis DOUBLE PRECISION DEFAULT 0 NOT NULL;
+            ALTER TABLE tournees ADD COLUMN IF NOT EXISTS montant_mobile_remis DOUBLE PRECISION DEFAULT 0 NOT NULL;
+            ALTER TABLE tournees ADD COLUMN IF NOT EXISTS moyen_mobile VARCHAR(40);
+            ALTER TABLE tournees ADD COLUMN IF NOT EXISTS reference_mobile VARCHAR(120);
         """))
         db.commit()
 

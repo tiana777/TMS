@@ -603,6 +603,7 @@ export async function updateParcelContact(
     merchandise_amount?: number;
     delivery_fee?: number;
     encaissement_lieu?: string;
+    frais_prepayes_vendeur?: boolean;
   }
 ) {
   const headers = getAuthHeaders();
@@ -622,7 +623,7 @@ export async function updateParcelContact(
 }
 
 export interface MarkPrepaidPayload {
-  prepaid_type: "ALL" | "MERCHANDISE_ONLY";
+  prepaid_type: "ALL" | "MERCHANDISE_ONLY" | "DELIVERY_FEE_ONLY";
   payment_method: string;
   payment_reference?: string;
 }
@@ -723,6 +724,8 @@ export async function closeTour(
   options?: {
     cashAmount?: number;
     mobileAmount?: number;
+    mobileChannel?: string;
+    mobileReference?: string;
     expensesAmount?: number;
     expensesReason?: string;
   }
@@ -734,6 +737,8 @@ export async function closeTour(
   if (options) {
     if (options.cashAmount !== undefined) payload.cash_amount = options.cashAmount;
     if (options.mobileAmount !== undefined) payload.mobile_amount = options.mobileAmount;
+    if (options.mobileChannel) payload.mobile_channel = options.mobileChannel;
+    if (options.mobileReference) payload.mobile_reference = options.mobileReference;
     if (options.expensesAmount !== undefined) payload.expenses_amount = options.expensesAmount;
     if (options.expensesReason !== undefined) payload.expenses_reason = options.expensesReason;
   }

@@ -986,6 +986,11 @@ export default function CRMVendorsPage() {
                             </td>
                             <td className="px-2.5 py-2 print:py-1 print:px-1.5 text-right text-slate-600 whitespace-nowrap text-xs print:text-[8.5px] font-mono">
                               {p.delivery_fee.toLocaleString("fr-FR")} Ar
+                              {p.frais_prepayes_vendeur && (
+                                <span className="block text-[9px] font-sans font-bold text-amber-700">
+                                  Prépayés vendeur (déduits)
+                                </span>
+                              )}
                             </td>
                             <td className="px-2.5 py-2 print:py-1 print:px-1.5 text-right font-bold whitespace-nowrap text-xs print:text-[8.5px] font-mono">
                               {isDelivered ? (

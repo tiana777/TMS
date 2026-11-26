@@ -58,6 +58,8 @@ class CloseTourDTO(BaseModel):
     cash_and_mobile_remitted: Optional[int] = None
     cash_amount: Optional[int] = None
     mobile_amount: Optional[int] = None
+    mobile_channel: Optional[str] = None
+    mobile_reference: Optional[str] = None
     expenses_amount: int = 0
     expenses_reason: Optional[str] = None
 
@@ -69,6 +71,10 @@ class TourResponseDTO(BaseModel):
     status: str
     theoretical_total: int
     actual_remitted: int
+    cash_amount: int = 0
+    mobile_amount: int = 0
+    mobile_channel: Optional[str] = None
+    mobile_reference: Optional[str] = None
     discrepancy: int
     expenses_amount: int = 0
     expenses_reason: Optional[str] = None

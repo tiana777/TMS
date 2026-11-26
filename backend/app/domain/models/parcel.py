@@ -60,6 +60,7 @@ class Parcel:
     driver_contact: Optional[str] = None
     vehicle_plate: Optional[str] = None
     encaissement_lieu: Optional[str] = "LIVREUR"
+    frais_prepayes_vendeur: bool = False
     repartition_vendeur: Optional[str] = None
     montant_encaisse_livreur: Optional[Money] = None
     montant_encaisse_vendeur: Optional[Money] = None
@@ -93,7 +94,13 @@ class Parcel:
 
     @property
     def total_to_collect(self) -> Money:
-        """Inviolable Total to Collect formula: Merchandise Amount + Delivery Fee (CDC section 4 & 7.2)."""
+        """Inviolable Total to Collect formula (CDC section 4 & 7.2).
+        Priorité 6 : Si les frais de livraison ont été payés d'avance à l'expéditeur
+        (frais_prepayes_vendeur=True), le livreur n'encaisse que la marchandise auprès du client.
+        Les frais de port restent dus par l'expéditeur et sont automatiquement déduits lors du reversement.
+        """
+        if self.frais_prepayes_vendeur:
+            return self.merchandise_amount
         return self.merchandise_amount + self.delivery_fee
 
     def override_axis(self, new_axis: LogisticAxis) -> None:
@@ -235,6 +242,11 @@ class Parcel:
             self.merchandise_amount = Money.zero()
             self.payment_method = payment_method
             note = f"Marchandise payée d'avance {method_name}{ref_str} ({old_merch} Ar). Frais de port restants: {self.delivery_fee.amount} Ar"
+            self.observation = f"{self.observation} | {note}" if self.observation else note
+        elif prepaid_type in ("DELIVERY_FEE_ONLY", "FRAIS_VENDEUR"):
+            self.frais_prepayes_vendeur = True
+            self.payment_method = payment_method
+            note = f"Frais de livraison ({self.delivery_fee.amount} Ar) payés d'avance au vendeur {method_name}{ref_str}. Reste COD à encaisser: {self.merchandise_amount.amount} Ar. Frais déduits au reversement."
             self.observation = f"{self.observation} | {note}" if self.observation else note
 
     def reschedule(self, new_date: str, reason: str) -> None:

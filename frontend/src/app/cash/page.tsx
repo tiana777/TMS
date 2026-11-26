@@ -92,6 +92,9 @@ export default function CashAndClosurePage() {
   const [loadingTourDetail, setLoadingTourDetail] = useState(false);
   const [remittedCash, setRemittedCash] = useState<number>(0);
   const [remittedMobile, setRemittedMobile] = useState<number>(0);
+  const [remittedMobileChannel, setRemittedMobileChannel] = useState<string>("MVOLA");
+  const [remittedMobileReference, setRemittedMobileReference] = useState<string>("");
+  const [vendorBreakdownOpen, setVendorBreakdownOpen] = useState(false);
   const [remittedExpenses, setRemittedExpenses] = useState<number>(0);
   const [remittedExpensesReason, setRemittedExpensesReason] = useState<string>("Carburant moto / Frais de tournée");
   const [isClosingTour, setIsClosingTour] = useState(false);
@@ -99,6 +102,8 @@ export default function CashAndClosurePage() {
     tour: Tour;
     cash: number;
     mobile: number;
+    mobileChannel?: string | null;
+    mobileReference?: string | null;
     expenses: number;
     expensesReason?: string;
     discrepancy: number;
@@ -106,6 +111,14 @@ export default function CashAndClosurePage() {
     grossTotal?: number;
     siegeTotal?: number;
     siegeParcels?: Parcel[];
+    vendorBreakdown?: {
+      vendorId: number | null;
+      vendorName: string;
+      parcels: Parcel[];
+      totalMerch: number;
+      totalFee: number;
+      totalCollected: number;
+    }[];
   } | null>(null);
 
   // Rechargement du détail complet d'une tournée
@@ -118,8 +131,10 @@ export default function CashAndClosurePage() {
       // Pré-remplir les montants selon le statut et les encaissements
       if (detail) {
         if (detail.status === "CLOTURE") {
-          setRemittedCash(detail.actual_remitted || 0);
-          setRemittedMobile(0);
+          setRemittedCash(detail.cash_amount ?? detail.actual_remitted ?? 0);
+          setRemittedMobile(detail.mobile_amount ?? 0);
+          setRemittedMobileChannel(detail.mobile_channel ?? "MVOLA");
+          setRemittedMobileReference(detail.mobile_reference ?? "");
           setRemittedExpenses(detail.expenses_amount || 0);
           setRemittedExpensesReason(detail.expenses_reason || "Carburant moto");
         } else {
@@ -514,6 +529,14 @@ export default function CashAndClosurePage() {
       clientCollectedCourierTotal: 0,
       clientCollectedVendorTotal: 0,
       deliveredUnconfirmedTotal: 0,
+      vendorBreakdown: [] as {
+        vendorId: number | null;
+        vendorName: string;
+        parcels: Parcel[];
+        totalMerch: number;
+        totalFee: number;
+        totalCollected: number;
+      }[],
     };
 
     if (!selectedTourDetail || !selectedTourDetail.parcels) {
@@ -582,7 +605,9 @@ export default function CashAndClosurePage() {
         } else {
           courierTheoreticalDue += p.total_to_collect;
           courierMerchandiseDue += p.merchandise_amount;
-          courierFeeDue += p.delivery_fee;
+          if (!p.frais_prepayes_vendeur) {
+            courierFeeDue += p.delivery_fee;
+          }
           courierParcels.push(p);
 
           if (p.payment_method === "ESPECES") {
@@ -607,6 +632,33 @@ export default function CashAndClosurePage() {
         failedTotal += p.total_to_collect;
       }
     });
+
+    // Priorité 4 : regroupement des encaissements par expéditeur (donneur d'ordre)
+    const byVendor: Record<string, {
+      vendorId: number | null;
+      vendorName: string;
+      parcels: Parcel[];
+      totalMerch: number;
+      totalFee: number;
+      totalCollected: number;
+    }> = {};
+    allParcels.forEach((p) => {
+      const key = String(p.vendor_id ?? "0");
+      const name = (p as any).sender_name || (p.vendor_id ? `Expéditeur #${p.vendor_id}` : "Expéditeur inconnu");
+      if (!byVendor[key]) {
+        byVendor[key] = { vendorId: p.vendor_id ?? null, vendorName: name, parcels: [], totalMerch: 0, totalFee: 0, totalCollected: 0 };
+      }
+      if (deliveredStatuses.includes(p.status) && p.encaissement_lieu !== "SIEGE") {
+        const collected = getClientCollectedAmount(p);
+        byVendor[key].parcels.push(p);
+        byVendor[key].totalMerch += p.merchandise_amount || 0;
+        byVendor[key].totalFee += p.frais_prepayes_vendeur ? 0 : (p.delivery_fee || 0);
+        byVendor[key].totalCollected += collected > 0 ? collected : (p.total_to_collect || 0);
+      }
+    });
+    const vendorBreakdown = Object.values(byVendor)
+      .filter((v) => v.parcels.length > 0)
+      .sort((a, b) => b.totalCollected - a.totalCollected);
 
     return {
       allParcels,
@@ -635,6 +687,7 @@ export default function CashAndClosurePage() {
       clientCollectedCourierTotal,
       clientCollectedVendorTotal,
       deliveredUnconfirmedTotal,
+      vendorBreakdown,
     };
   }, [selectedTourDetail]);
 
@@ -651,12 +704,18 @@ export default function CashAndClosurePage() {
       setError("Veuillez préciser le motif des dépenses d'exploitation (ex : carburant, stationnement).");
       return;
     }
+    if (remittedMobile > 0 && !remittedMobileReference.trim()) {
+      setError("Veuillez saisir la référence de transaction pour le versement hors espèces.");
+      return;
+    }
     setIsClosingTour(true);
     setError(null);
     try {
       const res = await closeTour(selectedTourDetail.id, remittedCash + remittedMobile, {
         cashAmount: remittedCash,
         mobileAmount: remittedMobile,
+        mobileChannel: remittedMobile > 0 ? remittedMobileChannel : undefined,
+        mobileReference: remittedMobile > 0 ? remittedMobileReference.trim() : undefined,
         expensesAmount: remittedExpenses,
         expensesReason: remittedExpensesReason,
       });
@@ -665,6 +724,10 @@ export default function CashAndClosurePage() {
         ...selectedTourDetail,
         status: "CLOTURE" as const,
         actual_remitted: remittedCash + remittedMobile,
+        cash_amount: remittedCash,
+        mobile_amount: remittedMobile,
+        mobile_channel: remittedMobile > 0 ? remittedMobileChannel : null,
+        mobile_reference: remittedMobile > 0 ? remittedMobileReference.trim() : null,
         expenses_amount: remittedExpenses,
         expenses_reason: remittedExpensesReason,
         discrepancy: cashDiscrepancy,
@@ -681,6 +744,8 @@ export default function CashAndClosurePage() {
         tour: finalTour,
         cash: remittedCash,
         mobile: remittedMobile,
+        mobileChannel: remittedMobile > 0 ? remittedMobileChannel : null,
+        mobileReference: remittedMobile > 0 ? remittedMobileReference.trim() : null,
         expenses: remittedExpenses,
         expensesReason: remittedExpensesReason,
         discrepancy: cashDiscrepancy,
@@ -688,6 +753,7 @@ export default function CashAndClosurePage() {
         grossTotal: tourFinancials.grossTotal,
         siegeTotal: tourFinancials.siegeTotal,
         siegeParcels: tourFinancials.siegeParcels,
+        vendorBreakdown: tourFinancials.vendorBreakdown,
       });
       await loadData(selectedTourDetail.id);
     } catch (e: any) {
@@ -1567,11 +1633,18 @@ return (
                     onClick={() =>
                       setReceiptData({
                         tour: selectedTourDetail,
-                        cash: selectedTourDetail.actual_remitted,
-                        mobile: 0,
-                        expenses: 0,
+                        cash: selectedTourDetail.cash_amount ?? selectedTourDetail.actual_remitted ?? 0,
+                        mobile: selectedTourDetail.mobile_amount ?? 0,
+                        mobileChannel: selectedTourDetail.mobile_channel,
+                        mobileReference: selectedTourDetail.mobile_reference,
+                        expenses: selectedTourDetail.expenses_amount ?? 0,
+                        expensesReason: selectedTourDetail.expenses_reason ?? undefined,
                         discrepancy: selectedTourDetail.discrepancy,
                         closedAt: selectedTourDetail.closed_at || new Date().toISOString(),
+                        grossTotal: tourFinancials.grossTotal,
+                        siegeTotal: tourFinancials.siegeTotal,
+                        siegeParcels: tourFinancials.siegeParcels,
+                        vendorBreakdown: tourFinancials.vendorBreakdown,
                       })
                     }
                     className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition flex items-center gap-2 border border-slate-300"
@@ -1736,7 +1809,7 @@ return (
                               : "text-yellow-600"
                               }`}
                           />
-                          2. Paiements Mobile Money Vérifiés (MGA)
+                          2. Versement Hors Espèces au Quai (MGA)
                         </label>
                         <span
                           className={`text-xs font-mono ${selectedTourDetail.status === "CLOTURE"
@@ -1744,7 +1817,7 @@ return (
                             : "text-slate-500"
                             }`}
                         >
-                          {selectedTourDetail.status === "CLOTURE" ? "🔒 Scellé" : "MVola / Airtel / Orange"}
+                          {selectedTourDetail.status === "CLOTURE" ? "🔒 Scellé" : "MVola / Airtel / Orange / Virement"}
                         </span>
                       </div>
                       <input
@@ -1761,6 +1834,51 @@ return (
                           }`}
                         data-cy="input-remitted-mobile"
                       />
+                      {/* Moyen et référence — obligatoires si montant > 0 */}
+                      {(remittedMobile > 0 || selectedTourDetail.status === "CLOTURE") && (
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[11px] font-bold text-slate-600 block mb-1">Moyen de paiement</label>
+                            <select
+                              value={remittedMobileChannel}
+                              onChange={(e) => setRemittedMobileChannel(e.target.value)}
+                              disabled={selectedTourDetail.status === "CLOTURE"}
+                              className={`w-full px-3 py-2 rounded-lg text-xs font-bold border transition-all ${selectedTourDetail.status === "CLOTURE"
+                                ? "bg-slate-200/70 text-slate-500 border-slate-300 cursor-not-allowed"
+                                : "bg-white border-slate-300 text-slate-800 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                                }`}
+                              data-cy="select-mobile-channel"
+                            >
+                              <option value="MVOLA">📱 Telma MVola</option>
+                              <option value="ORANGE_MONEY">📱 Orange Money</option>
+                              <option value="AIRTEL">📱 Airtel Money</option>
+                              <option value="VIREMENT">🏦 Virement Bancaire</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[11px] font-bold text-slate-600 block mb-1">
+                              Référence / N° de transaction <span className="text-rose-500">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="Ex: MV-20261126-0023"
+                              value={remittedMobileReference}
+                              onChange={(e) => setRemittedMobileReference(e.target.value)}
+                              disabled={selectedTourDetail.status === "CLOTURE"}
+                              className={`w-full px-3 py-2 rounded-lg text-xs font-mono border transition-all ${selectedTourDetail.status === "CLOTURE"
+                                ? "bg-slate-200/70 text-slate-500 border-slate-300 cursor-not-allowed"
+                                : remittedMobile > 0 && !remittedMobileReference.trim()
+                                  ? "bg-rose-50 border-rose-400 text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-400"
+                                  : "bg-white border-slate-300 text-slate-800 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                                }`}
+                              data-cy="input-mobile-reference"
+                            />
+                            {remittedMobile > 0 && !remittedMobileReference.trim() && selectedTourDetail.status !== "CLOTURE" && (
+                              <p className="text-[10px] text-rose-600 font-semibold mt-0.5">La référence est obligatoire.</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* 3. Dépenses d'Exploitation Justifiées (Carburant, Frais de tournée) */}
@@ -1933,6 +2051,37 @@ return (
                           </div>
                         </div>
 
+                        {/* Priorité 4 : Détail par Expéditeur (Donneur d'ordre) */}
+                        {tourFinancials.vendorBreakdown.length > 0 && (
+                          <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-3 mt-3">
+                            <button
+                              type="button"
+                              onClick={() => setVendorBreakdownOpen((v) => !v)}
+                              className="w-full flex items-center justify-between text-xs font-bold text-indigo-800 mb-1"
+                            >
+                              <span>📦 Détail par Expéditeur ({tourFinancials.vendorBreakdown.length})</span>
+                              <span>{vendorBreakdownOpen ? "▲" : "▼"}</span>
+                            </button>
+                            {vendorBreakdownOpen && (
+                              <div className="space-y-1.5 mt-2">
+                                {tourFinancials.vendorBreakdown.map((v) => (
+                                  <div key={v.vendorId ?? v.vendorName} className="bg-white rounded-lg border border-indigo-100 px-3 py-2">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[11px] font-bold text-slate-800 truncate max-w-[55%]">{v.vendorName}</span>
+                                      <span className="text-[11px] font-black text-indigo-700 whitespace-nowrap">{formatMGA(v.totalCollected)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 text-[10px] text-slate-500 mt-0.5">
+                                      <span>{v.parcels.length} colis</span>
+                                      <span>COD : {formatMGA(v.totalMerch)}</span>
+                                      <span>Frais : {formatMGA(v.totalFee)}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         <div className="pt-1">
                           <div className="flex items-center justify-between text-slate-600">
                             <span>Total Remis au Quai (1+2+3) :</span>
@@ -1941,9 +2090,12 @@ return (
                             </span>
                           </div>
                           {selectedTourDetail.status !== "CLOTURE" && (
-                            <div className="text-[10px] text-slate-500 mt-0.5 text-right">
-                              Espèces: {formatMGA(remittedCash)} • Mobile: {formatMGA(remittedMobile)} •
-                              Justif.: {formatMGA(remittedExpenses)}
+                            <div className="text-[10px] text-slate-500 mt-0.5 text-right space-y-0.5">
+                              <div>💵 Espèces : {formatMGA(remittedCash)}</div>
+                              {remittedMobile > 0 && (
+                                <div>📱 {remittedMobileChannel} : {formatMGA(remittedMobile)}{remittedMobileReference && ` — Réf : ${remittedMobileReference}`}</div>
+                              )}
+                              {remittedExpenses > 0 && <div>🧾 Justif. : {formatMGA(remittedExpenses)}</div>}
                             </div>
                           )}
                         </div>
@@ -2023,14 +2175,18 @@ return (
                             onClick={() =>
                               setReceiptData({
                                 tour: selectedTourDetail,
-                                cash: selectedTourDetail.actual_remitted || 0,
-                                mobile: 0,
-                                expenses: 0,
+                                cash: selectedTourDetail.cash_amount ?? selectedTourDetail.actual_remitted ?? 0,
+                                mobile: selectedTourDetail.mobile_amount ?? 0,
+                                mobileChannel: selectedTourDetail.mobile_channel,
+                                mobileReference: selectedTourDetail.mobile_reference,
+                                expenses: selectedTourDetail.expenses_amount ?? 0,
+                                expensesReason: selectedTourDetail.expenses_reason ?? undefined,
                                 discrepancy: selectedTourDetail.discrepancy || 0,
                                 closedAt: selectedTourDetail.closed_at || new Date().toISOString(),
                                 grossTotal: tourFinancials.grossTotal,
                                 siegeTotal: tourFinancials.siegeTotal,
                                 siegeParcels: tourFinancials.siegeParcels,
+                                vendorBreakdown: tourFinancials.vendorBreakdown,
                               })
                             }
                             className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 border border-slate-300 shadow-2xs cursor-pointer"
@@ -2560,6 +2716,11 @@ return (
                                   </td>
                                   <td className="p-3 text-right font-mono tabular-nums whitespace-nowrap text-slate-700">
                                     {formatMGA(p.delivery_fee)}
+                                    {p.frais_prepayes_vendeur && (
+                                      <span className="block text-[9px] font-sans font-bold text-amber-700">
+                                        Prépayés vendeur (déduits)
+                                      </span>
+                                    )}
                                   </td>
                                   <td className="p-3 text-right font-mono font-semibold tabular-nums whitespace-nowrap text-slate-900">
                                     {formatMGA(p.total_to_collect)}
@@ -2924,7 +3085,14 @@ return (
                       <span className="font-bold">{formatMGA(receiptData.cash)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500">Preuves Mobile Money Livreur :</span>
+                      <span className="text-slate-500">
+                        Versement Hors Espèces ({receiptData.mobileChannel || "Mobile Money"}) :
+                        {receiptData.mobileReference && (
+                          <span className="block text-[10px] text-slate-600 italic">
+                            Réf : {receiptData.mobileReference}
+                          </span>
+                        )}
+                      </span>
                       <span>{formatMGA(receiptData.mobile)}</span>
                     </div>
                     <div className="flex justify-between">
@@ -2953,6 +3121,24 @@ return (
                         {formatMGA(receiptData.discrepancy)}
                       </span>
                     </div>
+
+                    {receiptData.vendorBreakdown && receiptData.vendorBreakdown.length > 0 && (
+                      <div className="border-t border-slate-200 pt-2.5 mt-2">
+                        <p className="text-[10px] font-bold uppercase text-slate-600 mb-1.5">
+                          Détail par Expéditeur ({receiptData.vendorBreakdown.length})
+                        </p>
+                        <div className="space-y-1">
+                          {receiptData.vendorBreakdown.map((v) => (
+                            <div key={v.vendorId ?? v.vendorName} className="flex justify-between text-[10px] text-slate-700">
+                              <span className="truncate max-w-[60%]">
+                                {v.vendorName} ({v.parcels.length} col.)
+                              </span>
+                              <span className="font-bold whitespace-nowrap">{formatMGA(v.totalCollected)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="border-t border-slate-200 pt-4 mt-2 grid grid-cols-2 gap-4 text-center text-[10px] text-slate-400">

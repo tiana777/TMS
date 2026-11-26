@@ -21,6 +21,7 @@ class PayoutParcelSummaryDTO(BaseModel):
     delivery_fee: int
     status: str
     reception_date: str
+    frais_prepayes_vendeur: bool = False
 
 
 class PayoutResponseDTO(BaseModel):

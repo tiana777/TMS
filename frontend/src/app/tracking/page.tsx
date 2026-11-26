@@ -122,6 +122,7 @@ interface Parcel {
   derniere_action_at?: string | null;
   observation?: string;
   encaissement_lieu?: string;
+  frais_prepayes_vendeur?: boolean;
 }
 
 interface Tour {
@@ -168,7 +169,7 @@ export default function TrackingPage() {
   const [editDeliveryFee, setEditDeliveryFee] = useState<number>(0);
 
   // Prepaid states (Paiement direct en ligne / Siège)
-  const [prepaidType, setPrepaidType] = useState<"ALL" | "MERCHANDISE_ONLY">("ALL");
+  const [prepaidType, setPrepaidType] = useState<"ALL" | "MERCHANDISE_ONLY" | "DELIVERY_FEE_ONLY">("ALL");
   const [prepaidPaymentMethod, setPrepaidPaymentMethod] = useState<string>("MVOLA");
   const [prepaidReference, setPrepaidReference] = useState<string>("");
 
@@ -770,7 +771,7 @@ export default function TrackingPage() {
         }
 
         payload.status = targetParcel.status === "LIVRE" || targetParcel.status === "SOUS_TRAITE" ? "ENCAISSE" : "LIVRE_ENCAISSE";
-        payload.payment_method = selectedPaymentMethod;
+        payload.payment_method = "ESPECES";
         payload.encaissement_lieu = encaissementLieu;
       } else if (activeModal === "MARK_DELIVERED") {
         payload.status = "LIVRE";
@@ -835,7 +836,7 @@ export default function TrackingPage() {
                     : p.merchandise_amount,
                 total_to_collect:
                   activeModal === "DELIVER" && isPartialDelivery
-                    ? partialMerchandiseAmount + (p.delivery_fee || 0)
+                    ? partialMerchandiseAmount + (p.frais_prepayes_vendeur ? 0 : (p.delivery_fee || 0))
                     : p.total_to_collect,
                 observation:
                   activeModal === "DELIVER" && isPartialDelivery
@@ -2192,6 +2193,25 @@ export default function TrackingPage() {
                     <p className="font-black">Marchandise Seule Réglée ({targetParcel.delivery_fee?.toLocaleString()} Ar restants)</p>
                     <p className="text-[11px] font-normal text-slate-500">
                       Le client a payé le cybermarchand directement. Le livreur ne perçoit que les frais de livraison.
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  data-cy="btn-prepaid-delivery-fee-only"
+                  onClick={() => setPrepaidType("DELIVERY_FEE_ONLY")}
+                  className={`p-3 text-xs font-bold rounded-xl border transition text-left flex items-start gap-2.5 ${
+                    prepaidType === "DELIVERY_FEE_ONLY"
+                      ? "bg-amber-50 border-amber-500 text-amber-900 ring-2 ring-amber-500/20"
+                      : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <CheckCircle2 className={`w-4 h-4 shrink-0 mt-0.5 ${prepaidType === "DELIVERY_FEE_ONLY" ? "text-amber-600" : "text-slate-400"}`} />
+                  <div>
+                    <p className="font-black">Frais de Livraison Payés au Vendeur ({targetParcel.merchandise_amount?.toLocaleString()} Ar restants)</p>
+                    <p className="text-[11px] font-normal text-slate-500">
+                      Le client a déjà réglé les frais de port à l&apos;expéditeur. Le livreur n&apos;encaisse que la marchandise ; les frais seront déduits au reversement.
                     </p>
                   </div>
                 </button>

@@ -22,6 +22,7 @@ import { detectMalagasyPhone } from "../../lib/phone";
 import { detectAxisClient } from "../../lib/axis";
 import {
   fetchVendors,
+  fetchAxes,
   createParcelBatch,
   recognizeManifestAI,
   AIRecognizedParcel,
@@ -52,6 +53,9 @@ interface ParsedParcelRow {
 export default function ImportPage() {
   const [activeMode, setActiveMode] = useState<"csv" | "ai_vision">("csv");
   const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [axesList, setAxesList] = useState<
+    { code: string; libelle: string; type_axe?: string; tarif_livraison?: number; zones_details?: { tarif_livraison?: number }[] }[]
+  >([]);
   const [selectedVendorId, setSelectedVendorId] = useState<number>(0);
   const [customSenderName, setCustomSenderName] = useState<string>("");
   const [parsedRows, setParsedRows] = useState<ParsedParcelRow[]>([]);
@@ -78,7 +82,67 @@ export default function ImportPage() {
       setVendors(data);
       if (data.length > 0) setSelectedVendorId(data[0].id);
     });
+    fetchAxes().then((data) => {
+      if (Array.isArray(data)) setAxesList(data);
+    });
   }, []);
+
+  const getAxisTarif = (axisCode: string): number => {
+    const found = axesList.find((a) => a.code === axisCode);
+    if (!found) return 0;
+    if (typeof found.tarif_livraison === "number" && found.tarif_livraison > 0) {
+      return found.tarif_livraison;
+    }
+    const zoneTarif = found.zones_details?.find((z) => typeof z.tarif_livraison === "number" && z.tarif_livraison > 0)?.tarif_livraison;
+    return zoneTarif || 0;
+  };
+
+  const updateRowAxis = (rowIndex: number, newAxis: LogisticAxis) => {
+    const newFee = getAxisTarif(newAxis);
+    setParsedRows((prev) =>
+      prev.map((r) =>
+        r.index === rowIndex
+          ? {
+              ...r,
+              axis: newAxis,
+              fluxType: newAxis === "AXE_PROVINCE" ? "PROVINCE" : "COD",
+              deliveryFee: newFee,
+              totalToCollect: r.merchandiseAmount + newFee,
+            }
+          : r
+      )
+    );
+  };
+
+  const updateRowMerchandise = (rowIndex: number, amount: number) => {
+    const safeAmount = Math.max(0, Number.isFinite(amount) ? amount : 0);
+    setParsedRows((prev) =>
+      prev.map((r) =>
+        r.index === rowIndex
+          ? {
+              ...r,
+              merchandiseAmount: safeAmount,
+              totalToCollect: safeAmount + r.deliveryFee,
+            }
+          : r
+      )
+    );
+  };
+
+  const updateRowFee = (rowIndex: number, fee: number) => {
+    const safeFee = Math.max(0, Number.isFinite(fee) ? fee : 0);
+    setParsedRows((prev) =>
+      prev.map((r) =>
+        r.index === rowIndex
+          ? {
+              ...r,
+              deliveryFee: safeFee,
+              totalToCollect: r.merchandiseAmount + safeFee,
+            }
+          : r
+      )
+    );
+  };
 
   // Convert extracted AI parcels into ParsedParcelRow
   const processExtractedItems = (items: AIRecognizedParcel[]) => {
@@ -209,8 +273,8 @@ export default function ImportPage() {
 
     const keywords = [
       "nom", "destinataire", "client", "contact", "tel", "telephone",
-      "phone", "lieu", "adresse", "prix", "montant", "marchandise",
-      "frais", "tarif", "observation", "remarque", "note"
+      "phone", "lieu", "adresse", "prix", "montant", "marchandise", "cod",
+      "frais", "tarif", "fee", "observation", "remarque", "note"
     ];
 
     if (firstRow.some((cell) => keywords.some((k) => cell.includes(k)))) {
@@ -218,8 +282,8 @@ export default function ImportPage() {
       firstRow.forEach((cell, idx) => {
         if (cell.includes("tel") || cell.includes("contact") || cell.includes("phone")) colPhone = idx;
         else if (cell.includes("lieu") || cell.includes("adresse") || cell.includes("quartier") || cell.includes("repere") || cell.includes("destination")) colAddress = idx;
-        else if (cell.includes("prix") || cell.includes("marchandise") || cell.includes("montant") || cell.includes("article") || cell.includes("valeur")) colMerch = idx;
-        else if (cell.includes("frais") || cell.includes("tarif") || cell.includes("port") || cell.includes("livraison")) colFee = idx;
+        else if (cell === "cod" || cell.includes("cod") || cell.includes("prix") || cell.includes("marchandise") || cell.includes("montant") || cell.includes("article") || cell.includes("valeur")) colMerch = idx;
+        else if (cell === "fee" || cell.includes("fee") || cell.includes("frais") || cell.includes("tarif") || cell.includes("port") || cell.includes("livraison")) colFee = idx;
         else if (cell.includes("remarque") || cell.includes("obs") || cell.includes("note") || cell.includes("instruction")) colObs = idx;
         else if (cell.includes("nom") || cell.includes("destinataire") || cell.includes("client")) colName = idx;
       });
@@ -242,11 +306,11 @@ export default function ImportPage() {
       const rawPhone = String(row[colPhone] || "").trim();
       const address = String(row[colAddress] || "Antananarivo").trim();
 
-      const rawMerch = parseNumber(row[colMerch]);
+      const rawMerch = colMerch >= 0 ? parseNumber(row[colMerch]) : 0;
       const phoneDetect = detectMalagasyPhone(rawPhone);
       const axisDetect = detectAxisClient(address);
       const parsedFee = colFee >= 0 ? parseNumber(row[colFee]) : 0;
-      const rawFee = parsedFee > 0 ? parsedFee : axisDetect.fee;
+      const rawFee = parsedFee > 0 ? parsedFee : getAxisTarif(axisDetect.axis);
       const fluxType: FluxType = axisDetect.axis === "AXE_PROVINCE" ? "PROVINCE" : "COD";
 
       let hasErrors = false;
@@ -800,9 +864,9 @@ export default function ImportPage() {
                   <th className="py-2.5 px-3">Normalisé</th>
                   <th className="py-2.5 px-3">Opérateur</th>
                   <th className="py-2.5 px-3">Adresse</th>
-                  <th className="py-2.5 px-3">Axe Détecté</th>
-                  <th className="py-2.5 px-3 text-right">Marchandise</th>
-                  <th className="py-2.5 px-3 text-right">Frais</th>
+                  <th className="py-2.5 px-3">Axe (Éditable)</th>
+                  <th className="py-2.5 px-3 text-right">COD (Marchandise)</th>
+                  <th className="py-2.5 px-3 text-right">Fee (Frais)</th>
                   <th className="py-2.5 px-3 text-right">Total Dû</th>
                 </tr>
               </thead>
@@ -837,13 +901,41 @@ export default function ImportPage() {
                     </td>
                     <td className="py-2.5 px-3">{row.deliveryAddress}</td>
                     <td className="py-2.5 px-3">
-                      <AxisBadge axis={row.axis} />
+                      <select
+                        value={row.axis}
+                        onChange={(e) => updateRowAxis(row.index, e.target.value as LogisticAxis)}
+                        className="px-2 py-1 text-xs font-semibold rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        {axesList.length > 0 ? (
+                          axesList.map((a) => (
+                            <option key={a.code} value={a.code}>
+                              {a.libelle || a.code}
+                            </option>
+                          ))
+                        ) : (
+                          <option value={row.axis}>{row.axis}</option>
+                        )}
+                      </select>
                     </td>
                     <td className="py-2.5 px-3 text-right font-mono">
-                      {row.merchandiseAmount.toLocaleString("fr-FR")} Ar
+                      <input
+                        type="number"
+                        min={0}
+                        step={500}
+                        value={row.merchandiseAmount}
+                        onChange={(e) => updateRowMerchandise(row.index, parseInt(e.target.value, 10) || 0)}
+                        className="w-24 px-2 py-1 text-right font-mono text-xs rounded-lg border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
                     </td>
                     <td className="py-2.5 px-3 text-right font-mono">
-                      {row.deliveryFee.toLocaleString("fr-FR")} Ar
+                      <input
+                        type="number"
+                        min={0}
+                        step={500}
+                        value={row.deliveryFee}
+                        onChange={(e) => updateRowFee(row.index, parseInt(e.target.value, 10) || 0)}
+                        className="w-24 px-2 py-1 text-right font-mono text-xs rounded-lg border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
                     </td>
                     <td className="py-2.5 px-3 text-right font-mono font-bold text-blue-700">
                       {row.totalToCollect.toLocaleString("fr-FR")} Ar

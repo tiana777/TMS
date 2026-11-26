@@ -163,6 +163,7 @@ def update_parcel_contact(
             merchandise_amount=dto.merchandise_amount,
             delivery_fee=dto.delivery_fee,
             encaissement_lieu=dto.encaissement_lieu,
+            frais_prepayes_vendeur=dto.frais_prepayes_vendeur,
             user_id=current_user.id,
             user_nom=current_user.nom_complet,
             user_role=current_user.role,

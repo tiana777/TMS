@@ -26,6 +26,10 @@ class Tour:
     parcels: List[Parcel] = field(default_factory=list)
     theoretical_total: Money = field(default_factory=Money.zero)
     actual_remitted: Money = field(default_factory=Money.zero)
+    cash_amount: Money = field(default_factory=Money.zero)
+    mobile_amount: Money = field(default_factory=Money.zero)
+    mobile_channel: Optional[str] = None
+    mobile_reference: Optional[str] = None
     expenses_amount: Money = field(default_factory=Money.zero)
     expenses_reason: Optional[str] = None
     closed_at: Optional[datetime] = None

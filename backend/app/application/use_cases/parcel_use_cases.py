@@ -84,6 +84,7 @@ class ParcelUseCases:
             driver_contact=p.driver_contact,
             vehicle_plate=p.vehicle_plate,
             encaissement_lieu=p.encaissement_lieu or "LIVREUR",
+            frais_prepayes_vendeur=bool(getattr(p, "frais_prepayes_vendeur", False)),
             repartition_vendeur=p.repartition_vendeur,
             montant_encaisse_livreur=p.montant_encaisse_livreur.amount if p.montant_encaisse_livreur else None,
             montant_encaisse_vendeur=p.montant_encaisse_vendeur.amount if p.montant_encaisse_vendeur else None,
@@ -273,6 +274,7 @@ class ParcelUseCases:
             receptionniste_nom=rec_nom,
             observation=dto.observation,
             encaissement_lieu=dto.encaissement_lieu or "LIVREUR",
+            frais_prepayes_vendeur=bool(dto.frais_prepayes_vendeur),
         )
 
         saved = self.repo.save(parcel)
@@ -386,6 +388,8 @@ class ParcelUseCases:
 
         if dto.encaissement_lieu:
             parcel.encaissement_lieu = dto.encaissement_lieu
+        if dto.frais_prepayes_vendeur is not None:
+            parcel.frais_prepayes_vendeur = dto.frais_prepayes_vendeur
         if dto.repartition_vendeur:
             parcel.repartition_vendeur = dto.repartition_vendeur
         if dto.montant_encaisse_livreur is not None:
@@ -458,6 +462,7 @@ class ParcelUseCases:
         merchandise_amount: Optional[int] = None,
         delivery_fee: Optional[int] = None,
         encaissement_lieu: Optional[str] = None,
+        frais_prepayes_vendeur: Optional[bool] = None,
         user_id: Optional[int] = None,
         user_nom: Optional[str] = None,
         user_role: Optional[str] = None,
@@ -474,6 +479,9 @@ class ParcelUseCases:
         if encaissement_lieu is not None:
             parcel.encaissement_lieu = encaissement_lieu
             notes.append(f"Lieu d'encaissement : {encaissement_lieu}")
+        if frais_prepayes_vendeur is not None and frais_prepayes_vendeur != parcel.frais_prepayes_vendeur:
+            parcel.frais_prepayes_vendeur = frais_prepayes_vendeur
+            notes.append("Frais de livraison prépayés au vendeur (déduits au reversement)" if frais_prepayes_vendeur else "Frais de livraison à encaisser par le livreur")
         if recipient_phone:
             validated_phone = PhoneNumber(recipient_phone)
             notes.append(f"Téléphone destinataire corrigé : {validated_phone.formatted}")

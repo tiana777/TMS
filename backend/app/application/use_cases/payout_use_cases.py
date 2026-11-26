@@ -65,6 +65,7 @@ class PayoutUseCases:
                     delivery_fee=int(p.frais_livraison),
                     status=p.statut,
                     reception_date=p.date_reception,
+                    frais_prepayes_vendeur=bool(getattr(p, "frais_prepayes_vendeur", False)),
                 )
                 for p in v_parcels
             ]
@@ -198,6 +199,7 @@ class PayoutUseCases:
                 delivery_fee=int(p.frais_livraison),
                 status=p.statut,
                 reception_date=p.date_reception,
+                frais_prepayes_vendeur=bool(getattr(p, "frais_prepayes_vendeur", False)),
             )
             for p in parcels
         ]

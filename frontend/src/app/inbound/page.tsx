@@ -67,6 +67,7 @@ interface InboundRow {
   deliveryFee: number;
   observation: string;
   encaissementLieu?: "LIVREUR" | "SIEGE";
+  fraisPrepayesVendeur?: boolean;
   timeMode?: "INTERVAL" | "SIMPLE";
 }
 
@@ -123,6 +124,7 @@ export default function InboundPage() {
       deliveryFee: 3000,
       observation: "",
       encaissementLieu: "LIVREUR",
+      fraisPrepayesVendeur: false,
     },
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -832,6 +834,7 @@ export default function InboundPage() {
         receptionniste_nom: activeUserNom,
         observation: r.observation ? r.observation.trim() : undefined,
         encaissement_lieu: r.encaissementLieu || "LIVREUR",
+        frais_prepayes_vendeur: Boolean(r.fraisPrepayesVendeur),
       }));
 
       const results = await createParcelBatch(payload);
@@ -1270,7 +1273,8 @@ export default function InboundPage() {
           {rows.map((row, idx) => {
             const phoneDetect = detectMalagasyPhone(row.recipientPhone);
             const rowTotal =
-              (Number(row.merchandiseAmount) || 0) + (Number(row.deliveryFee) || 0);
+              (Number(row.merchandiseAmount) || 0) +
+              (row.fraisPrepayesVendeur ? 0 : (Number(row.deliveryFee) || 0));
 
             return (
               <div
@@ -1622,6 +1626,22 @@ export default function InboundPage() {
                         5k
                       </button>
                     </div>
+                    <label
+                      className="flex items-center gap-1.5 pt-1 cursor-pointer select-none"
+                      title="Si coché, le client a déjà payé les frais de livraison au vendeur. Le livreur n'encaisse que la marchandise et les frais seront déduits du reversement vendeur."
+                    >
+                      <input
+                        type="checkbox"
+                        checked={Boolean(row.fraisPrepayesVendeur)}
+                        onChange={(e) =>
+                          updateRow(idx, "fraisPrepayesVendeur", e.target.checked)
+                        }
+                        className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-3.5 h-3.5"
+                      />
+                      <span className="text-[10px] font-bold text-amber-700">
+                        Frais prépayés vendeur
+                      </span>
+                    </label>
                   </div>
 
                   {/* Sélecteur Horaire de Livraison (Facultatif : Intervalle ou Heure Simple) */}

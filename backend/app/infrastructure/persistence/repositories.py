@@ -66,6 +66,7 @@ class PostgresParcelRepository(IParcelRepository):
             driver_contact=orm.driver_contact,
             vehicle_plate=orm.vehicle_plate,
             encaissement_lieu=getattr(orm, "encaissement_lieu", "LIVREUR") or "LIVREUR",
+            frais_prepayes_vendeur=bool(getattr(orm, "frais_prepayes_vendeur", False)),
             repartition_vendeur=getattr(orm, "repartition_vendeur", None),
             montant_encaisse_livreur=Money(orm.montant_encaisse_livreur) if getattr(orm, "montant_encaisse_livreur", None) is not None else None,
             montant_encaisse_vendeur=Money(orm.montant_encaisse_vendeur) if getattr(orm, "montant_encaisse_vendeur", None) is not None else None,
@@ -117,6 +118,7 @@ class PostgresParcelRepository(IParcelRepository):
             driver_contact=domain.driver_contact,
             vehicle_plate=domain.vehicle_plate,
             encaissement_lieu=domain.encaissement_lieu,
+            frais_prepayes_vendeur=domain.frais_prepayes_vendeur,
             repartition_vendeur=domain.repartition_vendeur,
             montant_encaisse_livreur=float(domain.montant_encaisse_livreur.amount) if domain.montant_encaisse_livreur else None,
             montant_encaisse_vendeur=float(domain.montant_encaisse_vendeur.amount) if domain.montant_encaisse_vendeur else None,
@@ -166,6 +168,7 @@ class PostgresParcelRepository(IParcelRepository):
                 orm.driver_contact = parcel.driver_contact
                 orm.vehicle_plate = parcel.vehicle_plate
                 orm.encaissement_lieu = parcel.encaissement_lieu
+                orm.frais_prepayes_vendeur = parcel.frais_prepayes_vendeur
                 orm.repartition_vendeur = parcel.repartition_vendeur
                 orm.montant_encaisse_livreur = float(parcel.montant_encaisse_livreur.amount) if parcel.montant_encaisse_livreur else None
                 orm.montant_encaisse_vendeur = float(parcel.montant_encaisse_vendeur.amount) if parcel.montant_encaisse_vendeur else None
@@ -325,6 +328,10 @@ class PostgresTourRepository(ITourRepository):
             status=TourStatus(orm.statut),
             theoretical_total=Money(orm.total_theorique_caisse),
             actual_remitted=Money(orm.total_reel_verse),
+            cash_amount=Money(getattr(orm, "montant_especes_remis", 0.0) or 0.0),
+            mobile_amount=Money(getattr(orm, "montant_mobile_remis", 0.0) or 0.0),
+            mobile_channel=getattr(orm, "moyen_mobile", None),
+            mobile_reference=getattr(orm, "reference_mobile", None),
             expenses_amount=Money(getattr(orm, "total_depenses", 0.0) or 0.0),
             expenses_reason=getattr(orm, "motif_depenses", None),
             closed_at=orm.cloture_a,
@@ -342,6 +349,10 @@ class PostgresTourRepository(ITourRepository):
             statut=domain.status.value,
             total_theorique_caisse=theor,
             total_reel_verse=actual,
+            montant_especes_remis=float(domain.cash_amount.amount),
+            montant_mobile_remis=float(domain.mobile_amount.amount),
+            moyen_mobile=domain.mobile_channel,
+            reference_mobile=domain.mobile_reference,
             total_depenses=exp,
             motif_depenses=domain.expenses_reason,
             ecart_constate=float((actual + exp) - theor),
@@ -360,6 +371,10 @@ class PostgresTourRepository(ITourRepository):
                 orm.statut = tour.status.value
                 orm.total_theorique_caisse = theor
                 orm.total_reel_verse = actual
+                orm.montant_especes_remis = float(tour.cash_amount.amount)
+                orm.montant_mobile_remis = float(tour.mobile_amount.amount)
+                orm.moyen_mobile = tour.mobile_channel
+                orm.reference_mobile = tour.mobile_reference
                 orm.total_depenses = exp
                 orm.motif_depenses = tour.expenses_reason
                 orm.ecart_constate = float((actual + exp) - theor)

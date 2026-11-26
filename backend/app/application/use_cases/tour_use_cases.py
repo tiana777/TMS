@@ -58,6 +58,10 @@ class TourUseCases:
             status=t.status.value,
             theoretical_total=t.theoretical_total.amount,
             actual_remitted=t.actual_remitted.amount,
+            cash_amount=t.cash_amount.amount,
+            mobile_amount=t.mobile_amount.amount,
+            mobile_channel=t.mobile_channel,
+            mobile_reference=t.mobile_reference,
             discrepancy=discrepancy,
             expenses_amount=t.expenses_amount.amount,
             expenses_reason=t.expenses_reason,
@@ -208,6 +212,10 @@ class TourUseCases:
             status=tour_orm.statut,
             theoretical_total=theor_amount,
             actual_remitted=int(tour_orm.total_reel_verse),
+            cash_amount=int(getattr(tour_orm, "montant_especes_remis", 0.0) or 0),
+            mobile_amount=int(getattr(tour_orm, "montant_mobile_remis", 0.0) or 0),
+            mobile_channel=getattr(tour_orm, "moyen_mobile", None),
+            mobile_reference=getattr(tour_orm, "reference_mobile", None),
             discrepancy=discrepancy,
             expenses_amount=expenses_amount,
             expenses_reason=expenses_reason,
@@ -303,11 +311,27 @@ class TourUseCases:
 
         # Règle Métier 7 : Séparation stricte Litiges vs Dépenses d'exploitation
         if dto.cash_amount is not None or dto.mobile_amount is not None:
-            actual_cash_and_mobile = (dto.cash_amount or 0) + (dto.mobile_amount or 0)
+            cash_val = dto.cash_amount or 0
+            mobile_val = dto.mobile_amount or 0
+            actual_cash_and_mobile = cash_val + mobile_val
         elif dto.cash_and_mobile_remitted is not None:
+            cash_val = dto.cash_and_mobile_remitted
+            mobile_val = 0
             actual_cash_and_mobile = dto.cash_and_mobile_remitted
         else:
+            cash_val = 0
+            mobile_val = 0
             actual_cash_and_mobile = 0
+
+        mobile_channel = (dto.mobile_channel or "").strip() or None
+        mobile_reference = (dto.mobile_reference or "").strip() or None
+        if mobile_val > 0 and (not mobile_channel or not mobile_reference):
+            raise BusinessRuleViolationException(
+                "Pour tout montant envoyé hors espèces au quai, le moyen (MVola, Orange, Airtel, Virement) et la référence de transaction sont obligatoires."
+            )
+        if mobile_val == 0:
+            mobile_channel = None
+            mobile_reference = None
 
         remitted = Money(actual_cash_and_mobile)
         expenses = Money(dto.expenses_amount or 0)
@@ -378,6 +402,10 @@ class TourUseCases:
         tour.status = TourStatus.CLOTURE
         tour.closed_at = datetime.now(timezone.utc)
         tour.actual_remitted = remitted
+        tour.cash_amount = Money(cash_val)
+        tour.mobile_amount = Money(mobile_val)
+        tour.mobile_channel = mobile_channel
+        tour.mobile_reference = mobile_reference
         tour.expenses_amount = expenses
         tour.expenses_reason = expenses_reason
         tour.theoretical_total = theor

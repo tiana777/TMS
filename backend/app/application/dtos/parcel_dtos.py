@@ -25,6 +25,7 @@ class CreateParcelDTO(BaseModel):
     receptionniste_nom: Optional[str] = None
     observation: Optional[str] = None
     encaissement_lieu: Optional[str] = "LIVREUR"
+    frais_prepayes_vendeur: Optional[bool] = False
 
 
 class CreateBatchParcelDTO(BaseModel):
@@ -44,6 +45,7 @@ class UpdateParcelContactDTO(BaseModel):
     merchandise_amount: Optional[int] = None
     delivery_fee: Optional[int] = None
     encaissement_lieu: Optional[str] = None
+    frais_prepayes_vendeur: Optional[bool] = None
 
 
 class ReassignParcelDTO(BaseModel):
@@ -54,7 +56,7 @@ class ReassignParcelDTO(BaseModel):
 
 
 class MarkPrepaidDTO(BaseModel):
-    prepaid_type: str = "ALL"  # "ALL" (tout réglé, total=0 Ar) ou "MERCHANDISE_ONLY"
+    prepaid_type: str = "ALL"  # "ALL", "MERCHANDISE_ONLY", "DELIVERY_FEE_ONLY"
     payment_method: str = "MVOLA"  # ESPECES, MVOLA, AIRTEL, ORANGE_MONEY, VIREMENT
     payment_reference: Optional[str] = None
     observation: Optional[str] = None
@@ -82,6 +84,7 @@ class UpdateParcelStatusDTO(BaseModel):
     driver_contact: Optional[str] = None
     vehicle_plate: Optional[str] = None
     encaissement_lieu: Optional[str] = None
+    frais_prepayes_vendeur: Optional[bool] = None
     repartition_vendeur: Optional[str] = None
     montant_encaisse_livreur: Optional[float] = None
     montant_encaisse_vendeur: Optional[float] = None
@@ -139,6 +142,7 @@ class ParcelResponseDTO(BaseModel):
     driver_contact: Optional[str] = None
     vehicle_plate: Optional[str] = None
     encaissement_lieu: Optional[str] = None
+    frais_prepayes_vendeur: Optional[bool] = None
     repartition_vendeur: Optional[str] = None
     montant_encaisse_livreur: Optional[float] = None
     montant_encaisse_vendeur: Optional[float] = None

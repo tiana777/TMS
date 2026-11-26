@@ -96,6 +96,7 @@ export interface Parcel {
   driver_contact?: string | null;
   vehicle_plate?: string | null;
   encaissement_lieu?: "LIVREUR" | "DIRECT_VENDEUR" | "SIEGE" | string | null;
+  frais_prepayes_vendeur?: boolean;
   repartition_vendeur?: "COD_SEUL" | "FRAIS_SEUL" | "TOUT_VENDEUR" | string | null;
   montant_encaisse_livreur?: number | null;
   montant_encaisse_vendeur?: number | null;
@@ -188,6 +189,10 @@ export interface Tour {
   status: "ASSIGNE" | "EN_COURS" | "CLOTURE";
   theoretical_total: number;
   actual_remitted: number;
+  cash_amount?: number;
+  mobile_amount?: number;
+  mobile_channel?: string | null;
+  mobile_reference?: string | null;
   discrepancy: number;
   expenses_amount?: number;
   expenses_reason?: string | null;
@@ -241,6 +246,7 @@ export interface PayoutParcelSummary {
   delivery_fee: number;
   status: string;
   reception_date: string;
+  frais_prepayes_vendeur?: boolean;
 }
 
 export interface Payout {

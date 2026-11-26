@@ -82,6 +82,7 @@ const RECEPTIONIST_FILTERS = [
 
 export default function DispatchPage() {
   const [activeTab, setActiveTab] = useState<"dispatch" | "roadmaps">("dispatch");
+  const [roadmapStatusFilter, setRoadmapStatusFilter] = useState<"ALL" | "ACTIVE" | "ARCHIVED">("ALL");
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString);
 
   // Master data
@@ -1453,11 +1454,34 @@ export default function DispatchPage() {
         <div className="space-y-4">
           {/* Tours List Header / Selector */}
           <div>
-            <div className="flex items-center justify-between mb-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
               <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                 <Truck className="w-4 h-4 text-blue-600" />
-                Tournées Assignées pour le {selectedDate} ({tours.length})
+                Feuilles de Route du {selectedDate} ({tours.length})
               </h2>
+              <div className="inline-flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => setRoadmapStatusFilter("ALL")}
+                  className={`px-2.5 py-1 rounded-md transition ${roadmapStatusFilter === "ALL" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  Toutes ({tours.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRoadmapStatusFilter("ACTIVE")}
+                  className={`px-2.5 py-1 rounded-md transition ${roadmapStatusFilter === "ACTIVE" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  Actives ({tours.filter((t) => t.status !== "CLOTURE").length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRoadmapStatusFilter("ARCHIVED")}
+                  className={`px-2.5 py-1 rounded-md transition ${roadmapStatusFilter === "ARCHIVED" ? "bg-white text-emerald-700 shadow-2xs" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  🔒 Archives Clôturées ({tours.filter((t) => t.status === "CLOTURE").length})
+                </button>
+              </div>
             </div>
 
             {reassignFeedback && (
@@ -1482,7 +1506,15 @@ export default function DispatchPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {tours.map((t) => {
+                {tours
+                  .filter((t) =>
+                    roadmapStatusFilter === "ALL"
+                      ? true
+                      : roadmapStatusFilter === "ARCHIVED"
+                      ? t.status === "CLOTURE"
+                      : t.status !== "CLOTURE"
+                  )
+                  .map((t) => {
                   const isSelected = selectedTourId === t.id;
                   const isClosed = t.status === "CLOTURE";
                   return (

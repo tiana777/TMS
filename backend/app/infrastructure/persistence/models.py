@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from sqlalchemy import (
+    Boolean,
     Column,
     Integer,
     String,
@@ -147,6 +148,10 @@ class TourORM(Base):
     )
     total_theorique_caisse = Column(Float, default=0.0, nullable=False)
     total_reel_verse = Column(Float, default=0.0, nullable=False)
+    montant_especes_remis = Column(Float, default=0.0, nullable=False)
+    montant_mobile_remis = Column(Float, default=0.0, nullable=False)
+    moyen_mobile = Column(String(40), nullable=True)
+    reference_mobile = Column(String(120), nullable=True)
     total_depenses = Column(Float, default=0.0, nullable=False)
     motif_depenses = Column(String(255), nullable=True)
     ecart_constate = Column(Float, default=0.0, nullable=False)
@@ -215,6 +220,7 @@ class ParcelORM(Base):
     driver_contact = Column(String(100), nullable=True)
     vehicle_plate = Column(String(50), nullable=True)
     encaissement_lieu = Column(String(30), default="LIVREUR", nullable=True)
+    frais_prepayes_vendeur = Column(Boolean, default=False, nullable=False)
     repartition_vendeur = Column(String(40), nullable=True)
     montant_encaisse_livreur = Column(Float, nullable=True)
     montant_encaisse_vendeur = Column(Float, nullable=True)
