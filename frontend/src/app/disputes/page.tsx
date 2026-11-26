@@ -103,6 +103,27 @@ export default function DisputesPage() {
       return;
     }
 
+    // Règle Métier 7 : Les dépenses d'exploitation (carburant, frais) ne doivent pas être comptabilisées en litiges
+    // (liste alignée sur OPERATING_EXPENSE_KEYWORDS côté backend : domain/models/dispute.py)
+    const expenseKeywords = [
+      "carburant",
+      "essence",
+      "gazole",
+      "gasoil",
+      "frais de route",
+      "frais annexes",
+      "péage",
+      "peage",
+      "stationnement",
+    ];
+    const reasonLower = formReason.toLowerCase();
+    if (expenseKeywords.some((kw) => reasonLower.includes(kw))) {
+      alert(
+        "Règle Métier 7 : Les dépenses de carburant et frais de tournée sont des charges d'exploitation de la société. Elles relèvent de la décharge de tournée en caisse et ne doivent pas être enregistrées comme des litiges livreurs."
+      );
+      return;
+    }
+
     setFormSubmitting(true);
     try {
       await createDispute({
@@ -229,6 +250,23 @@ export default function DisputesPage() {
             <PlusCircle className="w-4 h-4" />
             <span>Ouvrir un Dossier de Litige</span>
           </button>
+        </div>
+      </div>
+
+      {/* Règle Métier 7: Séparation stricte Litiges vs Dépenses d'exploitation */}
+      <div className="bg-blue-50/80 border border-blue-200 rounded-xl p-3.5 flex items-start gap-3 text-xs text-blue-900 shadow-2xs">
+        <ShieldAlert className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+        <div>
+          <h4 className="font-bold text-blue-900 flex items-center gap-1.5">
+            <span>Règle de Gestion Stricte (CDC Section 11 & Priorité Métier 7) :</span>
+            <span className="bg-blue-200/80 text-blue-800 text-[10px] px-2 py-0.5 rounded-full font-black uppercase">
+              Séparation Litiges / Dépenses
+            </span>
+          </h4>
+          <p className="mt-1 text-blue-800 leading-relaxed text-[11px]">
+            Les dépenses d&apos;exploitation justifiées (<strong>carburant, entretien moto, péages, fret gare</strong>) relèvent de la décharge de tournée en caisse. <strong>Elles ne constituent en aucun cas des litiges ou des dettes imputables au livreur</strong> et n&apos;impactent pas son scorecard.
+            Le registre des litiges est strictement réservé aux créances nées de manquements ou avaries (déficits nets COD, marchandise brisée, perte en route, faux billets, livraisons à crédit non autorisées).
+          </p>
         </div>
       </div>
 

@@ -18,6 +18,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import type { FluxType } from "@/types";
+import { fetchCurrentUser } from "@/lib/api";
 
 export type UserRole = "RECEPTIONNISTE" | "SUPERVISEUR" | "SUPER_ADMIN";
 
@@ -35,57 +36,6 @@ export interface ReceptionistAgent {
   badgeBg: string;
   badgeText: string;
 }
-
-export const RECEPTIONIST_AGENTS: ReceptionistAgent[] = [
-  {
-    id: 4,
-    username: "agent1",
-    nom: "Aina Razafy",
-    matricule: "REC-001",
-    email: "agent1@tmsexpress.mg",
-    badge: "Agent Quai (REC-001)",
-    description: "Multi-Flux (COD, Simple, SAV, Province, B2B)",
-    icon: "👤",
-    badgeBg: "bg-blue-100",
-    badgeText: "text-blue-800",
-  },
-  {
-    id: 5,
-    username: "agent2",
-    nom: "Faly Rabe",
-    matricule: "REC-002",
-    email: "agent2@tmsexpress.mg",
-    badge: "Agent Quai (REC-002)",
-    description: "Multi-Flux (COD, Simple, SAV, Province, B2B)",
-    icon: "👤",
-    badgeBg: "bg-teal-100",
-    badgeText: "text-teal-800",
-  },
-  {
-    id: 6,
-    username: "agent3",
-    nom: "Hery Andrianina",
-    matricule: "REC-003",
-    email: "agent3@tmsexpress.mg",
-    badge: "Agent Quai (REC-003)",
-    description: "Multi-Flux (COD, Simple, SAV, Province, B2B)",
-    icon: "👤",
-    badgeBg: "bg-amber-100",
-    badgeText: "text-amber-800",
-  },
-  {
-    id: 7,
-    username: "agent4",
-    nom: "Voahirana Rasoanaivo",
-    matricule: "REC-004",
-    email: "agent4@tmsexpress.mg",
-    badge: "Agent Quai (REC-004)",
-    description: "Multi-Flux (COD, Simple, SAV, Province, B2B)",
-    icon: "👤",
-    badgeBg: "bg-rose-100",
-    badgeText: "text-rose-800",
-  },
-];
 
 interface RoleConfig {
   role: UserRole;
@@ -170,43 +120,40 @@ export function HeaderUserRole() {
       const savedRole = localStorage.getItem("tms_user_role") as UserRole | null;
       const savedUsername = localStorage.getItem("tms_username");
       const savedNom = localStorage.getItem("tms_user_nom");
+      const savedEmail = localStorage.getItem("tms_user_email");
 
       if (savedRole === ("LIVREUR" as any)) {
-        localStorage.setItem("tms_user_role", "SUPER_ADMIN");
-        localStorage.setItem("tms_username", "admin");
-        localStorage.setItem("tms_user_nom", "Super Administrateur");
-        setCurrentRole("SUPER_ADMIN");
-        setActiveUsername("admin");
-        setUserNom("Super Administrateur");
-        setUserEmail("admin@tmsexpress.mg");
+        handleLogout();
         return;
       }
 
       if (savedRole && ROLES[savedRole]) {
         setCurrentRole(savedRole);
-      } else {
-        setCurrentRole("SUPER_ADMIN");
       }
-
       if (savedUsername) {
         setActiveUsername(savedUsername);
-        const matchedAgent = RECEPTIONIST_AGENTS.find((a) => a.username === savedUsername);
-        if (matchedAgent) {
-          setUserEmail(matchedAgent.email);
-        } else if (savedUsername === "directeur") {
-          setUserEmail("directeur@tmsexpress.mg");
-        } else {
-          setUserEmail("admin@tmsexpress.mg");
-        }
       }
-
       if (savedNom) {
         setUserNom(savedNom);
-      } else if (savedUsername === "directeur") {
-        setUserNom("Directeur des Opérations");
-      } else if (savedUsername === "admin") {
-        setUserNom("Super Administrateur");
       }
+      if (savedEmail) {
+        setUserEmail(savedEmail);
+      }
+
+      // Synchroniser depuis la base de données (/auth/me)
+      fetchCurrentUser().then((me) => {
+        if (!me) return;
+        const roleFromDb = me.role as UserRole;
+        if (ROLES[roleFromDb]) setCurrentRole(roleFromDb);
+        setActiveUsername(me.username);
+        setUserNom(me.nom_complet);
+        setUserEmail(me.email);
+        localStorage.setItem("tms_user_id", String(me.id));
+        localStorage.setItem("tms_user_role", me.role);
+        localStorage.setItem("tms_username", me.username);
+        localStorage.setItem("tms_user_nom", me.nom_complet);
+        localStorage.setItem("tms_user_email", me.email);
+      });
     };
 
     syncStateFromStorage();
@@ -235,22 +182,19 @@ export function HeaderUserRole() {
     return <div className="h-9 w-28" />;
   }
 
-  const matchedAgent = RECEPTIONIST_AGENTS.find((a) => a.username === activeUsername);
-
-  let displayTitle = userNom || "Super Administrateur";
+  let displayTitle = userNom || activeUsername || "Utilisateur";
   let displayBadge = "Super Admin";
   let displayBadgeBg = "bg-emerald-50 text-emerald-700 border border-emerald-200";
   let displayIcon = "👑";
 
-  if (activeUsername === "directeur") {
+  if (currentRole === "SUPERVISEUR") {
     displayBadge = "Directeur Opérations";
     displayBadgeBg = "bg-indigo-50 text-indigo-700 border border-indigo-200";
     displayIcon = "👔";
     displayTitle = userNom || "Directeur des Opérations";
-  } else if (currentRole === "RECEPTIONNISTE" || matchedAgent) {
-    const agent = matchedAgent || RECEPTIONIST_AGENTS[0];
-    displayTitle = userNom || agent.nom;
-    displayBadge = `Agent Quai (${agent.matricule || "REC"})`;
+  } else if (currentRole === "RECEPTIONNISTE") {
+    displayTitle = userNom || activeUsername || "Agent Quai";
+    displayBadge = "Agent Quai";
     displayBadgeBg = "bg-blue-50 text-blue-700 border border-blue-200";
     displayIcon = "👤";
   }

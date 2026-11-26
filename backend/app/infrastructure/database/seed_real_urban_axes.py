@@ -512,10 +512,6 @@ def apply_real_axes_migration(seed_samples: bool = False):
             "DELETE FROM zones WHERE axe_id IN (SELECT id FROM axes WHERE code LIKE 'AXE_PROV%' OR code NOT IN ('AXE_CENTRE_1', 'AXE_CENTRE_2', 'AXE_ITAOSY', 'AXE_AMPITATAFIKA', 'AXE_AMBOHIMANGAKELY', 'AXE_SABOTSY_NAMEHANA', 'AXE_IVATO', 'AXE_IAVOLOHA', 'AXE_ALASORA'));",
             "DELETE FROM axes WHERE code LIKE 'AXE_PROV%' OR code NOT IN ('AXE_CENTRE_1', 'AXE_CENTRE_2', 'AXE_ITAOSY', 'AXE_AMPITATAFIKA', 'AXE_AMBOHIMANGAKELY', 'AXE_SABOTSY_NAMEHANA', 'AXE_IVATO', 'AXE_IAVOLOHA', 'AXE_ALASORA');",
             "ALTER TABLE axes DROP CONSTRAINT IF EXISTS chk_axes_real_codes;",
-            """ALTER TABLE axes ADD CONSTRAINT chk_axes_real_codes 
-               CHECK (code IN ('AXE_CENTRE_1', 'AXE_CENTRE_2', 'AXE_ITAOSY', 'AXE_AMPITATAFIKA', 
-                               'AXE_AMBOHIMANGAKELY', 'AXE_SABOTSY_NAMEHANA', 'AXE_IVATO', 
-                               'AXE_IAVOLOHA', 'AXE_ALASORA'));""",
         ]
 
         with engine.connect() as conn:

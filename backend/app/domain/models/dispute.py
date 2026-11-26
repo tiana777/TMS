@@ -25,6 +25,33 @@ class DebtStatus(str, Enum):
     ANNULEE_FORCE_MAJEURE = "ANNULEE_FORCE_MAJEURE"
 
 
+# Règle Métier 7 : mots-clés caractérisant une dépense d'exploitation (et non un litige)
+OPERATING_EXPENSE_KEYWORDS = (
+    "carburant",
+    "essence",
+    "gazole",
+    "gasoil",
+    "frais de route",
+    "frais annexes",
+    "péage",
+    "peage",
+    "stationnement",
+)
+
+
+def is_operating_expense_reason(reason: str) -> bool:
+    reason_lower = (reason or "").lower()
+    return any(kw in reason_lower for kw in OPERATING_EXPENSE_KEYWORDS)
+
+
+def assert_not_operating_expense(reason: str) -> None:
+    if is_operating_expense_reason(reason):
+        raise BusinessRuleViolationException(
+            "Les dépenses d'exploitation (carburant, frais annexes de route) relèvent de la décharge de tournée "
+            "et ne doivent pas être comptabilisées comme des litiges à la charge du livreur (Règle Métier 7)."
+        )
+
+
 @dataclass
 class CourierDebt:
     """Rich Domain Entity managing courier financial liability and debt recovery."""
@@ -49,6 +76,19 @@ class CourierDebt:
             raise BusinessRuleViolationException("Le montant initial de la dette doit être strictement positif.")
         if not self.reason or not self.reason.strip():
             raise BusinessRuleViolationException("Le motif circonstancié est obligatoire pour tout litige.")
+
+    @classmethod
+    def open_new(cls, **kwargs) -> "CourierDebt":
+        """Ouvre un NOUVEAU litige en appliquant les règles de création.
+
+        Règle Métier 7 : les dépenses d'exploitation (carburant, frais de route, péages...)
+        sont des charges de la société, saisies dans la décharge de tournée (caisse).
+        Elles ne doivent jamais être enregistrées comme litiges à la charge du livreur.
+        La vérification n'est faite qu'à la création (et non dans __post_init__) afin de ne
+        pas bloquer le rechargement des litiges historiques déjà présents en base.
+        """
+        assert_not_operating_expense(kwargs.get("reason") or "")
+        return cls(**kwargs)
 
     @property
     def remaining_balance(self) -> Money:

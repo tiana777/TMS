@@ -189,6 +189,8 @@ export interface Tour {
   theoretical_total: number;
   actual_remitted: number;
   discrepancy: number;
+  expenses_amount?: number;
+  expenses_reason?: string | null;
   closed_at?: string | null;
   courier_name?: string | null;
   courier_phone?: string | null;

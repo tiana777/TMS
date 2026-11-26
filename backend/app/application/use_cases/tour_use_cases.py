@@ -50,7 +50,7 @@ class TourUseCases:
         self.dispute_repo = PostgresDisputeRepository(db)
 
     def _to_tour_dto(self, t: Tour) -> TourResponseDTO:
-        discrepancy = t.actual_remitted.amount - t.theoretical_total.amount
+        discrepancy = (t.actual_remitted.amount + t.expenses_amount.amount) - t.theoretical_total.amount
         return TourResponseDTO(
             id=t.id,
             tour_date=t.tour_date,
@@ -59,6 +59,8 @@ class TourUseCases:
             theoretical_total=t.theoretical_total.amount,
             actual_remitted=t.actual_remitted.amount,
             discrepancy=discrepancy,
+            expenses_amount=t.expenses_amount.amount,
+            expenses_reason=t.expenses_reason,
             closed_at=t.closed_at.isoformat() if t.closed_at else None,
         )
 
@@ -196,7 +198,9 @@ class TourUseCases:
         else:
             theor_amount = int(tour_orm.total_theorique_caisse)
 
-        discrepancy = int(tour_orm.total_reel_verse - theor_amount)
+        expenses_amount = int(getattr(tour_orm, "total_depenses", 0.0) or 0)
+        expenses_reason = getattr(tour_orm, "motif_depenses", None)
+        discrepancy = int((tour_orm.total_reel_verse + expenses_amount) - theor_amount)
         return TourDetailResponseDTO(
             id=tour_orm.id,
             tour_date=tour_orm.date_tournee,
@@ -205,6 +209,8 @@ class TourUseCases:
             theoretical_total=theor_amount,
             actual_remitted=int(tour_orm.total_reel_verse),
             discrepancy=discrepancy,
+            expenses_amount=expenses_amount,
+            expenses_reason=expenses_reason,
             closed_at=tour_orm.cloture_a.isoformat() if tour_orm.cloture_a else None,
             courier_name=courier_orm.nom if courier_orm else None,
             courier_phone=courier_orm.telephone if courier_orm else None,
@@ -294,19 +300,41 @@ class TourUseCases:
         ).all()
         tour.parcels = [self.parcel_repo._to_domain(po) for po in delivered_orms]
         theor = tour.calculate_theoretical_total()
-        remitted = Money(dto.cash_and_mobile_remitted)
-        discrepancy = tour.compute_cash_discrepancy(remitted)
 
-        # If deficit (< 0), automatically open a dispute (CDC section 11 & 13.1)
+        # Règle Métier 7 : Séparation stricte Litiges vs Dépenses d'exploitation
+        if dto.cash_amount is not None or dto.mobile_amount is not None:
+            actual_cash_and_mobile = (dto.cash_amount or 0) + (dto.mobile_amount or 0)
+        elif dto.cash_and_mobile_remitted is not None:
+            actual_cash_and_mobile = dto.cash_and_mobile_remitted
+        else:
+            actual_cash_and_mobile = 0
+
+        remitted = Money(actual_cash_and_mobile)
+        expenses = Money(dto.expenses_amount or 0)
+        expenses_reason = (dto.expenses_reason or "").strip() or None
+        if expenses.amount > 0 and not expenses_reason:
+            raise BusinessRuleViolationException(
+                "Le motif des dépenses d'exploitation est obligatoire (ex : carburant, stationnement)."
+            )
+        if expenses.amount == 0:
+            expenses_reason = None
+
+        discrepancy = tour.compute_cash_discrepancy(remitted, expenses, expenses_reason)
+
+        # Si déficit net (< 0), ouvrir automatiquement un litige UNIQUEMENT sur le déficit non justifié.
+        # Les dépenses de carburant et frais justifiés ne doivent JAMAIS être comptabilisées comme un litige (Priorité 7).
         if discrepancy < 0:
             deficit_amount = abs(discrepancy)
             ref = self.dispute_repo.generate_next_litige_ref()
+            debt_reason = f"Déficit de caisse net de {deficit_amount} Ar lors de la clôture de la tournée #{tour.id}"
+            if expenses.amount > 0:
+                debt_reason += f" (Dépenses d'exploitation déduites : {expenses.amount} Ar)"
             debt = CourierDebt(
                 reference_litige=ref,
                 livreur_id=tour.courier_id,
                 incident_type=IncidentType.DEFICIT_COD,
                 initial_amount=Money(deficit_amount),
-                reason=f"Déficit de caisse de {deficit_amount} Ar lors de la clôture de la tournée #{tour.id}",
+                reason=debt_reason,
                 incident_date=tour.tour_date,
                 tournee_id=tour.id,
             )
@@ -350,6 +378,8 @@ class TourUseCases:
         tour.status = TourStatus.CLOTURE
         tour.closed_at = datetime.now(timezone.utc)
         tour.actual_remitted = remitted
+        tour.expenses_amount = expenses
+        tour.expenses_reason = expenses_reason
         tour.theoretical_total = theor
         saved = self.tour_repo.save(tour)
         return self._to_tour_dto(saved)
@@ -382,7 +412,7 @@ class DisputeUseCases:
 
     def create_dispute(self, dto: CreateDisputeDTO) -> DisputeResponseDTO:
         ref = self.repo.generate_next_litige_ref()
-        debt = CourierDebt(
+        debt = CourierDebt.open_new(
             reference_litige=ref,
             livreur_id=dto.livreur_id,
             colis_id=dto.colis_id,

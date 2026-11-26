@@ -44,11 +44,12 @@ import {
   fetchPartners,
   fetchMasterZones,
   createMasterZone,
+  fetchCurrentUser,
 } from "../../lib/api";
 import { OperatorBadge } from "../../components/OperatorBadge";
 import { AxisBadge } from "../../components/AxisBadge";
 import { FluxType, LogisticAxis, SenderType, Vendor, Partner } from "../../types";
-import { RECEPTIONIST_AGENTS, ReceptionistAgent, UserRole } from "../../components/HeaderUserRole";
+import { ReceptionistAgent, UserRole } from "../../components/HeaderUserRole";
 import { useCompany } from "../../context/CompanyContext";
 
 interface InboundRow {
@@ -219,17 +220,39 @@ export default function InboundPage() {
     const syncRole = () => {
       if (typeof window === "undefined") return;
       const role = (localStorage.getItem("tms_user_role") as UserRole) || "SUPER_ADMIN";
-      const username = localStorage.getItem("tms_username") || "admin";
-      const nom = localStorage.getItem("tms_user_nom");
+      const username = localStorage.getItem("tms_username") || "";
+      const nom = localStorage.getItem("tms_user_nom") || "";
+      const userId = Number(localStorage.getItem("tms_user_id")) || 0;
+      const email = localStorage.getItem("tms_user_email") || "";
 
       setCurrentUserRole(role);
-      setCurrentUserName(nom || (username === "directeur" ? "Directeur des Opérations" : "Super Administrateur"));
+      setCurrentUserName(nom || username || "Utilisateur");
 
-      if (role === "RECEPTIONNISTE" || username.startsWith("agent") || username.startsWith("recep_")) {
-        const found = RECEPTIONIST_AGENTS.find((a) => a.username === username) || RECEPTIONIST_AGENTS[0];
+      if (role === "RECEPTIONNISTE") {
         setActiveReceptionist({
-          ...found,
-          nom: nom || found.nom,
+          id: userId,
+          username,
+          nom: nom || username || "Agent Quai",
+          email,
+          badge: "Agent Quai",
+          icon: "👤",
+          badgeBg: "bg-blue-100",
+          badgeText: "text-blue-800",
+        });
+
+        fetchCurrentUser().then((me) => {
+          if (!me) return;
+          setActiveReceptionist({
+            id: me.id,
+            username: me.username,
+            nom: me.nom_complet,
+            email: me.email,
+            badge: "Agent Quai",
+            icon: "👤",
+            badgeBg: "bg-blue-100",
+            badgeText: "text-blue-800",
+          });
+          setCurrentUserName(me.nom_complet);
         });
       } else {
         setActiveReceptionist(null);

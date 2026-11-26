@@ -94,6 +94,114 @@ class TestDisputeAndDebt:
         assert debt.status == DebtStatus.ANNULEE_FORCE_MAJEURE
         assert debt.closure_date is not None
 
+    def test_priority7_reject_fuel_expenses_as_disputes(self):
+        """Règle Métier 7 : Les dépenses de carburant et frais de route ne sont pas des litiges."""
+        with pytest.raises(BusinessRuleViolationException) as exc:
+            CourierDebt.open_new(
+                reference_litige="LIT-2026-0006",
+                livreur_id=4,
+                incident_type=IncidentType.CASSE_MARCHANDISE,
+                initial_amount=Money(20000),
+                reason="Plein carburant moto SP95",
+                incident_date="2026-11-24",
+            )
+        assert "dépenses d'exploitation" in str(exc.value)
+
+        # Même sous le type DEFICIT_COD, une dépense ne peut pas être saisie comme litige
+        with pytest.raises(BusinessRuleViolationException):
+            CourierDebt.open_new(
+                reference_litige="LIT-2026-0007",
+                livreur_id=4,
+                incident_type=IncidentType.DEFICIT_COD,
+                initial_amount=Money(10000),
+                reason="Frais de route + péage",
+                incident_date="2026-11-24",
+            )
+
+    def test_priority7_legacy_dispute_with_fuel_reason_still_loads(self):
+        """Les litiges historiques déjà en base doivent rester rechargeables (pas de blocage à la lecture)."""
+        debt = CourierDebt(
+            reference_litige="LIT-2025-0001",
+            livreur_id=4,
+            incident_type=IncidentType.PERTE_COLIS,
+            initial_amount=Money(20000),
+            reason="Ancien litige carburant saisi avant la règle 7",
+            incident_date="2025-10-01",
+        )
+        assert debt.remaining_balance == Money(20000)
+
+    def test_priority7_tour_expenses_deduction_prevents_dispute(self):
+        """Règle Métier 7 : Les dépenses justifiées réduisent la créance et évitent l'ouverture d'un litige."""
+        from backend.app.domain.models.tour import Tour, TourStatus
+        from backend.app.domain.models.parcel import Parcel, FluxType
+        from backend.app.domain.state_machine.parcel_fsm import ParcelStatus
+        from backend.app.domain.value_objects.axis import LogisticAxis
+        from backend.app.domain.value_objects.phone_number import PhoneNumber
+
+        tour = Tour(tour_date="2026-11-24", courier_id=1, status=TourStatus.EN_COURS)
+        p1 = Parcel(
+            tracking_number="0001",
+            reception_date="2026-11-24",
+            vendor_id=1,
+            recipient_name="Client A",
+            recipient_phone=PhoneNumber("0341234567"),
+            delivery_address="Analakely",
+            axis=LogisticAxis.AXE_CENTRE_1,
+            flux_type=FluxType.COD,
+            merchandise_amount=Money(70000),
+            delivery_fee=Money(5000),
+            status=ParcelStatus.LIVRE,
+        )
+        tour.parcels = [p1]
+        theor = tour.calculate_theoretical_total()
+        assert theor == Money(75000)
+
+        # Le livreur remet 60 000 Ar en espèces et un reçu de carburant de 15 000 Ar
+        discrepancy = tour.compute_cash_discrepancy(
+            cash_and_mobile_remitted=Money(60000),
+            expenses_amount=Money(15000),
+            expenses_reason="Plein essence Station Shell Ankorondrano",
+        )
+        # Total justifié = 60 000 + 15 000 = 75 000 Ar -> Écart = 0 Ar, aucun litige !
+        assert discrepancy == 0
+        assert tour.actual_remitted == Money(60000)
+        assert tour.expenses_amount == Money(15000)
+        assert tour.expenses_reason == "Plein essence Station Shell Ankorondrano"
+
+    def test_priority7_tour_net_deficit_only_becomes_dispute(self):
+        """Règle Métier 7 : Seul le déficit résiduel non justifié fait l'objet d'un litige."""
+        from backend.app.domain.models.tour import Tour, TourStatus
+        from backend.app.domain.models.parcel import Parcel, FluxType
+        from backend.app.domain.state_machine.parcel_fsm import ParcelStatus
+        from backend.app.domain.value_objects.axis import LogisticAxis
+        from backend.app.domain.value_objects.phone_number import PhoneNumber
+
+        tour = Tour(tour_date="2026-11-24", courier_id=1, status=TourStatus.EN_COURS)
+        p1 = Parcel(
+            tracking_number="0002",
+            reception_date="2026-11-24",
+            vendor_id=1,
+            recipient_name="Client B",
+            recipient_phone=PhoneNumber("0341234567"),
+            delivery_address="Itaosy",
+            axis=LogisticAxis.AXE_RN1,
+            flux_type=FluxType.COD,
+            merchandise_amount=Money(95000),
+            delivery_fee=Money(5000),
+            status=ParcelStatus.LIVRE,
+        )
+        tour.parcels = [p1]
+        assert tour.calculate_theoretical_total() == Money(100000)
+
+        # Remis 70 000 Ar cash + 15 000 Ar carburant = 85 000 Ar justifiés sur 100 000 Ar dus
+        discrepancy = tour.compute_cash_discrepancy(
+            cash_and_mobile_remitted=Money(70000),
+            expenses_amount=Money(15000),
+            expenses_reason="Ticket carburant SP95",
+        )
+        # Écart net = 85 000 - 100 000 = -15 000 Ar (déficit réel de 15 000 Ar, et non pas 30 000 Ar)
+        assert discrepancy == -15000
+
 
 class TestScorecardEngine:
     def test_tier_or_calculation(self):

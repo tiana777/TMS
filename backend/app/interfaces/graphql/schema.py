@@ -63,8 +63,24 @@ class ParcelType:
     remittance_status: str = "NON_REVERSE"
     receptionniste_id: Optional[int] = None
     receptionniste_nom: Optional[str] = None
+    dernier_agent_id: Optional[int] = None
+    dernier_agent_nom: Optional[str] = None
+    derniere_action: Optional[str] = None
+    derniere_action_at: Optional[str] = None
     observation: Optional[str] = None
     active: bool
+
+
+def to_parcel_type(dto_or_dict) -> ParcelType:
+    if hasattr(dto_or_dict, "model_dump"):
+        d = dto_or_dict.model_dump()
+    elif isinstance(dto_or_dict, dict):
+        d = dto_or_dict
+    else:
+        return dto_or_dict
+    valid_fields = ParcelType.__dataclass_fields__.keys()
+    filtered = {k: v for k, v in d.items() if k in valid_fields}
+    return ParcelType(**filtered)
 
 
 @strawberry.type
@@ -229,7 +245,7 @@ class Query:
         try:
             uc = ParcelUseCases(db)
             results = uc.list_parcels(status=status, axis=axis, date_str=date, tour_id=tour_id)
-            return [ParcelType(**r.model_dump()) for r in results]
+            return [to_parcel_type(r) for r in results]
         finally:
             db.close()
 
@@ -239,7 +255,7 @@ class Query:
         try:
             uc = ParcelUseCases(db)
             res = uc.get_parcel(id)
-            return ParcelType(**res.model_dump()) if res else None
+            return to_parcel_type(res) if res else None
         finally:
             db.close()
 
@@ -273,7 +289,7 @@ class Query:
                 courier_phone_formatted=detail.courier_phone_formatted,
                 courier_vehicle=detail.courier_vehicle,
                 parcels_count=detail.parcels_count,
-                parcels=[ParcelType(**p.model_dump()) for p in detail.parcels],
+                parcels=[to_parcel_type(p) for p in detail.parcels],
             )
         except Exception:
             return None
@@ -307,7 +323,7 @@ class Query:
                         courier_phone_formatted=detail.courier_phone_formatted,
                         courier_vehicle=detail.courier_vehicle,
                         parcels_count=detail.parcels_count,
-                        parcels=[ParcelType(**p.model_dump()) for p in detail.parcels],
+                        parcels=[to_parcel_type(p) for p in detail.parcels],
                     )
                 )
             return results
@@ -422,7 +438,7 @@ class Mutation:
                 observation=input.observation,
             )
             res = uc.create_parcel(dto)
-            return ParcelType(**res.model_dump())
+            return to_parcel_type(res)
         finally:
             db.close()
 
@@ -443,7 +459,7 @@ class Mutation:
                 partner_fee=input.partner_fee,
             )
             res = uc.update_status(input.parcel_id, dto)
-            return ParcelType(**res.model_dump())
+            return to_parcel_type(res)
         finally:
             db.close()
 
@@ -453,7 +469,7 @@ class Mutation:
         try:
             uc = ParcelUseCases(db)
             res = uc.override_parcel_axis(parcel_id, new_axis)
-            return ParcelType(**res.model_dump())
+            return to_parcel_type(res)
         finally:
             db.close()
 
@@ -478,7 +494,7 @@ class Mutation:
                 courier_phone_formatted=detail.courier_phone_formatted,
                 courier_vehicle=detail.courier_vehicle,
                 parcels_count=detail.parcels_count,
-                parcels=[ParcelType(**p.model_dump()) for p in detail.parcels],
+                parcels=[to_parcel_type(p) for p in detail.parcels],
             )
         finally:
             db.close()

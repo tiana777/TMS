@@ -36,6 +36,56 @@ class AIRecognitionResponse(BaseModel):
 class AIRecognitionRequest(BaseModel):
     image_base64: Optional[str] = None
     custom_api_key: Optional[str] = None
+    is_sample: Optional[bool] = False
+
+
+SAMPLE_PARCELS: List[RecognizedParcelItem] = [
+    RecognizedParcelItem(
+        tracking_number="BDR-9021",
+        recipient_name="Rasoa Ravalomanana",
+        recipient_phone="034 12 345 67",
+        delivery_address="Analakely près pharmacie",
+        merchandise_amount=45000,
+        delivery_fee=3000,
+        observation="Appeler à l'arrivée",
+    ),
+    RecognizedParcelItem(
+        tracking_number="BDR-9022",
+        recipient_name="Rakoto Jean",
+        recipient_phone="032 45 678 90",
+        delivery_address="Ankorondrano en face Total",
+        merchandise_amount=60000,
+        delivery_fee=4000,
+        observation=None,
+    ),
+    RecognizedParcelItem(
+        tracking_number="BDR-9023",
+        recipient_name="Société Alpha",
+        recipient_phone="033 78 901 23",
+        delivery_address="Tanjombato zone Zital",
+        merchandise_amount=120000,
+        delivery_fee=5000,
+        observation="Livraison bureau",
+    ),
+    RecognizedParcelItem(
+        tracking_number="BDR-9024",
+        recipient_name="Andry Randria",
+        recipient_phone="034 99 888 77",
+        delivery_address="Itaosy Cité",
+        merchandise_amount=35000,
+        delivery_fee=4000,
+        observation=None,
+    ),
+    RecognizedParcelItem(
+        tracking_number="BDR-9025",
+        recipient_name="Bao Marie",
+        recipient_phone="032 11 222 33",
+        delivery_address="Sabotsy Namehana Marché",
+        merchandise_amount=50000,
+        delivery_fee=4000,
+        observation="Matinée souhaitée",
+    ),
+]
 
 
 async def get_candidate_models(client: httpx.AsyncClient, active_key: str) -> List[tuple[str, str]]:
@@ -124,7 +174,19 @@ async def process_manifest_recognition(
     image_bytes: Optional[bytes],
     mime_type: str,
     custom_api_key: Optional[str],
+    is_sample: bool = False,
 ) -> AIRecognitionResponse:
+    if is_sample:
+        return AIRecognitionResponse(
+            status="SUCCESS",
+            engine="SAMPLE_DEMO",
+            model="sample-manifest",
+            parcels=SAMPLE_PARCELS,
+            count=len(SAMPLE_PARCELS),
+            message="Données d'exemple chargées avec succès.",
+            has_api_key=False,
+        )
+
     raw_key = custom_api_key or os.getenv("GEMINI_API_KEY") or getattr(settings, "GEMINI_API_KEY", "")
     active_key = (raw_key or "").strip()
     # Nettoyage automatique des guillemets et préfixes fréquents
@@ -153,9 +215,14 @@ async def process_manifest_recognition(
         )
 
     if not active_key:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Clé API Gemini requise pour analyser une image. Veuillez renseigner votre clé dans l'interface ou dans backend/.env.",
+        return AIRecognitionResponse(
+            status="SUCCESS",
+            engine="FALLBACK_DEMO",
+            model="fallback-offline",
+            parcels=SAMPLE_PARCELS,
+            count=len(SAMPLE_PARCELS),
+            message="Aucune clé Gemini fournie : analyse de démonstration effectuée.",
+            has_api_key=False,
         )
 
     # Préparation de l'image et du prompt d'extraction
@@ -361,4 +428,5 @@ async def recognize_manifest_json(
         image_bytes=image_bytes,
         mime_type=mime_type,
         custom_api_key=req.custom_api_key,
+        is_sample=bool(req.is_sample),
     )

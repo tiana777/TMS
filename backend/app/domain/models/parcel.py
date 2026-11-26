@@ -110,6 +110,54 @@ class Parcel:
         elif self.flux_type == FluxType.PROVINCE and not is_prov:
             self.flux_type = FluxType.COD if self.merchandise_amount.amount > 0 else FluxType.SIMPLE
 
+    def update_delivery_details(
+        self,
+        delivery_address: Optional[str] = None,
+        delivery_fee: Optional[Money] = None,
+    ) -> None:
+        """Allow modification of delivery address and fee depending on status (Priority 9):
+        - Status EN_DEPOT (and ASSIGNE, REPORTE): delivery address modification allowed. Delivery fee modification forbidden.
+        - Status EN_COURS: both delivery address AND delivery fee modifications allowed.
+        - Terminal statuses (LIVRE, ENCAISSE, LIVRE_ENCAISSE, CLOTURE_CAISSE, RETOUR_BOUTIQUE): modifications forbidden.
+        """
+        terminal_statuses = (
+            ParcelStatus.LIVRE,
+            ParcelStatus.ENCAISSE,
+            ParcelStatus.LIVRE_ENCAISSE,
+            ParcelStatus.CLOTURE_CAISSE,
+            ParcelStatus.RETOUR_BOUTIQUE,
+        )
+        if self.status in terminal_statuses:
+            raise BusinessRuleViolationException(
+                f"Modification impossible : le colis est déjà au statut final '{self.status.value}'."
+            )
+
+        # 1. Vérification et mise à jour des frais de livraison
+        if delivery_fee is not None and delivery_fee.amount != self.delivery_fee.amount:
+            if self.status != ParcelStatus.EN_COURS:
+                raise BusinessRuleViolationException(
+                    f"Les frais de livraison restent verrouillés. La modification des frais de livraison n'est autorisée que pour les colis 'En cours de livraison' (statut actuel : '{self.status.value}')."
+                )
+            if delivery_fee.amount < 0:
+                raise BusinessRuleViolationException("Les frais de livraison ne peuvent pas être négatifs.")
+            self.delivery_fee = delivery_fee
+
+        # 2. Vérification et mise à jour du lieu de livraison
+        if delivery_address is not None and delivery_address.strip():
+            new_addr = delivery_address.strip()
+            if new_addr != self.delivery_address:
+                allowed_statuses = (
+                    ParcelStatus.EN_DEPOT,
+                    ParcelStatus.ASSIGNE,
+                    ParcelStatus.EN_COURS,
+                    ParcelStatus.REPORTE,
+                )
+                if self.status not in allowed_statuses:
+                    raise BusinessRuleViolationException(
+                        f"La modification du lieu de livraison n'est pas autorisée pour le statut '{self.status.value}'."
+                    )
+                self.delivery_address = new_addr
+
     def update_contact_info(
         self,
         recipient_phone: Optional[PhoneNumber] = None,
@@ -122,7 +170,7 @@ class Parcel:
         if recipient_name and recipient_name.strip():
             self.recipient_name = recipient_name.strip()
         if delivery_address and delivery_address.strip():
-            self.delivery_address = delivery_address.strip()
+            self.update_delivery_details(delivery_address=delivery_address)
 
     def assign_to_courier(self, courier_id: int, tour_id: Optional[int] = None, reason: Optional[str] = None) -> None:
         """Assign or reassign parcel to a courier or transit shuttle."""

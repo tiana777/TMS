@@ -325,19 +325,26 @@ class PostgresTourRepository(ITourRepository):
             status=TourStatus(orm.statut),
             theoretical_total=Money(orm.total_theorique_caisse),
             actual_remitted=Money(orm.total_reel_verse),
+            expenses_amount=Money(getattr(orm, "total_depenses", 0.0) or 0.0),
+            expenses_reason=getattr(orm, "motif_depenses", None),
             closed_at=orm.cloture_a,
             created_at=orm.created_at,
         )
 
     def _to_orm(self, domain: Tour) -> TourORM:
+        exp = float(domain.expenses_amount.amount)
+        actual = float(domain.actual_remitted.amount)
+        theor = float(domain.theoretical_total.amount)
         return TourORM(
             id=domain.id,
             date_tournee=domain.tour_date,
             livreur_id=domain.courier_id,
             statut=domain.status.value,
-            total_theorique_caisse=float(domain.theoretical_total.amount),
-            total_reel_verse=float(domain.actual_remitted.amount),
-            ecart_constate=float(domain.actual_remitted.amount - domain.theoretical_total.amount),
+            total_theorique_caisse=theor,
+            total_reel_verse=actual,
+            total_depenses=exp,
+            motif_depenses=domain.expenses_reason,
+            ecart_constate=float((actual + exp) - theor),
             cloture_a=domain.closed_at,
         )
 
@@ -345,12 +352,17 @@ class PostgresTourRepository(ITourRepository):
         if tour.id:
             orm = self.session.query(TourORM).filter(TourORM.id == tour.id).first()
             if orm:
+                exp = float(tour.expenses_amount.amount)
+                actual = float(tour.actual_remitted.amount)
+                theor = float(tour.theoretical_total.amount)
                 orm.date_tournee = tour.tour_date
                 orm.livreur_id = tour.courier_id
                 orm.statut = tour.status.value
-                orm.total_theorique_caisse = float(tour.theoretical_total.amount)
-                orm.total_reel_verse = float(tour.actual_remitted.amount)
-                orm.ecart_constate = float(tour.actual_remitted.amount - tour.theoretical_total.amount)
+                orm.total_theorique_caisse = theor
+                orm.total_reel_verse = actual
+                orm.total_depenses = exp
+                orm.motif_depenses = tour.expenses_reason
+                orm.ecart_constate = float((actual + exp) - theor)
                 orm.cloture_a = tour.closed_at
                 self.session.commit()
                 self.session.refresh(orm)

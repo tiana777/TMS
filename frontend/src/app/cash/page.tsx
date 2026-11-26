@@ -93,12 +93,14 @@ export default function CashAndClosurePage() {
   const [remittedCash, setRemittedCash] = useState<number>(0);
   const [remittedMobile, setRemittedMobile] = useState<number>(0);
   const [remittedExpenses, setRemittedExpenses] = useState<number>(0);
+  const [remittedExpensesReason, setRemittedExpensesReason] = useState<string>("Carburant moto / Frais de tournée");
   const [isClosingTour, setIsClosingTour] = useState(false);
   const [receiptData, setReceiptData] = useState<{
     tour: Tour;
     cash: number;
     mobile: number;
     expenses: number;
+    expensesReason?: string;
     discrepancy: number;
     closedAt: string;
     grossTotal?: number;
@@ -118,7 +120,8 @@ export default function CashAndClosurePage() {
         if (detail.status === "CLOTURE") {
           setRemittedCash(detail.actual_remitted || 0);
           setRemittedMobile(0);
-          setRemittedExpenses(0);
+          setRemittedExpenses(detail.expenses_amount || 0);
+          setRemittedExpensesReason(detail.expenses_reason || "Carburant moto");
         } else {
           // Calculer le total encaissé par le coursier sur le terrain
           let cashSum = 0;
@@ -148,6 +151,7 @@ export default function CashAndClosurePage() {
           setRemittedCash(cashSum);
           setRemittedMobile(mobileSum);
           setRemittedExpenses(0);
+          setRemittedExpensesReason("Carburant moto / Frais de tournée");
         }
       }
       return detail;
@@ -231,7 +235,8 @@ export default function CashAndClosurePage() {
                 if (detail.status === "CLOTURE") {
                   setRemittedCash(detail.actual_remitted || 0);
                   setRemittedMobile(0);
-                  setRemittedExpenses(0);
+                  setRemittedExpenses(detail.expenses_amount || 0);
+                  setRemittedExpensesReason(detail.expenses_reason || "Carburant moto");
                 }
                 return detail;
               }
@@ -633,62 +638,65 @@ export default function CashAndClosurePage() {
     };
   }, [selectedTourDetail]);
 
-const theoreticalTotal = tourFinancials.courierTheoreticalDue;
-const totalRemitted = remittedCash + remittedMobile + remittedExpenses;
-const cashDiscrepancy =
-  selectedTourDetail?.status === "CLOTURE"
+  const theoreticalTotal = tourFinancials.courierTheoreticalDue;
+  const totalRemitted = remittedCash + remittedMobile + remittedExpenses;
+  const cashDiscrepancy = selectedTourDetail?.status === "CLOTURE"
     ? selectedTourDetail.discrepancy
     : totalRemitted - theoreticalTotal;
 
-// Clôture définitive de la tournée
-const handleConfirmCloseTour = async () => {
-  if (!selectedTourDetail) return;
-  setIsClosingTour(true);
-  setError(null);
-  try {
-    // 1. Appel API de clôture de la tournée
-    const res = await closeTour(selectedTourDetail.id, totalRemitted);
+  const handleConfirmCloseTour = async () => {
+    if (!selectedTourDetail) return;
+    // Règle Métier 7 : toute dépense d'exploitation doit être motivée (justificatif)
+    if (remittedExpenses > 0 && !remittedExpensesReason.trim()) {
+      setError("Veuillez préciser le motif des dépenses d'exploitation (ex : carburant, stationnement).");
+      return;
+    }
+    setIsClosingTour(true);
+    setError(null);
+    try {
+      const res = await closeTour(selectedTourDetail.id, remittedCash + remittedMobile, {
+        cashAmount: remittedCash,
+        mobileAmount: remittedMobile,
+        expensesAmount: remittedExpenses,
+        expensesReason: remittedExpensesReason,
+      });
+      const updatedTourDetail = await loadTourDetail(selectedTourDetail.id);
+      const finalTour = updatedTourDetail || {
+        ...selectedTourDetail,
+        status: "CLOTURE" as const,
+        actual_remitted: remittedCash + remittedMobile,
+        expenses_amount: remittedExpenses,
+        expenses_reason: remittedExpensesReason,
+        discrepancy: cashDiscrepancy,
+      };
+      setSuccessMessage(
+        `Tournée #${selectedTourDetail.id} clôturée avec succès. Écart de caisse : ${cashDiscrepancy === 0
+          ? "0 Ar (Équilibrée)"
+          : cashDiscrepancy < 0
+            ? `${formatMGA(cashDiscrepancy)} (Déficit consigné en litige)`
+            : `+${formatMGA(cashDiscrepancy)} (Excédent)`
+        }`
+      );
+      setReceiptData({
+        tour: finalTour,
+        cash: remittedCash,
+        mobile: remittedMobile,
+        expenses: remittedExpenses,
+        expensesReason: remittedExpensesReason,
+        discrepancy: cashDiscrepancy,
+        closedAt: new Date().toISOString(),
+        grossTotal: tourFinancials.grossTotal,
+        siegeTotal: tourFinancials.siegeTotal,
+        siegeParcels: tourFinancials.siegeParcels,
+      });
+      await loadData(selectedTourDetail.id);
+    } catch (e: any) {
+      setError(e.message || "Erreur lors de la clôture de la tournée.");
+    } finally {
+      setIsClosingTour(false);
+    }
+  };
 
-    // 2. Recharger immédiatement en temps réel le détail scellé de la tournée
-    const updatedTourDetail = await loadTourDetail(selectedTourDetail.id);
-
-    const finalTour = updatedTourDetail || {
-      ...selectedTourDetail,
-      status: "CLOTURE" as const,
-      actual_remitted: totalRemitted,
-      discrepancy: cashDiscrepancy,
-    };
-
-    setSuccessMessage(
-      `Tournée #${selectedTourDetail.id} clôturée avec succès. Écart de caisse : ${cashDiscrepancy === 0
-        ? "0 Ar (Équilibrée)"
-        : cashDiscrepancy < 0
-          ? `${formatMGA(cashDiscrepancy)} (Déficit consigné en litige)`
-          : `+${formatMGA(cashDiscrepancy)} (Excédent)`
-      }`
-    );
-
-    // 3. Ouvrir le reçu imprimable avec les données scellées
-    setReceiptData({
-      tour: finalTour,
-      cash: remittedCash,
-      mobile: remittedMobile,
-      expenses: remittedExpenses,
-      discrepancy: cashDiscrepancy,
-      closedAt: new Date().toISOString(),
-      grossTotal: tourFinancials.grossTotal,
-      siegeTotal: tourFinancials.siegeTotal,
-      siegeParcels: tourFinancials.siegeParcels,
-    });
-
-    // 4. Synchroniser en arrière-plan la liste globale des tournées et colis
-    await loadData(selectedTourDetail.id);
-  } catch (e: any) {
-    setError(e.message || "Erreur lors de la clôture de la tournée.");
-  } finally {
-    setIsClosingTour(false);
-  }
-};
 
 const getStatusBadge = (status: ParcelStatus | string, encaissement_lieu?: string | null) => {
   return <StatusBadge status={status} encaissement_lieu={encaissement_lieu} />;
@@ -1755,7 +1763,7 @@ return (
                       />
                     </div>
 
-                    {/* 3. Frais de fret gares / Justificatifs */}
+                    {/* 3. Dépenses d'Exploitation Justifiées (Carburant, Frais de tournée) */}
                     <div
                       className={`p-4 rounded-xl border transition-all ${selectedTourDetail.status === "CLOTURE"
                         ? "bg-slate-100/80 border-slate-300/80 opacity-75"
@@ -1775,31 +1783,55 @@ return (
                               : "text-purple-600"
                               }`}
                           />
-                          3. Dépenses & Fret Justifiés par Récépissés (MGA)
+                          3. Dépenses d&apos;Exploitation Justifiées (Carburant, Frais de tournée)
                         </label>
                         <span
                           className={`text-xs font-mono ${selectedTourDetail.status === "CLOTURE"
                             ? "text-slate-400"
-                            : "text-slate-500"
+                            : "text-purple-700 font-semibold"
                             }`}
                         >
-                          {selectedTourDetail.status === "CLOTURE" ? "🔒 Scellé" : "Souches coopératives"}
+                          {selectedTourDetail.status === "CLOTURE" ? "🔒 Scellé" : "Reçus / Tickets"}
                         </span>
                       </div>
-                      <input
-                        type="number"
-                        min={0}
-                        step={500}
-                        placeholder="0"
-                        value={remittedExpenses === 0 ? "" : remittedExpenses}
-                        onChange={(e) => setRemittedExpenses(Number(e.target.value) || 0)}
-                        disabled={selectedTourDetail.status === "CLOTURE"}
-                        className={`w-full px-4 py-2.5 rounded-lg text-lg font-mono font-black border transition-all ${selectedTourDetail.status === "CLOTURE"
-                          ? "bg-slate-200/70 text-slate-500 border-slate-300 cursor-not-allowed shadow-none select-none"
-                          : "bg-white border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                          }`}
-                        data-cy="input-remitted-expenses"
-                      />
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                        <div className="sm:col-span-5">
+                          <input
+                            type="number"
+                            min={0}
+                            step={500}
+                            placeholder="0"
+                            value={remittedExpenses === 0 ? "" : remittedExpenses}
+                            onChange={(e) => setRemittedExpenses(Number(e.target.value) || 0)}
+                            disabled={selectedTourDetail.status === "CLOTURE"}
+                            className={`w-full px-4 py-2.5 rounded-lg text-lg font-mono font-black border transition-all ${selectedTourDetail.status === "CLOTURE"
+                              ? "bg-slate-200/70 text-slate-500 border-slate-300 cursor-not-allowed shadow-none select-none"
+                              : "bg-white border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                              }`}
+                            data-cy="input-remitted-expenses"
+                          />
+                        </div>
+                        <div className="sm:col-span-7">
+                          <input
+                            type="text"
+                            placeholder="Motif (ex: Plein carburant SP95, Stationnement...)"
+                            value={remittedExpensesReason}
+                            onChange={(e) => setRemittedExpensesReason(e.target.value)}
+                            disabled={selectedTourDetail.status === "CLOTURE"}
+                            className={`w-full px-3 py-2.5 rounded-lg text-xs border font-medium transition-all ${selectedTourDetail.status === "CLOTURE"
+                              ? "bg-slate-200/70 text-slate-500 border-slate-300 cursor-not-allowed"
+                              : "bg-white border-slate-300 text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                              }`}
+                            data-cy="input-remitted-expenses-reason"
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-2 flex items-center gap-1.5 text-[11px] text-purple-700 font-semibold bg-purple-50/80 p-2 rounded-lg border border-purple-200">
+                        <span>🛡️</span>
+                        <span>
+                          <strong>Règle Métier 7 :</strong> Ces dépenses sont des charges d&apos;exploitation prises en compte dans la décharge. Elles ne sont <strong>en aucun cas comptabilisées ou mélangées dans les litiges livreurs</strong>.
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1851,514 +1883,693 @@ return (
                             </span>
                           </div>
                         )}
-                        {tourFinancials.deliveredUnconfirmedTotal > 0 && (
-                          <div className="flex items-center justify-between text-amber-700">
-                            <span className="font-sans">Livré (encaissement non confirmé) :</span>
-                            <span className="font-bold whitespace-nowrap">
-                              {formatMGA(tourFinancials.deliveredUnconfirmedTotal)}
-                            </span>
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between text-slate-600">
-                          <span className="font-sans">Dont COD Marchandise :</span>
-                          <span className="font-bold text-slate-800 whitespace-nowrap">
-                            {formatMGA(tourFinancials.courierMerchandiseDue)}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between text-slate-600">
-                          <span className="font-sans">Dont Frais de port (Fee) :</span>
-                          <span className="font-bold text-slate-800 whitespace-nowrap">
-                            {formatMGA(tourFinancials.courierFeeDue)}
-                          </span>
-                        </div>
-                        <div className="pt-1.5 mt-1 border-t border-slate-100 space-y-1">
-                          <div className="flex items-center justify-between text-emerald-700">
-                            <span className="font-sans">
-                              Attendu Espèces ({tourFinancials.expectedCashCount} colis) :
-                            </span>
-                            <span className="font-bold whitespace-nowrap">
-                              {formatMGA(tourFinancials.expectedCashTotal)}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between text-amber-700">
-                            <span className="font-sans">
-                              Attendu Mobile Money ({tourFinancials.expectedMobileCount} colis) :
-                            </span>
-                            <span className="font-bold whitespace-nowrap">
-                              {formatMGA(tourFinancials.expectedMobileTotal)}
-                            </span>
-                          </div>
-                          {tourFinancials.expectedOtherCount > 0 && (
-                            <div className="flex items-center justify-between text-slate-500">
-                              <span className="font-sans">
-                                Mode non précisé / Autre ({tourFinancials.expectedOtherCount} colis) :
-                              </span>
+                          {tourFinancials.deliveredUnconfirmedTotal > 0 && (
+                            <div className="flex items-center justify-between text-amber-700">
+                              <span className="font-sans">Livré (encaissement non confirmé) :</span>
                               <span className="font-bold whitespace-nowrap">
-                                {formatMGA(tourFinancials.expectedOtherTotal)}
+                                {formatMGA(tourFinancials.deliveredUnconfirmedTotal)}
                               </span>
                             </div>
                           )}
+                          <div className="flex items-center justify-between text-slate-600">
+                            <span className="font-sans">Dont COD Marchandise :</span>
+                            <span className="font-bold text-slate-800 whitespace-nowrap">
+                              {formatMGA(tourFinancials.courierMerchandiseDue)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-slate-600">
+                            <span className="font-sans">Dont Frais de port (Fee) :</span>
+                            <span className="font-bold text-slate-800 whitespace-nowrap">
+                              {formatMGA(tourFinancials.courierFeeDue)}
+                            </span>
+                          </div>
+                          <div className="pt-1.5 mt-1 border-t border-slate-100 space-y-1">
+                            <div className="flex items-center justify-between text-emerald-700">
+                              <span className="font-sans">
+                                Attendu Espèces ({tourFinancials.expectedCashCount} colis) :
+                              </span>
+                              <span className="font-bold whitespace-nowrap">
+                                {formatMGA(tourFinancials.expectedCashTotal)}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-amber-700">
+                              <span className="font-sans">
+                                Attendu Mobile Money ({tourFinancials.expectedMobileCount} colis) :
+                              </span>
+                              <span className="font-bold whitespace-nowrap">
+                                {formatMGA(tourFinancials.expectedMobileTotal)}
+                              </span>
+                            </div>
+                            {tourFinancials.expectedOtherCount > 0 && (
+                              <div className="flex items-center justify-between text-slate-500">
+                                <span className="font-sans">
+                                  Mode non précisé / Autre ({tourFinancials.expectedOtherCount} colis) :
+                                </span>
+                                <span className="font-bold whitespace-nowrap">
+                                  {formatMGA(tourFinancials.expectedOtherTotal)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="pt-1">
+                          <div className="flex items-center justify-between text-slate-600">
+                            <span>Total Remis au Quai (1+2+3) :</span>
+                            <span className="font-bold text-slate-900 whitespace-nowrap">
+                              {formatMGA(totalRemitted)}
+                            </span>
+                          </div>
+                          {selectedTourDetail.status !== "CLOTURE" && (
+                            <div className="text-[10px] text-slate-500 mt-0.5 text-right">
+                              Espèces: {formatMGA(remittedCash)} • Mobile: {formatMGA(remittedMobile)} •
+                              Justif.: {formatMGA(remittedExpenses)}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between pt-3 border-t-2 border-slate-300 text-base">
+                          <span className="font-sans font-bold text-slate-800">
+                            Écart de Décharge au Quai :
+                          </span>
+                          <span
+                            className={`font-black text-lg whitespace-nowrap ${cashDiscrepancy === 0
+                              ? "text-emerald-700"
+                              : cashDiscrepancy < 0
+                                ? "text-rose-700"
+                                : "text-amber-700"
+                              }`}
+                            data-cy="cash-discrepancy-value"
+                          >
+                            {cashDiscrepancy > 0 ? "+" : ""}
+                            {formatMGA(cashDiscrepancy)}
+                          </span>
                         </div>
                       </div>
 
-                      <div className="pt-1">
-                        <div className="flex items-center justify-between text-slate-600">
-                          <span>Total Remis au Quai (1+2+3) :</span>
-                          <span className="font-bold text-slate-900 whitespace-nowrap">
-                            {formatMGA(totalRemitted)}
-                          </span>
-                        </div>
-                        {selectedTourDetail.status !== "CLOTURE" && (
-                          <div className="text-[10px] text-slate-500 mt-0.5 text-right">
-                            Espèces: {formatMGA(remittedCash)} • Mobile: {formatMGA(remittedMobile)} •
-                            Justif.: {formatMGA(remittedExpenses)}
+                      {/* Discrepancy Status Feedback Banner */}
+                      <div className="mt-5">
+                        {cashDiscrepancy === 0 ? (
+                          <div
+                            className="p-3.5 bg-emerald-100/70 border border-emerald-300 rounded-xl text-emerald-900 text-xs flex items-start gap-2.5"
+                            data-cy="alert-balance-perfect"
+                          >
+                            <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                            <div>
+                              <strong className="block font-bold">Caisse Parfaitement Équilibrée</strong>
+                              Aucun écart de caisse constaté. Clôture comptable conforme à la formule.
+                            </div>
+                          </div>
+                        ) : cashDiscrepancy < 0 ? (
+                          <div
+                            className="p-3.5 bg-rose-100/80 border border-rose-300 rounded-xl text-rose-900 text-xs flex items-start gap-2.5"
+                            data-cy="alert-balance-deficit"
+                          >
+                            <ShieldAlert className="w-4 h-4 text-rose-700 shrink-0 mt-0.5" />
+                            <div>
+                              <strong className="block font-bold">
+                                Déficit de Caisse : {formatMGA(Math.abs(cashDiscrepancy))}
+                              </strong>
+                              Un dossier de litige <code className="bg-rose-200 px-1 rounded">DEFICIT_COD</code> sera
+                              automatiquement imputé au compte de ce livreur dans le registre des litiges.
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            className="p-3.5 bg-amber-100/80 border border-amber-300 rounded-xl text-amber-900 text-xs flex items-start gap-2.5"
+                            data-cy="alert-balance-surplus"
+                          >
+                            <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                            <div>
+                              <strong className="block font-bold">
+                                Excédent de Caisse : +{formatMGA(cashDiscrepancy)}
+                              </strong>
+                              Le montant remis est supérieur au total théorique des livraisons de la tournée.
+                            </div>
                           </div>
                         )}
                       </div>
-
-                      <div className="flex items-center justify-between pt-3 border-t-2 border-slate-300 text-base">
-                        <span className="font-sans font-bold text-slate-800">
-                          Écart de Décharge au Quai :
-                        </span>
-                        <span
-                          className={`font-black text-lg whitespace-nowrap ${cashDiscrepancy === 0
-                            ? "text-emerald-700"
-                            : cashDiscrepancy < 0
-                              ? "text-rose-700"
-                              : "text-amber-700"
-                            }`}
-                          data-cy="cash-discrepancy-value"
-                        >
-                          {cashDiscrepancy > 0 ? "+" : ""}
-                          {formatMGA(cashDiscrepancy)}
-                        </span>
-                      </div>
                     </div>
 
-                    {/* Discrepancy Status Feedback Banner */}
-                    <div className="mt-5">
-                      {cashDiscrepancy === 0 ? (
-                        <div
-                          className="p-3.5 bg-emerald-100/70 border border-emerald-300 rounded-xl text-emerald-900 text-xs flex items-start gap-2.5"
-                          data-cy="alert-balance-perfect"
-                        >
-                          <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
-                          <div>
-                            <strong className="block font-bold">Caisse Parfaitement Équilibrée</strong>
-                            Aucun écart de caisse constaté. Clôture comptable conforme à la formule.
+                    {/* Action button */}
+                    <div>
+                      {selectedTourDetail.status === "CLOTURE" ? (
+                        <div className="space-y-2">
+                          <div className="w-full py-3 bg-emerald-50 border border-emerald-300 text-emerald-800 font-bold text-center rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-2xs select-none">
+                            <Lock className="w-4 h-4 text-emerald-600" />
+                            Tournée Déjà Clôturée & Scellée
                           </div>
-                        </div>
-                      ) : cashDiscrepancy < 0 ? (
-                        <div
-                          className="p-3.5 bg-rose-100/80 border border-rose-300 rounded-xl text-rose-900 text-xs flex items-start gap-2.5"
-                          data-cy="alert-balance-deficit"
-                        >
-                          <ShieldAlert className="w-4 h-4 text-rose-700 shrink-0 mt-0.5" />
-                          <div>
-                            <strong className="block font-bold">
-                              Déficit de Caisse : {formatMGA(Math.abs(cashDiscrepancy))}
-                            </strong>
-                            Un dossier de litige <code className="bg-rose-200 px-1 rounded">DEFICIT_COD</code> sera
-                            automatiquement imputé au compte de ce livreur dans le registre des litiges.
-                          </div>
+                          <button
+                            onClick={() =>
+                              setReceiptData({
+                                tour: selectedTourDetail,
+                                cash: selectedTourDetail.actual_remitted || 0,
+                                mobile: 0,
+                                expenses: 0,
+                                discrepancy: selectedTourDetail.discrepancy || 0,
+                                closedAt: selectedTourDetail.closed_at || new Date().toISOString(),
+                                grossTotal: tourFinancials.grossTotal,
+                                siegeTotal: tourFinancials.siegeTotal,
+                                siegeParcels: tourFinancials.siegeParcels,
+                              })
+                            }
+                            className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 border border-slate-300 shadow-2xs cursor-pointer"
+                            data-cy="btn-reprint-receipt"
+                          >
+                            <Printer className="w-4 h-4 text-slate-600" />
+                            Voir / Imprimer le Reçu de Décharge
+                          </button>
                         </div>
                       ) : (
-                        <div
-                          className="p-3.5 bg-amber-100/80 border border-amber-300 rounded-xl text-amber-900 text-xs flex items-start gap-2.5"
-                          data-cy="alert-balance-surplus"
+                        <button
+                          onClick={handleConfirmCloseTour}
+                          disabled={isClosingTour}
+                          className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
+                          data-cy="btn-confirm-close-tour"
                         >
-                          <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                          <div>
-                            <strong className="block font-bold">
-                              Excédent de Caisse : +{formatMGA(cashDiscrepancy)}
-                            </strong>
-                            Le montant remis est supérieur au total théorique des livraisons de la tournée.
-                          </div>
-                        </div>
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                          {isClosingTour
+                            ? "Clôture en cours..."
+                            : "Valider la Décharge & Clôturer la Tournée"}
+                        </button>
                       )}
                     </div>
                   </div>
+                </div>
 
-                  {/* Action button */}
-                  <div>
-                    {selectedTourDetail.status === "CLOTURE" ? (
-                      <div className="space-y-2">
-                        <div className="w-full py-3 bg-emerald-50 border border-emerald-300 text-emerald-800 font-bold text-center rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-2xs select-none">
-                          <Lock className="w-4 h-4 text-emerald-600" />
-                          Tournée Déjà Clôturée & Scellée
-                        </div>
+                {/* Tour Parcels Breakdown */}
+                <div className="border-t border-slate-200 p-5 sm:p-6 space-y-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                        <Package className="w-4 h-4 text-blue-600" />
+                        Détail des Colis, COD & Frais de la Tournée (
+                        {selectedTourDetail.parcels?.length || 0})
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Observez chaque colis : montant COD (marchandise), frais de port (fee),
+                        statut de livraison et impact sur le dû du livreur au quai.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {selectedTourDetail.status === "CLOTURE" && (
+                        <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1 mr-2">
+                          <Lock className="w-3 h-3" /> Scellée
+                        </span>
+                      )}
+                      <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200">
                         <button
-                          onClick={() =>
-                            setReceiptData({
-                              tour: selectedTourDetail,
-                              cash: selectedTourDetail.actual_remitted || 0,
-                              mobile: 0,
-                              expenses: 0,
-                              discrepancy: selectedTourDetail.discrepancy || 0,
-                              closedAt: selectedTourDetail.closed_at || new Date().toISOString(),
-                              grossTotal: tourFinancials.grossTotal,
-                              siegeTotal: tourFinancials.siegeTotal,
-                              siegeParcels: tourFinancials.siegeParcels,
-                            })
-                          }
-                          className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 border border-slate-300 shadow-2xs cursor-pointer"
-                          data-cy="btn-reprint-receipt"
+                          type="button"
+                          onClick={() => setTourDisplayMode("cards")}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${tourDisplayMode === "cards"
+                            ? "bg-white text-slate-900 shadow-2xs"
+                            : "text-slate-500 hover:text-slate-700"
+                            }`}
                         >
-                          <Printer className="w-4 h-4 text-slate-600" />
-                          Voir / Imprimer le Reçu de Décharge
+                          <LayoutGrid className="w-3.5 h-3.5" />
+                          Cartes
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTourDisplayMode("table")}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${tourDisplayMode === "table"
+                            ? "bg-white text-slate-900 shadow-2xs"
+                            : "text-slate-500 hover:text-slate-700"
+                            }`}
+                        >
+                          <List className="w-3.5 h-3.5" />
+                          Tableau
                         </button>
                       </div>
-                    ) : (
-                      <button
-                        onClick={handleConfirmCloseTour}
-                        disabled={isClosingTour}
-                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
-                        data-cy="btn-confirm-close-tour"
-                      >
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                        {isClosingTour
-                          ? "Clôture en cours..."
-                          : "Valider la Décharge & Clôturer la Tournée"}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Tour Parcels Breakdown */}
-              <div className="border-t border-slate-200 p-5 sm:p-6 space-y-5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
-                      <Package className="w-4 h-4 text-blue-600" />
-                      Détail des Colis, COD & Frais de la Tournée (
-                      {selectedTourDetail.parcels?.length || 0})
-                    </h4>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      Observez chaque colis : montant COD (marchandise), frais de port (fee),
-                      statut de livraison et impact sur le dû du livreur au quai.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {selectedTourDetail.status === "CLOTURE" && (
-                      <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1 mr-2">
-                        <Lock className="w-3 h-3" /> Scellée
-                      </span>
-                    )}
-                    <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200">
-                      <button
-                        type="button"
-                        onClick={() => setTourDisplayMode("cards")}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${tourDisplayMode === "cards"
-                            ? "bg-white text-slate-900 shadow-2xs"
-                            : "text-slate-500 hover:text-slate-700"
-                          }`}
-                      >
-                        <LayoutGrid className="w-3.5 h-3.5" />
-                        Cartes
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setTourDisplayMode("table")}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${tourDisplayMode === "table"
-                            ? "bg-white text-slate-900 shadow-2xs"
-                            : "text-slate-500 hover:text-slate-700"
-                          }`}
-                      >
-                        <List className="w-3.5 h-3.5" />
-                        Tableau
-                      </button>
                     </div>
                   </div>
-                </div>
 
-                {/* 4-Card Summary Strip for quick observation */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <div
-                    onClick={() => setTourParcelFilter("DUE")}
-                    className={`p-3.5 rounded-xl border cursor-pointer transition ${tourParcelFilter === "DUE"
+                  {/* 4-Card Summary Strip for quick observation */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div
+                      onClick={() => setTourParcelFilter("DUE")}
+                      className={`p-3.5 rounded-xl border cursor-pointer transition ${tourParcelFilter === "DUE"
                         ? "bg-emerald-50 border-emerald-400 ring-2 ring-emerald-500/20"
                         : "bg-emerald-50/40 border-emerald-200 hover:bg-emerald-50/80"
-                      }`}
-                  >
-                    <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-emerald-800">
-                      <span>Livrés (Dû Livreur)</span>
-                      <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-mono">
-                        {tourFinancials.courierParcels.length}
-                      </span>
-                    </div>
-                    <div className="text-base font-black font-mono text-emerald-900 mt-1 tabular-nums">
-                      {formatMGA(tourFinancials.courierTheoreticalDue)}
-                    </div>
-                    <div className="text-[10px] text-emerald-700 mt-1 font-mono tabular-nums">
-                      COD: {formatMGA(tourFinancials.courierMerchandiseDue)} + Frais:{" "}
-                      {formatMGA(tourFinancials.courierFeeDue)}
-                    </div>
-                  </div>
-
-                  <div
-                    onClick={() => setTourParcelFilter("SIEGE")}
-                    className={`p-3.5 rounded-xl border cursor-pointer transition ${tourParcelFilter === "SIEGE"
-                        ? "bg-blue-50 border-blue-400 ring-2 ring-blue-500/20"
-                        : "bg-blue-50/40 border-blue-200 hover:bg-blue-50/80"
-                      }`}
-                  >
-                    <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-blue-800">
-                      <span>Encaissés Siège (Exclus)</span>
-                      <span className="px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 font-mono">
-                        {tourFinancials.siegeParcels.length}
-                      </span>
-                    </div>
-                    <div className="text-base font-black font-mono text-blue-900 mt-1 tabular-nums">
-                      {formatMGA(tourFinancials.siegeTotal)}
-                    </div>
-                    <div className="text-[10px] text-blue-700 mt-1">
-                      Déjà perçus par le siège
-                    </div>
-                  </div>
-
-                  <div
-                    onClick={() => setTourParcelFilter("PENDING")}
-                    className={`p-3.5 rounded-xl border cursor-pointer transition ${tourParcelFilter === "PENDING"
-                        ? "bg-amber-50 border-amber-400 ring-2 ring-amber-500/20"
-                        : "bg-amber-50/40 border-amber-200 hover:bg-amber-50/80"
-                      }`}
-                  >
-                    <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-amber-800">
-                      <span>En Cours / Reportés</span>
-                      <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-mono">
-                        {tourFinancials.pendingParcels.length}
-                      </span>
-                    </div>
-                    <div className="text-base font-black font-mono text-amber-900 mt-1 tabular-nums">
-                      {formatMGA(tourFinancials.pendingTotal)}
-                    </div>
-                    <div className="text-[10px] text-amber-700 mt-1">
-                      Hors dû quai (non livrés)
-                    </div>
-                  </div>
-
-                  <div
-                    onClick={() => setTourParcelFilter("FAILED")}
-                    className={`p-3.5 rounded-xl border cursor-pointer transition ${tourParcelFilter === "FAILED"
-                        ? "bg-rose-50 border-rose-400 ring-2 ring-rose-500/20"
-                        : "bg-rose-50/40 border-rose-200 hover:bg-rose-50/80"
-                      }`}
-                  >
-                    <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-rose-800">
-                      <span>Échecs / Retours</span>
-                      <span className="px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-800 font-mono">
-                        {tourFinancials.failedParcels.length}
-                      </span>
-                    </div>
-                    <div className="text-base font-black font-mono text-rose-900 mt-1 tabular-nums">
-                      {formatMGA(tourFinancials.failedTotal)}
-                    </div>
-                    <div className="text-[10px] text-rose-700 mt-1">
-                      Hors dû quai (colis à retourner)
-                    </div>
-                  </div>
-                </div>
-
-                {/* Filter Pills */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  {[
-                    {
-                      key: "ALL" as const,
-                      label: `Tous (${tourFinancials.allParcels.length})`,
-                    },
-                    {
-                      key: "DUE" as const,
-                      label: `Inclus Dû Livreur (${tourFinancials.courierParcels.length})`,
-                    },
-                    {
-                      key: "SIEGE" as const,
-                      label: `Au Siège (${tourFinancials.siegeParcels.length})`,
-                    },
-                    {
-                      key: "PENDING" as const,
-                      label: `En cours / Reportés (${tourFinancials.pendingParcels.length})`,
-                    },
-                    {
-                      key: "FAILED" as const,
-                      label: `Échecs / Retours (${tourFinancials.failedParcels.length})`,
-                    },
-                  ].map((f) => (
-                    <button
-                      key={f.key}
-                      type="button"
-                      onClick={() => setTourParcelFilter(f.key)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-bold border transition cursor-pointer ${tourParcelFilter === f.key
-                          ? "bg-slate-900 text-white border-slate-900"
-                          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                         }`}
                     >
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
-
-                {(() => {
-                  const deliveredStatuses = [
-                    "LIVRE",
-                    "ENCAISSE",
-                    "LIVRE_ENCAISSE",
-                    "CLOTURE_CAISSE",
-                    "SOUS_TRAITE",
-                  ];
-                  const pendingStatuses = ["ASSIGNE", "EN_COURS", "EN_DEPOT", "REPORTE"];
-                  const visibleParcels = (selectedTourDetail.parcels || []).filter((p) => {
-                    const isDelivered = deliveredStatuses.includes(p.status);
-                    const isPending = pendingStatuses.includes(p.status);
-                    if (tourParcelFilter === "DUE")
-                      return isDelivered && p.encaissement_lieu !== "SIEGE";
-                    if (tourParcelFilter === "SIEGE")
-                      return isDelivered && p.encaissement_lieu === "SIEGE";
-                    if (tourParcelFilter === "PENDING") return isPending;
-                    if (tourParcelFilter === "FAILED") return !isDelivered && !isPending;
-                    return true;
-                  });
-
-                  const isTourClosed = selectedTourDetail.status === "CLOTURE";
-
-                  if (visibleParcels.length === 0) {
-                    return (
-                      <div className="p-8 text-center bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-500">
-                        Aucun colis dans cette catégorie pour la tournée #{selectedTourDetail.id}.
+                      <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                        <span>Livrés (Dû Livreur)</span>
+                        <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-mono">
+                          {tourFinancials.courierParcels.length}
+                        </span>
                       </div>
-                    );
-                  }
+                      <div className="text-base font-black font-mono text-emerald-900 mt-1 tabular-nums">
+                        {formatMGA(tourFinancials.courierTheoreticalDue)}
+                      </div>
+                      <div className="text-[10px] text-emerald-700 mt-1 font-mono tabular-nums">
+                        COD: {formatMGA(tourFinancials.courierMerchandiseDue)} + Frais:{" "}
+                        {formatMGA(tourFinancials.courierFeeDue)}
+                      </div>
+                    </div>
 
-                  if (tourDisplayMode === "cards") {
-                    return (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                        {visibleParcels.map((p) => {
-                          const isDelivered = deliveredStatuses.includes(p.status);
-                          const isPending = pendingStatuses.includes(p.status);
-                          const isSiege = p.encaissement_lieu === "SIEGE";
-                          const isCourierDue = isDelivered && !isSiege;
-                          const hasCod = (p.merchandise_amount || 0) > 0;
+                    <div
+                      onClick={() => setTourParcelFilter("SIEGE")}
+                      className={`p-3.5 rounded-xl border cursor-pointer transition ${tourParcelFilter === "SIEGE"
+                        ? "bg-blue-50 border-blue-400 ring-2 ring-blue-500/20"
+                        : "bg-blue-50/40 border-blue-200 hover:bg-blue-50/80"
+                        }`}
+                    >
+                      <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-blue-800">
+                        <span>Encaissés Siège (Exclus)</span>
+                        <span className="px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 font-mono">
+                          {tourFinancials.siegeParcels.length}
+                        </span>
+                      </div>
+                      <div className="text-base font-black font-mono text-blue-900 mt-1 tabular-nums">
+                        {formatMGA(tourFinancials.siegeTotal)}
+                      </div>
+                      <div className="text-[10px] text-blue-700 mt-1">
+                        Déjà perçus par le siège
+                      </div>
+                    </div>
 
-                          return (
-                            <div
-                              key={p.id}
-                              className={`rounded-2xl border p-4 flex flex-col justify-between gap-3 transition ${isTourClosed
+                    <div
+                      onClick={() => setTourParcelFilter("PENDING")}
+                      className={`p-3.5 rounded-xl border cursor-pointer transition ${tourParcelFilter === "PENDING"
+                        ? "bg-amber-50 border-amber-400 ring-2 ring-amber-500/20"
+                        : "bg-amber-50/40 border-amber-200 hover:bg-amber-50/80"
+                        }`}
+                    >
+                      <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                        <span>En Cours / Reportés</span>
+                        <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-mono">
+                          {tourFinancials.pendingParcels.length}
+                        </span>
+                      </div>
+                      <div className="text-base font-black font-mono text-amber-900 mt-1 tabular-nums">
+                        {formatMGA(tourFinancials.pendingTotal)}
+                      </div>
+                      <div className="text-[10px] text-amber-700 mt-1">
+                        Hors dû quai (non livrés)
+                      </div>
+                    </div>
+
+                    <div
+                      onClick={() => setTourParcelFilter("FAILED")}
+                      className={`p-3.5 rounded-xl border cursor-pointer transition ${tourParcelFilter === "FAILED"
+                        ? "bg-rose-50 border-rose-400 ring-2 ring-rose-500/20"
+                        : "bg-rose-50/40 border-rose-200 hover:bg-rose-50/80"
+                        }`}
+                    >
+                      <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-rose-800">
+                        <span>Échecs / Retours</span>
+                        <span className="px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-800 font-mono">
+                          {tourFinancials.failedParcels.length}
+                        </span>
+                      </div>
+                      <div className="text-base font-black font-mono text-rose-900 mt-1 tabular-nums">
+                        {formatMGA(tourFinancials.failedTotal)}
+                      </div>
+                      <div className="text-[10px] text-rose-700 mt-1">
+                        Hors dû quai (colis à retourner)
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Filter Pills */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {[
+                      {
+                        key: "ALL" as const,
+                        label: `Tous (${tourFinancials.allParcels.length})`,
+                      },
+                      {
+                        key: "DUE" as const,
+                        label: `Inclus Dû Livreur (${tourFinancials.courierParcels.length})`,
+                      },
+                      {
+                        key: "SIEGE" as const,
+                        label: `Au Siège (${tourFinancials.siegeParcels.length})`,
+                      },
+                      {
+                        key: "PENDING" as const,
+                        label: `En cours / Reportés (${tourFinancials.pendingParcels.length})`,
+                      },
+                      {
+                        key: "FAILED" as const,
+                        label: `Échecs / Retours (${tourFinancials.failedParcels.length})`,
+                      },
+                    ].map((f) => (
+                      <button
+                        key={f.key}
+                        type="button"
+                        onClick={() => setTourParcelFilter(f.key)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition cursor-pointer ${tourParcelFilter === f.key
+                          ? "bg-slate-900 text-white border-slate-900"
+                          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                          }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {(() => {
+                    const deliveredStatuses = [
+                      "LIVRE",
+                      "ENCAISSE",
+                      "LIVRE_ENCAISSE",
+                      "CLOTURE_CAISSE",
+                      "SOUS_TRAITE",
+                    ];
+                    const pendingStatuses = ["ASSIGNE", "EN_COURS", "EN_DEPOT", "REPORTE"];
+                    const visibleParcels = (selectedTourDetail.parcels || []).filter((p) => {
+                      const isDelivered = deliveredStatuses.includes(p.status);
+                      const isPending = pendingStatuses.includes(p.status);
+                      if (tourParcelFilter === "DUE")
+                        return isDelivered && p.encaissement_lieu !== "SIEGE";
+                      if (tourParcelFilter === "SIEGE")
+                        return isDelivered && p.encaissement_lieu === "SIEGE";
+                      if (tourParcelFilter === "PENDING") return isPending;
+                      if (tourParcelFilter === "FAILED") return !isDelivered && !isPending;
+                      return true;
+                    });
+
+                    const isTourClosed = selectedTourDetail.status === "CLOTURE";
+
+                    if (visibleParcels.length === 0) {
+                      return (
+                        <div className="p-8 text-center bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-500">
+                          Aucun colis dans cette catégorie pour la tournée #{selectedTourDetail.id}.
+                        </div>
+                      );
+                    }
+
+                    if (tourDisplayMode === "cards") {
+                      return (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                          {visibleParcels.map((p) => {
+                            const isDelivered = deliveredStatuses.includes(p.status);
+                            const isPending = pendingStatuses.includes(p.status);
+                            const isSiege = p.encaissement_lieu === "SIEGE";
+                            const isCourierDue = isDelivered && !isSiege;
+                            const hasCod = (p.merchandise_amount || 0) > 0;
+
+                            return (
+                              <div
+                                key={p.id}
+                                className={`rounded-2xl border p-4 flex flex-col justify-between gap-3 transition ${isTourClosed
                                   ? "bg-slate-50/70 border-slate-200 opacity-85"
                                   : isCourierDue
                                     ? "bg-white border-emerald-200/80 shadow-2xs hover:border-emerald-300"
                                     : isSiege
                                       ? "bg-blue-50/20 border-blue-200/80"
                                       : "bg-white border-slate-200"
-                                }`}
-                            >
-                              {/* Top header */}
-                              <div className="space-y-2">
-                                <div className="flex items-start justify-between gap-2 flex-wrap">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="font-mono font-bold text-xs text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200">
-                                      {p.tracking_number?.startsWith("BDR-") ? p.tracking_number : `BDR-${p.tracking_number}`}
-                                    </span>
-                                    <span
-                                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${hasCod
+                                  }`}
+                              >
+                                {/* Top header */}
+                                <div className="space-y-2">
+                                  <div className="flex items-start justify-between gap-2 flex-wrap">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="font-mono font-bold text-xs text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200">
+                                        {p.tracking_number?.startsWith("BDR-") ? p.tracking_number : `BDR-${p.tracking_number}`}
+                                      </span>
+                                      <span
+                                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${hasCod
                                           ? "bg-indigo-50 text-indigo-800 border-indigo-200"
                                           : "bg-slate-100 text-slate-600 border-slate-200"
-                                        }`}
-                                    >
-                                      {hasCod ? "Avec COD" : "Sans COD (Frais seul)"}
-                                    </span>
+                                          }`}
+                                      >
+                                        {hasCod ? "Avec COD" : "Sans COD (Frais seul)"}
+                                      </span>
+                                    </div>
+
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <StatusBadge
+                                        status={p.status}
+                                        encaissement_lieu={p.encaissement_lieu}
+                                        size="xs"
+                                      />
+                                    </div>
                                   </div>
 
-                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <AxisBadge axis={p.axis} />
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 uppercase border border-slate-200">
+                                      {p.flux_type}
+                                    </span>
+                                    <span
+                                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 ${isSiege
+                                        ? "bg-blue-50 text-blue-800 border-blue-200"
+                                        : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                        }`}
+                                    >
+                                      {isSiege ? "🏢 Au Siège" : "🛵 Par Livreur"}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Middle details */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-2 border-t border-slate-100">
+                                  <div className="space-y-1">
+                                    <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                                      Destinataire & Livraison
+                                    </span>
+                                    <div className="font-bold text-slate-900">
+                                      {p.recipient_name}
+                                    </div>
+                                    <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1">
+                                      <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                                      {p.recipient_phone_formatted || p.recipient_phone}
+                                    </div>
+                                    {p.delivery_address && (
+                                      <div className="text-[11px] text-slate-600 flex items-start gap-1">
+                                        <MapPin className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
+                                        <span>{p.delivery_address}</span>
+                                      </div>
+                                    )}
+                                    {p.sender_name && (
+                                      <div className="text-[11px] text-blue-700 font-medium">
+                                        Exp: <strong>{p.sender_name}</strong>
+                                      </div>
+                                    )}
+                                    {p.designation && (
+                                      <div className="text-[11px] text-slate-500 italic">
+                                        Contenu : {p.designation}
+                                      </div>
+                                    )}
+                                    {(p.observation || p.incident_reason) && (
+                                      <div className="text-[11px] text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-200">
+                                        Obs: {p.incident_reason || p.observation}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="space-y-1.5 sm:border-l sm:border-slate-100 sm:pl-3">
+                                    <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                                      Détail COD & Frais (Fee)
+                                    </span>
+                                    <div className="pb-1">{getPaymentBadge(p.payment_method)}</div>
+                                    <div className="flex items-center justify-between text-[11px] text-slate-600">
+                                      <span>COD Marchandise :</span>
+                                      <span className="font-mono font-semibold text-slate-900 tabular-nums">
+                                        {formatMGA(p.merchandise_amount)}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-[11px] text-slate-600">
+                                      <span>Frais de port (Fee) :</span>
+                                      <span className="font-mono font-semibold text-slate-900 tabular-nums">
+                                        {formatMGA(p.delivery_fee)}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100 font-bold text-slate-800">
+                                      <span>Total Colis :</span>
+                                      <span className="font-mono tabular-nums">
+                                        {formatMGA(p.total_to_collect)}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-[11px] pt-1 border-t border-dashed border-slate-200">
+                                      <span className="font-semibold text-teal-800">Encaissé Client :</span>
+                                      {(() => {
+                                        const collected = getClientCollectedAmount(p);
+                                        if (collected > 0) {
+                                          return (
+                                            <span className="font-mono font-bold text-teal-700 tabular-nums">
+                                              {formatMGA(collected)}
+                                            </span>
+                                          );
+                                        }
+                                        if (p.status === "LIVRE") {
+                                          return (
+                                            <span className="text-[10px] font-semibold text-amber-600">
+                                              Non confirmé
+                                            </span>
+                                          );
+                                        }
+                                        return (
+                                          <span className="font-mono text-slate-400 tabular-nums">
+                                            0&nbsp;Ar
+                                          </span>
+                                        );
+                                      })()}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Bottom Impact Bar */}
+                                <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-slate-100 bg-slate-50/70 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl">
+                                  <span className="text-[11px] font-semibold text-slate-600">
+                                    {isCourierDue
+                                      ? "✅ Inclus dans le Dû Livreur au Quai"
+                                      : isSiege
+                                        ? "🏢 Exclu (Encaissé au Siège)"
+                                        : isPending
+                                          ? `⏳ Exclu (Non livré : ${p.status.replace("_", " ").toLowerCase()})`
+                                          : `⚠️ Exclu (${p.status.replace("_", " ").toLowerCase()})`}
+                                  </span>
+                                  <span
+                                    className={`font-mono font-black text-sm tabular-nums ${isCourierDue
+                                      ? "text-emerald-700"
+                                      : isSiege
+                                        ? "text-blue-700"
+                                        : "text-slate-400 line-through"
+                                      }`}
+                                  >
+                                    {isCourierDue
+                                      ? formatMGA(p.total_to_collect)
+                                      : isSiege
+                                        ? "0\u00A0Ar"
+                                        : formatMGA(p.total_to_collect)}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    }
+
+                    // Table mode
+                    const sumMerch = visibleParcels.reduce((s, p) => s + (p.merchandise_amount || 0), 0);
+                    const sumFee = visibleParcels.reduce((s, p) => s + (p.delivery_fee || 0), 0);
+                    const sumTotal = visibleParcels.reduce((s, p) => s + (p.total_to_collect || 0), 0);
+                    const sumClientCollected = visibleParcels.reduce(
+                      (s, p) => s + getClientCollectedAmount(p),
+                      0
+                    );
+                    const sumDue = visibleParcels.reduce((s, p) => {
+                      const isDelivered = deliveredStatuses.includes(p.status);
+                      return s + (isDelivered && p.encaissement_lieu !== "SIEGE" ? p.total_to_collect : 0);
+                    }, 0);
+
+                    return (
+                      <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-2xs w-full max-w-full">
+                        <table className="min-w-[960px] w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-slate-50 text-slate-500 uppercase font-bold tracking-wider border-b border-slate-200">
+                              <th className="py-2.5 px-3 whitespace-nowrap">N° BDR</th>
+                              <th className="py-2.5 px-3 min-w-[180px]">Destinataire & Exp.</th>
+                              <th className="py-2.5 px-3 whitespace-nowrap text-center">Statut</th>
+                              <th className="py-2.5 px-3 whitespace-nowrap text-center">Type COD</th>
+                              <th className="py-2.5 px-3 whitespace-nowrap">Règlement</th>
+                              <th className="py-2.5 px-3 whitespace-nowrap text-right">
+                                COD (March.)
+                              </th>
+                              <th className="py-2.5 px-3 whitespace-nowrap text-right">
+                                Frais (Fee)
+                              </th>
+                              <th className="py-2.5 px-3 whitespace-nowrap text-right">
+                                Total Colis
+                              </th>
+                              <th className="py-2.5 px-3 whitespace-nowrap text-right text-teal-800">
+                                Encaissé Client
+                              </th>
+                              <th className="py-2.5 px-3 whitespace-nowrap text-right font-black">
+                                Dû Livreur
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {visibleParcels.map((p) => {
+                              const isDelivered = deliveredStatuses.includes(p.status);
+                              const isSiege = p.encaissement_lieu === "SIEGE";
+                              const isCourierDue = isDelivered && !isSiege;
+                              const hasCod = (p.merchandise_amount || 0) > 0;
+
+                              return (
+                                <tr
+                                  key={p.id}
+                                  className={`transition ${isTourClosed
+                                    ? "bg-slate-50/70 text-slate-500 opacity-75 hover:bg-slate-100/60"
+                                    : "hover:bg-slate-50"
+                                    }`}
+                                >
+                                  <td className="p-3 font-mono font-bold whitespace-nowrap text-slate-900">
+                                    <div>{p.tracking_number?.startsWith("BDR-") ? p.tracking_number : `BDR-${p.tracking_number}`}</div>
+                                    <div>{p.tracking_number?.startsWith("BDR-") ? p.tracking_number : `BDR-${p.tracking_number}`}</div>
+                                    <div className="text-[10px] font-normal text-slate-400">
+                                      {p.axis}
+                                    </div>
+                                  </td>
+                                  <td className="p-3">
+                                    <span className="block font-semibold text-slate-900">
+                                      {p.recipient_name}
+                                    </span>
+                                    <span className="block text-[11px] text-slate-400 font-mono">
+                                      {p.recipient_phone_formatted || p.recipient_phone}
+                                    </span>
+                                    {p.delivery_address && (
+                                      <span className="block text-[10px] text-slate-500 truncate max-w-[200px]">
+                                        {p.delivery_address}
+                                      </span>
+                                    )}
+                                    {p.sender_name && (
+                                      <span className="block text-[10px] text-blue-700">
+                                        Exp: {p.sender_name}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="p-3 text-center whitespace-nowrap">
                                     <StatusBadge
                                       status={p.status}
                                       encaissement_lieu={p.encaissement_lieu}
                                       size="xs"
                                     />
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <AxisBadge axis={p.axis} />
-                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 uppercase border border-slate-200">
-                                    {p.flux_type}
-                                  </span>
-                                  <span
-                                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 ${isSiege
-                                        ? "bg-blue-50 text-blue-800 border-blue-200"
-                                        : "bg-emerald-50 text-emerald-800 border-emerald-200"
-                                      }`}
-                                  >
-                                    {isSiege ? "🏢 Au Siège" : "🛵 Par Livreur"}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Middle details */}
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-2 border-t border-slate-100">
-                                <div className="space-y-1">
-                                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-                                    Destinataire & Livraison
-                                  </span>
-                                  <div className="font-bold text-slate-900">
-                                    {p.recipient_name}
-                                  </div>
-                                  <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1">
-                                    <Phone className="w-3 h-3 text-slate-400 shrink-0" />
-                                    {p.recipient_phone_formatted || p.recipient_phone}
-                                  </div>
-                                  {p.delivery_address && (
-                                    <div className="text-[11px] text-slate-600 flex items-start gap-1">
-                                      <MapPin className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
-                                      <span>{p.delivery_address}</span>
+                                    <div className="mt-1">
+                                      <span
+                                        className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold border ${isSiege
+                                          ? "bg-blue-50 text-blue-800 border-blue-200"
+                                          : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                          }`}
+                                      >
+                                        {isSiege ? "🏢 Siège" : "🛵 Livreur"}
+                                      </span>
                                     </div>
-                                  )}
-                                  {p.sender_name && (
-                                    <div className="text-[11px] text-blue-700 font-medium">
-                                      Exp: <strong>{p.sender_name}</strong>
-                                    </div>
-                                  )}
-                                  {p.designation && (
-                                    <div className="text-[11px] text-slate-500 italic">
-                                      Contenu : {p.designation}
-                                    </div>
-                                  )}
-                                  {(p.observation || p.incident_reason) && (
-                                    <div className="text-[11px] text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-200">
-                                      Obs: {p.incident_reason || p.observation}
-                                    </div>
-                                  )}
-                                </div>
-
-                                <div className="space-y-1.5 sm:border-l sm:border-slate-100 sm:pl-3">
-                                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-                                    Détail COD & Frais (Fee)
-                                  </span>
-                                  <div className="pb-1">{getPaymentBadge(p.payment_method)}</div>
-                                  <div className="flex items-center justify-between text-[11px] text-slate-600">
-                                    <span>COD Marchandise :</span>
-                                    <span className="font-mono font-semibold text-slate-900 tabular-nums">
-                                      {formatMGA(p.merchandise_amount)}
+                                  </td>
+                                  <td className="p-3 text-center whitespace-nowrap">
+                                    <span
+                                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${hasCod
+                                        ? "bg-indigo-50 text-indigo-800 border-indigo-200"
+                                        : "bg-slate-100 text-slate-600 border-slate-200"
+                                        }`}
+                                    >
+                                      {hasCod ? "Avec COD" : "Sans COD"}
                                     </span>
-                                  </div>
-                                  <div className="flex items-center justify-between text-[11px] text-slate-600">
-                                    <span>Frais de port (Fee) :</span>
-                                    <span className="font-mono font-semibold text-slate-900 tabular-nums">
-                                      {formatMGA(p.delivery_fee)}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100 font-bold text-slate-800">
-                                    <span>Total Colis :</span>
-                                    <span className="font-mono tabular-nums">
-                                      {formatMGA(p.total_to_collect)}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center justify-between text-[11px] pt-1 border-t border-dashed border-slate-200">
-                                    <span className="font-semibold text-teal-800">Encaissé Client :</span>
+                                  </td>
+                                  <td className="p-3 whitespace-nowrap">
+                                    {getPaymentBadge(p.payment_method)}
+                                  </td>
+                                  <td className="p-3 text-right font-mono tabular-nums whitespace-nowrap text-slate-700">
+                                    {formatMGA(p.merchandise_amount)}
+                                  </td>
+                                  <td className="p-3 text-right font-mono tabular-nums whitespace-nowrap text-slate-700">
+                                    {formatMGA(p.delivery_fee)}
+                                  </td>
+                                  <td className="p-3 text-right font-mono font-semibold tabular-nums whitespace-nowrap text-slate-900">
+                                    {formatMGA(p.total_to_collect)}
+                                  </td>
+                                  <td className="p-3 text-right font-mono tabular-nums whitespace-nowrap">
                                     {(() => {
                                       const collected = getClientCollectedAmount(p);
                                       if (collected > 0) {
                                         return (
-                                          <span className="font-mono font-bold text-teal-700 tabular-nums">
+                                          <span className="font-bold text-teal-700">
                                             {formatMGA(collected)}
                                           </span>
                                         );
@@ -2370,583 +2581,411 @@ return (
                                           </span>
                                         );
                                       }
-                                      return (
-                                        <span className="font-mono text-slate-400 tabular-nums">
+                                      return <span className="text-slate-400">0&nbsp;Ar</span>;
+                                    })()}
+                                  </td>
+                                  <td className="p-3 text-right whitespace-nowrap">
+                                    {isSiege ? (
+                                      <div className="text-right">
+                                        <span className="font-bold block font-mono text-xs text-blue-700">
                                           0&nbsp;Ar
                                         </span>
-                                      );
-                                    })()}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Bottom Impact Bar */}
-                              <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-slate-100 bg-slate-50/70 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl">
-                                <span className="text-[11px] font-semibold text-slate-600">
-                                  {isCourierDue
-                                    ? "✅ Inclus dans le Dû Livreur au Quai"
-                                    : isSiege
-                                      ? "🏢 Exclu (Encaissé au Siège)"
-                                      : isPending
-                                        ? `⏳ Exclu (Non livré : ${p.status.replace("_", " ").toLowerCase()})`
-                                        : `⚠️ Exclu (${p.status.replace("_", " ").toLowerCase()})`}
-                                </span>
-                                <span
-                                  className={`font-mono font-black text-sm tabular-nums ${isCourierDue
-                                      ? "text-emerald-700"
-                                      : isSiege
-                                        ? "text-blue-700"
-                                        : "text-slate-400 line-through"
-                                    }`}
-                                >
-                                  {isCourierDue
-                                    ? formatMGA(p.total_to_collect)
-                                    : isSiege
-                                      ? "0\u00A0Ar"
-                                      : formatMGA(p.total_to_collect)}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  }
-
-                  // Table mode
-                  const sumMerch = visibleParcels.reduce((s, p) => s + (p.merchandise_amount || 0), 0);
-                  const sumFee = visibleParcels.reduce((s, p) => s + (p.delivery_fee || 0), 0);
-                  const sumTotal = visibleParcels.reduce((s, p) => s + (p.total_to_collect || 0), 0);
-                  const sumClientCollected = visibleParcels.reduce(
-                    (s, p) => s + getClientCollectedAmount(p),
-                    0
-                  );
-                  const sumDue = visibleParcels.reduce((s, p) => {
-                    const isDelivered = deliveredStatuses.includes(p.status);
-                    return s + (isDelivered && p.encaissement_lieu !== "SIEGE" ? p.total_to_collect : 0);
-                  }, 0);
-
-                  return (
-                    <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-2xs w-full max-w-full">
-                      <table className="min-w-[960px] w-full text-left text-xs border-collapse">
-                        <thead>
-                          <tr className="bg-slate-50 text-slate-500 uppercase font-bold tracking-wider border-b border-slate-200">
-                            <th className="py-2.5 px-3 whitespace-nowrap">N° BDR</th>
-                            <th className="py-2.5 px-3 min-w-[180px]">Destinataire & Exp.</th>
-                            <th className="py-2.5 px-3 whitespace-nowrap text-center">Statut</th>
-                            <th className="py-2.5 px-3 whitespace-nowrap text-center">Type COD</th>
-                            <th className="py-2.5 px-3 whitespace-nowrap">Règlement</th>
-                            <th className="py-2.5 px-3 whitespace-nowrap text-right">
-                              COD (March.)
-                            </th>
-                            <th className="py-2.5 px-3 whitespace-nowrap text-right">
-                              Frais (Fee)
-                            </th>
-                            <th className="py-2.5 px-3 whitespace-nowrap text-right">
-                              Total Colis
-                            </th>
-                            <th className="py-2.5 px-3 whitespace-nowrap text-right text-teal-800">
-                              Encaissé Client
-                            </th>
-                            <th className="py-2.5 px-3 whitespace-nowrap text-right font-black">
-                              Dû Livreur
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {visibleParcels.map((p) => {
-                            const isDelivered = deliveredStatuses.includes(p.status);
-                            const isSiege = p.encaissement_lieu === "SIEGE";
-                            const isCourierDue = isDelivered && !isSiege;
-                            const hasCod = (p.merchandise_amount || 0) > 0;
-
-                            return (
-                              <tr
-                                key={p.id}
-                                className={`transition ${isTourClosed
-                                    ? "bg-slate-50/70 text-slate-500 opacity-75 hover:bg-slate-100/60"
-                                    : "hover:bg-slate-50"
-                                  }`}
-                              >
-                                <td className="p-3 font-mono font-bold whitespace-nowrap text-slate-900">
-                                  <div>{p.tracking_number?.startsWith("BDR-") ? p.tracking_number : `BDR-${p.tracking_number}`}</div>
-                                  <div>{p.tracking_number?.startsWith("BDR-") ? p.tracking_number : `BDR-${p.tracking_number}`}</div>
-                                  <div className="text-[10px] font-normal text-slate-400">
-                                    {p.axis}
-                                  </div>
-                                </td>
-                                <td className="p-3">
-                                  <span className="block font-semibold text-slate-900">
-                                    {p.recipient_name}
-                                  </span>
-                                  <span className="block text-[11px] text-slate-400 font-mono">
-                                    {p.recipient_phone_formatted || p.recipient_phone}
-                                  </span>
-                                  {p.delivery_address && (
-                                    <span className="block text-[10px] text-slate-500 truncate max-w-[200px]">
-                                      {p.delivery_address}
-                                    </span>
-                                  )}
-                                  {p.sender_name && (
-                                    <span className="block text-[10px] text-blue-700">
-                                      Exp: {p.sender_name}
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="p-3 text-center whitespace-nowrap">
-                                  <StatusBadge
-                                    status={p.status}
-                                    encaissement_lieu={p.encaissement_lieu}
-                                    size="xs"
-                                  />
-                                  <div className="mt-1">
-                                    <span
-                                      className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold border ${isSiege
-                                          ? "bg-blue-50 text-blue-800 border-blue-200"
-                                          : "bg-emerald-50 text-emerald-800 border-emerald-200"
-                                        }`}
-                                    >
-                                      {isSiege ? "🏢 Siège" : "🛵 Livreur"}
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="p-3 text-center whitespace-nowrap">
-                                  <span
-                                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${hasCod
-                                        ? "bg-indigo-50 text-indigo-800 border-indigo-200"
-                                        : "bg-slate-100 text-slate-600 border-slate-200"
-                                      }`}
-                                  >
-                                    {hasCod ? "Avec COD" : "Sans COD"}
-                                  </span>
-                                </td>
-                                <td className="p-3 whitespace-nowrap">
-                                  {getPaymentBadge(p.payment_method)}
-                                </td>
-                                <td className="p-3 text-right font-mono tabular-nums whitespace-nowrap text-slate-700">
-                                  {formatMGA(p.merchandise_amount)}
-                                </td>
-                                <td className="p-3 text-right font-mono tabular-nums whitespace-nowrap text-slate-700">
-                                  {formatMGA(p.delivery_fee)}
-                                </td>
-                                <td className="p-3 text-right font-mono font-semibold tabular-nums whitespace-nowrap text-slate-900">
-                                  {formatMGA(p.total_to_collect)}
-                                </td>
-                                <td className="p-3 text-right font-mono tabular-nums whitespace-nowrap">
-                                  {(() => {
-                                    const collected = getClientCollectedAmount(p);
-                                    if (collected > 0) {
-                                      return (
-                                        <span className="font-bold text-teal-700">
-                                          {formatMGA(collected)}
+                                        <span className="text-[10px] text-slate-400">
+                                          (Exclu : Siège)
                                         </span>
-                                      );
-                                    }
-                                    if (p.status === "LIVRE") {
-                                      return (
-                                        <span className="text-[10px] font-semibold text-amber-600">
-                                          Non confirmé
+                                      </div>
+                                    ) : !isDelivered ? (
+                                      <div className="text-right">
+                                        <span className="font-mono text-xs text-slate-400 line-through block tabular-nums">
+                                          {formatMGA(p.total_to_collect)}
                                         </span>
-                                      );
-                                    }
-                                    return <span className="text-slate-400">0&nbsp;Ar</span>;
-                                  })()}
-                                </td>
-                                <td className="p-3 text-right whitespace-nowrap">
-                                  {isSiege ? (
-                                    <div className="text-right">
-                                      <span className="font-bold block font-mono text-xs text-blue-700">
-                                        0&nbsp;Ar
-                                      </span>
-                                      <span className="text-[10px] text-slate-400">
-                                        (Exclu : Siège)
-                                      </span>
-                                    </div>
-                                  ) : !isDelivered ? (
-                                    <div className="text-right">
-                                      <span className="font-mono text-xs text-slate-400 line-through block tabular-nums">
+                                        <span className="text-[10px] text-amber-600 font-medium">
+                                          (Non exigé)
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <span className="px-2 py-0.5 rounded-md border bg-emerald-50 border-emerald-200 font-mono text-xs font-bold text-emerald-900 tabular-nums">
                                         {formatMGA(p.total_to_collect)}
                                       </span>
-                                      <span className="text-[10px] text-amber-600 font-medium">
-                                        (Non exigé)
-                                      </span>
-                                    </div>
-                                  ) : (
-                                    <span className="px-2 py-0.5 rounded-md border bg-emerald-50 border-emerald-200 font-mono text-xs font-bold text-emerald-900 tabular-nums">
-                                      {formatMGA(p.total_to_collect)}
-                                    </span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                        <tfoot className="bg-slate-100/90 border-t-2 border-slate-300 font-mono text-xs font-bold text-slate-900">
-                          <tr>
-                            <td colSpan={5} className="p-3 text-right uppercase tracking-wider text-slate-600">
-                              Totaux ({visibleParcels.length} colis) :
-                            </td>
-                            <td className="p-3 text-right tabular-nums">{formatMGA(sumMerch)}</td>
-                            <td className="p-3 text-right tabular-nums">{formatMGA(sumFee)}</td>
-                            <td className="p-3 text-right tabular-nums">{formatMGA(sumTotal)}</td>
-                            <td className="p-3 text-right tabular-nums text-teal-800">
-                              {formatMGA(sumClientCollected)}
-                            </td>
-                            <td className="p-3 text-right tabular-nums text-emerald-800 font-black">
-                              {formatMGA(sumDue)}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  );
-                })()}
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot className="bg-slate-100/90 border-t-2 border-slate-300 font-mono text-xs font-bold text-slate-900">
+                            <tr>
+                              <td colSpan={5} className="p-3 text-right uppercase tracking-wider text-slate-600">
+                                Totaux ({visibleParcels.length} colis) :
+                              </td>
+                              <td className="p-3 text-right tabular-nums">{formatMGA(sumMerch)}</td>
+                              <td className="p-3 text-right tabular-nums">{formatMGA(sumFee)}</td>
+                              <td className="p-3 text-right tabular-nums">{formatMGA(sumTotal)}</td>
+                              <td className="p-3 text-right tabular-nums text-teal-800">
+                                {formatMGA(sumClientCollected)}
+                              </td>
+                              <td className="p-3 text-right tabular-nums text-emerald-800 font-black">
+                                {formatMGA(sumDue)}
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}
-          </div>
-        )}
-
-{/* TAB 3 : HISTORIQUE DES ENCAISSEMENTS AU SIÈGE */ }
-{
-  activeTab === "siege" && (
-    <div className="space-y-4" data-cy="view-siege-history">
-      {/* KPI Banner Siège */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <span className="p-2 bg-blue-100 text-blue-700 rounded-xl">
-              <Building2 className="w-5 h-5" />
-            </span>
-            <div>
-              <h2 className="text-base font-bold text-slate-900">
-                Journal d'Audit des Encaissements au Siège
-              </h2>
-              <p className="text-xs text-slate-500">
-                Historique des paiements perçus directement par la caisse centrale / virement / Mobile Money Siège (déduits de la décharge du livreur au quai).
-              </p>
             </div>
-          </div>
-        </div>
-        <div className="text-right bg-blue-50 px-4 py-2.5 rounded-xl border border-blue-200">
-          <span className="text-[11px] font-bold text-blue-700 uppercase tracking-wider block">
-            Total Encaissé au Siège ({selectedDate})
-          </span>
-          <span className="text-lg font-black font-mono text-blue-900">
-            {formatMGA(cashMetrics.totalSiege)}
-          </span>
-        </div>
-      </div>
+          )}
 
-      {/* Empty State or Content */}
-      {siegeParcels.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400">
-          <Building2 className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-          <p className="font-semibold text-slate-600">Aucun encaissement au siège pour le {selectedDate}</p>
-          <p className="text-xs text-slate-400 mt-1">
-            Tous les colis réglés par virement ou direct au siège apparaissent automatiquement ici.
-          </p>
-        </div>
-      ) : displayMode === "cards" ? (
-        /* VUE CARTES SIÈGE */
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 min-w-0 max-w-full" data-cy="siege-parcels-cards">
-          {siegeParcels.map((sp) => (
-            <div
-              key={sp.id}
-              className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 shadow-xs flex flex-col justify-between gap-3"
-            >
-              <div className="space-y-2 border-b border-slate-100 pb-2.5">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-xs text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200">
-                      BDR-{sp.tracking_number}
-                    </span>
-                    <span className="text-[11px] text-slate-400 font-mono">
-                      {sp.reception_date}
-                    </span>
-                  </div>
-                  <StatusBadge status={sp.status} encaissement_lieu="SIEGE" />
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <AxisBadge axis={sp.axis} />
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
-                    🏢 Récupéré au Siège
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                <div className="space-y-0.5">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-                    Destinataire & Expéditeur
-                  </span>
-                  <div className="font-bold text-slate-900">{sp.recipient_name}</div>
-                  <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1">
-                    <Phone className="w-3 h-3 text-slate-400 shrink-0" />
-                    {sp.recipient_phone_formatted || sp.recipient_phone}
-                  </div>
-                  {sp.sender_name && (
-                    <div className="text-[11px] text-blue-700 font-medium truncate" title={sp.sender_name}>
-                      Exp: <strong>{sp.sender_name}</strong>
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-0.5 sm:border-l sm:border-slate-100 sm:pl-3">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-                    Règlement
-                  </span>
-                  <div>{getPaymentBadge(sp.payment_method)}</div>
-                  <div className="text-[11px] text-slate-500 mt-1">
-                    Marchandise : <span className="font-mono font-medium">{formatMGA(sp.merchandise_amount)}</span>
-                  </div>
-                  <div className="text-[11px] text-slate-500">
-                    Frais port : <span className="font-mono font-medium">{formatMGA(sp.delivery_fee)}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between gap-3 pt-2.5 border-t border-slate-100 bg-blue-50/40 -mx-4 -mb-4 p-3 rounded-b-2xl">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-                    Total COD Siège
-                  </span>
-                  <span className="font-mono font-black text-sm text-blue-900">
-                    {formatMGA(sp.total_to_collect)}
-                  </span>
-                </div>
-
-                <div>
-                  {sp.status === "CLOTURE_CAISSE" ? (
-                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      Scellé en Caisse
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => handleValidateSingleParcel(sp.id)}
-                      className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      Valider Caisse
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        /* VUE TABLEAU CONDENSÉ SIÈGE */
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-w-0 max-w-full">
-          <div className="overflow-x-auto w-full max-w-full">
-            <table className="w-full text-left border-collapse" data-cy="siege-parcels-table">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500 text-[11px] uppercase font-bold tracking-wider border-b border-slate-200">
-                  <th className="py-3 px-3 min-w-[240px]">Colis, Destinataire & Axe</th>
-                  <th className="py-3 px-3 w-40 whitespace-nowrap">Règlement Siège</th>
-                  <th className="py-3 px-3 w-36 whitespace-nowrap text-right">Montants & COD</th>
-                  <th className="py-3 px-3 w-36 whitespace-nowrap text-center">Statut</th>
-                  <th className="py-3 px-3 w-32 whitespace-nowrap text-center">Action Caisse</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
-                {siegeParcels.map((sp) => (
-                  <tr key={sp.id} className="hover:bg-slate-50/80 transition">
-                    <td className="py-2.5 px-3">
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className="font-mono font-bold text-xs text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                          BDR-{sp.tracking_number}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-mono">
-                          {sp.reception_date}
-                        </span>
-                        <AxisBadge axis={sp.axis} />
-                      </div>
-                      <div className="font-bold text-slate-900 text-xs">
-                        {sp.recipient_name}
-                      </div>
-                      <div className="text-[11px] text-slate-500 font-mono">
-                        {sp.recipient_phone_formatted || sp.recipient_phone}
-                      </div>
-                      {sp.sender_name && (
-                        <div className="text-[10px] text-blue-600 font-medium truncate max-w-[260px]" title={sp.sender_name}>
-                          Exp: {sp.sender_name}
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-3 whitespace-nowrap">
-                      <div>{getPaymentBadge(sp.payment_method)}</div>
-                      <span className="mt-1 inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
-                        🏢 Direct Siège
+          {/* TAB 3 : HISTORIQUE DES ENCAISSEMENTS AU SIÈGE */}
+          {
+            activeTab === "siege" && (
+              <div className="space-y-4" data-cy="view-siege-history">
+                {/* KPI Banner Siège */}
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2.5">
+                      <span className="p-2 bg-blue-100 text-blue-700 rounded-xl">
+                        <Building2 className="w-5 h-5" />
                       </span>
-                    </td>
-                    <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                      <div className="font-mono font-black text-blue-900 text-xs">
-                        {formatMGA(sp.total_to_collect)}
+                      <div>
+                        <h2 className="text-base font-bold text-slate-900">
+                          Journal d'Audit des Encaissements au Siège
+                        </h2>
+                        <p className="text-xs text-slate-500">
+                          Historique des paiements perçus directement par la caisse centrale / virement / Mobile Money Siège (déduits de la décharge du livreur au quai).
+                        </p>
                       </div>
-                      <div className="text-[10px] text-slate-400 font-mono">
-                        March: {formatNumber(sp.merchandise_amount || 0)}
+                    </div>
+                  </div>
+                  <div className="text-right bg-blue-50 px-4 py-2.5 rounded-xl border border-blue-200">
+                    <span className="text-[11px] font-bold text-blue-700 uppercase tracking-wider block">
+                      Total Encaissé au Siège ({selectedDate})
+                    </span>
+                    <span className="text-lg font-black font-mono text-blue-900">
+                      {formatMGA(cashMetrics.totalSiege)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Empty State or Content */}
+                {siegeParcels.length === 0 ? (
+                  <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400">
+                    <Building2 className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                    <p className="font-semibold text-slate-600">Aucun encaissement au siège pour le {selectedDate}</p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Tous les colis réglés par virement ou direct au siège apparaissent automatiquement ici.
+                    </p>
+                  </div>
+                ) : displayMode === "cards" ? (
+                  /* VUE CARTES SIÈGE */
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 min-w-0 max-w-full" data-cy="siege-parcels-cards">
+                    {siegeParcels.map((sp) => (
+                      <div
+                        key={sp.id}
+                        className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 shadow-xs flex flex-col justify-between gap-3"
+                      >
+                        <div className="space-y-2 border-b border-slate-100 pb-2.5">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-xs text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200">
+                                BDR-{sp.tracking_number}
+                              </span>
+                              <span className="text-[11px] text-slate-400 font-mono">
+                                {sp.reception_date}
+                              </span>
+                            </div>
+                            <StatusBadge status={sp.status} encaissement_lieu="SIEGE" />
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <AxisBadge axis={sp.axis} />
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                              🏢 Récupéré au Siège
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                              Destinataire & Expéditeur
+                            </span>
+                            <div className="font-bold text-slate-900">{sp.recipient_name}</div>
+                            <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1">
+                              <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                              {sp.recipient_phone_formatted || sp.recipient_phone}
+                            </div>
+                            {sp.sender_name && (
+                              <div className="text-[11px] text-blue-700 font-medium truncate" title={sp.sender_name}>
+                                Exp: <strong>{sp.sender_name}</strong>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="space-y-0.5 sm:border-l sm:border-slate-100 sm:pl-3">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                              Règlement
+                            </span>
+                            <div>{getPaymentBadge(sp.payment_method)}</div>
+                            <div className="text-[11px] text-slate-500 mt-1">
+                              Marchandise : <span className="font-mono font-medium">{formatMGA(sp.merchandise_amount)}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              Frais port : <span className="font-mono font-medium">{formatMGA(sp.delivery_fee)}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3 pt-2.5 border-t border-slate-100 bg-blue-50/40 -mx-4 -mb-4 p-3 rounded-b-2xl">
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                              Total COD Siège
+                            </span>
+                            <span className="font-mono font-black text-sm text-blue-900">
+                              {formatMGA(sp.total_to_collect)}
+                            </span>
+                          </div>
+
+                          <div>
+                            {sp.status === "CLOTURE_CAISSE" ? (
+                              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                Scellé en Caisse
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => handleValidateSingleParcel(sp.id)}
+                                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                Valider Caisse
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-[10px] text-slate-400 font-mono">
-                        Port: {formatNumber(sp.delivery_fee || 0)}
+                      ))}
+                    </div>
+                  ) : (
+                    /* VUE TABLEAU CONDENSÉ SIÈGE */
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-w-0 max-w-full">
+                      <div className="overflow-x-auto w-full max-w-full">
+                        <table className="w-full text-left border-collapse" data-cy="siege-parcels-table">
+                          <thead>
+                            <tr className="bg-slate-50 text-slate-500 text-[11px] uppercase font-bold tracking-wider border-b border-slate-200">
+                              <th className="py-3 px-3 min-w-[240px]">Colis, Destinataire & Axe</th>
+                              <th className="py-3 px-3 w-40 whitespace-nowrap">Règlement Siège</th>
+                              <th className="py-3 px-3 w-36 whitespace-nowrap text-right">Montants & COD</th>
+                              <th className="py-3 px-3 w-36 whitespace-nowrap text-center">Statut</th>
+                              <th className="py-3 px-3 w-32 whitespace-nowrap text-center">Action Caisse</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 text-sm">
+                            {siegeParcels.map((sp) => (
+                              <tr key={sp.id} className="hover:bg-slate-50/80 transition">
+                                <td className="py-2.5 px-3">
+                                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                                    <span className="font-mono font-bold text-xs text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                      BDR-{sp.tracking_number}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 font-mono">
+                                      {sp.reception_date}
+                                    </span>
+                                    <AxisBadge axis={sp.axis} />
+                                  </div>
+                                  <div className="font-bold text-slate-900 text-xs">
+                                    {sp.recipient_name}
+                                  </div>
+                                  <div className="text-[11px] text-slate-500 font-mono">
+                                    {sp.recipient_phone_formatted || sp.recipient_phone}
+                                  </div>
+                                  {sp.sender_name && (
+                                    <div className="text-[10px] text-blue-600 font-medium truncate max-w-[260px]" title={sp.sender_name}>
+                                      Exp: {sp.sender_name}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="py-2.5 px-3 whitespace-nowrap">
+                                  <div>{getPaymentBadge(sp.payment_method)}</div>
+                                  <span className="mt-1 inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                                    🏢 Direct Siège
+                                  </span>
+                                </td>
+                                <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                                  <div className="font-mono font-black text-blue-900 text-xs">
+                                    {formatMGA(sp.total_to_collect)}
+                                  </div>
+                                  <div className="text-[10px] text-slate-400 font-mono">
+                                    March: {formatNumber(sp.merchandise_amount || 0)}
+                                  </div>
+                                  <div className="text-[10px] text-slate-400 font-mono">
+                                    Port: {formatNumber(sp.delivery_fee || 0)}
+                                  </div>
+                                </td>
+                                <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                                  <StatusBadge status={sp.status} encaissement_lieu="SIEGE" />
+                                </td>
+                                <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                                  {sp.status === "CLOTURE_CAISSE" ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap shadow-2xs">
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                      Scellé
+                                    </span>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleValidateSingleParcel(sp.id)}
+                                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
+                                    >
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                      Valider
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
-                    </td>
-                    <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                      <StatusBadge status={sp.status} encaissement_lieu="SIEGE" />
-                    </td>
-                    <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                      {sp.status === "CLOTURE_CAISSE" ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap shadow-2xs">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          Scellé
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => handleValidateSingleParcel(sp.id)}
-                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          Valider
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                    </div>
       )}
-    </div>
-  )
+                  </div>
+                )
 }
-                  </div >
+              </div >
 
-  {/* PRINTABLE RECEIPT MODAL */ }
-{
-  receiptData && (
-    <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"
-      data-cy="modal-discharge-receipt"
-    >
-      <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 my-8">
-        <div className="text-center pb-4 border-b border-dashed border-slate-300">
-          {company.logo_url && (
-            <div className="flex justify-center mb-2">
-              <img
-                src={company.logo_url}
-                alt="Logo"
-                className="h-10 w-auto max-w-[140px] object-contain"
-              />
-            </div>
-          )}
-          <h3 className="text-lg font-black tracking-wider text-slate-900">
-            {company.company_name || company.app_name || "TMS EXPRESS"}
-          </h3>
-          <p className="text-xs text-slate-500 font-medium">{company.address || "Hub Central Tsiazotafo • Antananarivo"}</p>
-          <p className="text-xs font-bold text-slate-800 mt-2 uppercase">
-            Bordereau de Décharge au Quai
-          </p>
-          <p className="text-xs font-mono text-slate-400">
-            Tournée #{receiptData.tour.id} • Date : {receiptData.tour.tour_date}
-          </p>
-        </div>
+  {/* PRINTABLE RECEIPT MODAL */}
+          {
+            receiptData && (
+              <div
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"
+                data-cy="modal-discharge-receipt"
+              >
+                <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 my-8">
+                  <div className="text-center pb-4 border-b border-dashed border-slate-300">
+                    {company.logo_url && (
+                      <div className="flex justify-center mb-2">
+                        <img
+                          src={company.logo_url}
+                          alt="Logo"
+                          className="h-10 w-auto max-w-[140px] object-contain"
+                        />
+                      </div>
+                    )}
+                    <h3 className="text-lg font-black tracking-wider text-slate-900">
+                      {company.company_name || company.app_name || "TMS EXPRESS"}
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium">{company.address || "Hub Central Tsiazotafo • Antananarivo"}</p>
+                    <p className="text-xs font-bold text-slate-800 mt-2 uppercase">
+                      Bordereau de Décharge au Quai
+                    </p>
+                    <p className="text-xs font-mono text-slate-400">
+                      Tournée #{receiptData.tour.id} • Date : {receiptData.tour.tour_date}
+                    </p>
+                  </div>
 
-        <div className="py-4 space-y-3 text-xs font-mono">
-          <div className="flex justify-between">
-            <span className="text-slate-500">Livreur :</span>
-            <span className="font-bold text-slate-900">
-              {receiptData.tour.courier_name || `Livreur #${receiptData.tour.courier_id}`}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-500">Téléphone :</span>
-            <span>{receiptData.tour.courier_phone_formatted || receiptData.tour.courier_phone}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-500">Véhicule :</span>
-            <span>{receiptData.tour.courier_vehicle || "Scooter"}</span>
-          </div>
+                  <div className="py-4 space-y-3 text-xs font-mono">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Livreur :</span>
+                      <span className="font-bold text-slate-900">
+                        {receiptData.tour.courier_name || `Livreur #${receiptData.tour.courier_id}`}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Téléphone :</span>
+                      <span>{receiptData.tour.courier_phone_formatted || receiptData.tour.courier_phone}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Véhicule :</span>
+                      <span>{receiptData.tour.courier_vehicle || "Scooter"}</span>
+                    </div>
 
-          {/* Rapprochement Siège vs Quai sur le Reçu */}
-          <div className="border-t border-slate-200 pt-2 flex justify-between text-slate-500">
-            <span>Total Brut Livré :</span>
-            <span>{formatMGA(receiptData.grossTotal || receiptData.tour.theoretical_total || 0)}</span>
-          </div>
+                    {/* Rapprochement Siège vs Quai sur le Reçu */}
+                    <div className="border-t border-slate-200 pt-2 flex justify-between text-slate-500">
+                      <span>Total Brut Livré :</span>
+                      <span>{formatMGA(receiptData.grossTotal || receiptData.tour.theoretical_total || 0)}</span>
+                    </div>
 
-          {(receiptData.siegeTotal || 0) > 0 && (
-            <div className="flex justify-between text-blue-700 bg-blue-50 px-2 py-1 rounded">
-              <span>− Encaissé au Siège (Exclu Livreur) :</span>
-              <span className="font-bold">−{formatMGA(receiptData.siegeTotal || 0)}</span>
-            </div>
-          )}
+                    {(receiptData.siegeTotal || 0) > 0 && (
+                      <div className="flex justify-between text-blue-700 bg-blue-50 px-2 py-1 rounded">
+                        <span>− Encaissé au Siège (Exclu Livreur) :</span>
+                        <span className="font-bold">−{formatMGA(receiptData.siegeTotal || 0)}</span>
+                      </div>
+                    )}
 
-          <div className="flex justify-between font-bold text-slate-900 border-b border-slate-200 pb-2">
-            <span>Net Dû au Quai par le Livreur :</span>
-            <span className="text-sm">{formatMGA(receiptData.tour.theoretical_total || 0)}</span>
-          </div>
+                    <div className="flex justify-between font-bold text-slate-900 border-b border-slate-200 pb-2">
+                      <span>Net Dû au Quai par le Livreur :</span>
+                      <span className="text-sm">{formatMGA(receiptData.tour.theoretical_total || 0)}</span>
+                    </div>
 
-          <div className="flex justify-between">
-            <span className="text-slate-500">Espèces Physiques Remises :</span>
-            <span className="font-bold">{formatMGA(receiptData.cash)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-500">Preuves Mobile Money Livreur :</span>
-            <span>{formatMGA(receiptData.mobile)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-500">Frais Fret / Dépenses Justifiées :</span>
-            <span>{formatMGA(receiptData.expenses)}</span>
-          </div>
-          <div className="border-t-2 border-dashed border-slate-400 pt-2 flex justify-between text-sm font-black">
-            <span>Écart de Décharge au Quai :</span>
-            <span
-              className={
-                receiptData.discrepancy === 0
-                  ? "text-emerald-700"
-                  : receiptData.discrepancy < 0
-                    ? "text-rose-700"
-                    : "text-amber-700"
-              }
-            >
-              {receiptData.discrepancy > 0 ? "+" : ""}
-              {formatMGA(receiptData.discrepancy)}
-            </span>
-          </div>
-        </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Espèces Physiques Remises :</span>
+                      <span className="font-bold">{formatMGA(receiptData.cash)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Preuves Mobile Money Livreur :</span>
+                      <span>{formatMGA(receiptData.mobile)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">
+                        Dépenses d&apos;exploitation (Carburant / Frais) :
+                        {receiptData.expensesReason && (
+                          <span className="block text-[10px] text-purple-700 italic font-semibold">
+                            Motif : {receiptData.expensesReason} (Charge société)
+                          </span>
+                        )}
+                      </span>
+                      <span className="font-semibold text-purple-700">{formatMGA(receiptData.expenses)}</span>
+                    </div>
+                    <div className="border-t-2 border-dashed border-slate-400 pt-2 flex justify-between text-sm font-black">
+                      <span>Écart de Décharge au Quai :</span>
+                      <span
+                        className={
+                          receiptData.discrepancy === 0
+                            ? "text-emerald-700"
+                            : receiptData.discrepancy < 0
+                              ? "text-rose-700"
+                              : "text-amber-700"
+                        }
+                      >
+                        {receiptData.discrepancy > 0 ? "+" : ""}
+                        {formatMGA(receiptData.discrepancy)}
+                      </span>
+                    </div>
+                  </div>
 
-        <div className="border-t border-slate-200 pt-4 mt-2 grid grid-cols-2 gap-4 text-center text-[10px] text-slate-400">
-          <div>
-            <p className="font-bold text-slate-600 mb-6">Signature Livreur</p>
-            <div className="border-b border-slate-300 w-24 mx-auto" />
-          </div>
-          <div>
-            <p className="font-bold text-slate-600 mb-6">Signature Responsable Caisse</p>
-            <div className="border-b border-slate-300 w-24 mx-auto" />
-          </div>
-        </div>
+                  <div className="border-t border-slate-200 pt-4 mt-2 grid grid-cols-2 gap-4 text-center text-[10px] text-slate-400">
+                    <div>
+                      <p className="font-bold text-slate-600 mb-6">Signature Livreur</p>
+                      <div className="border-b border-slate-300 w-24 mx-auto" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-600 mb-6">Signature Responsable Caisse</p>
+                      <div className="border-b border-slate-300 w-24 mx-auto" />
+                    </div>
+                  </div>
 
-        <div className="mt-6 flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-          <button
-            onClick={() => window.print()}
-            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition flex items-center gap-1.5"
-          >
-            <Printer className="w-4 h-4" />
-            Imprimer Ticket
-          </button>
-          <button
-            onClick={() => setReceiptData(null)}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs rounded-lg transition"
-            data-cy="btn-close-receipt-modal"
-          >
-            Fermer
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-                </div >
-              );
+                  <div className="mt-6 flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                    <button
+                      onClick={() => window.print()}
+                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition flex items-center gap-1.5"
+                    >
+                      <Printer className="w-4 h-4" />
+                      Imprimer Ticket
+                    </button>
+                    <button
+                      onClick={() => setReceiptData(null)}
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs rounded-lg transition"
+                      data-cy="btn-close-receipt-modal"
+                    >
+                      Fermer
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          }
+        </div >
+      );
   }

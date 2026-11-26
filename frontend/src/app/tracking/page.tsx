@@ -41,8 +41,10 @@ import {
   startTour,
   deleteParcel,
   bulkDeleteParcels,
+  fetchUsers,
   UpdateParcelStatusPayload,
 } from "../../lib/api";
+import { UserItem } from "../../types";
 import {
   detectMalagasyPhone,
   cleanMalagasyPhone,
@@ -51,7 +53,6 @@ import {
   sanitizePhoneInput,
   MALAGASY_PHONE_REGEX,
 } from "../../lib/phone";
-import { RECEPTIONIST_AGENTS } from "../../components/HeaderUserRole";
 import { getTodayDateString, getTomorrowDateString } from "../../lib/date";
 
 const DEFAULT_CANCEL_REASONS = [
@@ -152,14 +153,19 @@ export default function TrackingPage() {
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   const [parcels, setParcels] = useState<Parcel[]>([]);
+  const [receptionists, setReceptionists] = useState<UserItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [feedbackMessage, setFeedbackMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Modals state
-  const [activeModal, setActiveModal] = useState<"DELIVER" | "MARK_DELIVERED" | "PREPAID" | "RESCHEDULE" | "CANCEL" | "OUTSOURCE" | "REASSIGN" | null>(null);
+  const [activeModal, setActiveModal] = useState<"DELIVER" | "MARK_DELIVERED" | "PREPAID" | "RESCHEDULE" | "CANCEL" | "OUTSOURCE" | "REASSIGN" | "EDIT_DELIVERY" | null>(null);
   const [targetParcel, setTargetParcel] = useState<Parcel | null>(null);
   const [historyModalParcel, setHistoryModalParcel] = useState<any | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  // Priority 9: Edit delivery details (Address & Fee)
+  const [editDeliveryAddress, setEditDeliveryAddress] = useState<string>("");
+  const [editDeliveryFee, setEditDeliveryFee] = useState<number>(0);
 
   // Prepaid states (Paiement direct en ligne / Siège)
   const [prepaidType, setPrepaidType] = useState<"ALL" | "MERCHANDISE_ONLY">("ALL");
@@ -185,13 +191,9 @@ export default function TrackingPage() {
       const unom = localStorage.getItem("tms_user_nom") || "";
       setActiveUserNom(unom);
 
-      // Si l'utilisateur connecté est un LIVREUR, filtrer automatiquement sur son compte livreur
-      if (saved === "LIVREUR") {
-        if (username === "livreur1") setSelectedCourierId(1);
-        else if (username === "livreur2") setSelectedCourierId(2);
-        else if (username === "livreur3") setSelectedCourierId(3);
-        else if (username === "livreur4") setSelectedCourierId(4);
-        else if (uid) setSelectedCourierId(Number(uid));
+      // Si l'utilisateur connecté est un LIVREUR, filtrer automatiquement sur son identifiant
+      if (saved === "LIVREUR" && uid) {
+        setSelectedCourierId(Number(uid));
       }
     };
     updateRole();
@@ -366,18 +368,24 @@ export default function TrackingPage() {
       const dateParam = showAllDates ? undefined : (selectedDate || undefined);
       const courierParam = selectedCourierId === "ALL" ? undefined : selectedCourierId;
 
-      const [tList, cList, pList] = await Promise.all([
+      const [tList, cList, pList, uList] = await Promise.all([
         fetchTours(dateParam),
         fetchCouriers(),
         fetchParcels({
           date: dateParam,
           courier_id: courierParam,
         }),
+        currentUserRole !== "RECEPTIONNISTE"
+          ? fetchUsers("RECEPTIONNISTE", false)
+          : Promise.resolve([]),
       ]);
       setTours(tList || []);
       setCouriers(cList || []);
       // If we got parcels from API
       setParcels(pList || []);
+      if (uList && uList.length > 0) {
+        setReceptionists(uList);
+      }
     } catch (e) {
       console.error("Erreur chargement données pointage", e);
     } finally {
@@ -563,7 +571,7 @@ export default function TrackingPage() {
   };
 
   const openModal = (
-    modalType: "DELIVER" | "MARK_DELIVERED" | "PREPAID" | "RESCHEDULE" | "CANCEL" | "OUTSOURCE" | "REASSIGN",
+    modalType: "DELIVER" | "MARK_DELIVERED" | "PREPAID" | "RESCHEDULE" | "CANCEL" | "OUTSOURCE" | "REASSIGN" | "EDIT_DELIVERY",
     parcel: Parcel
   ) => {
     setTargetParcel(parcel);
@@ -584,6 +592,8 @@ export default function TrackingPage() {
     setPartialReturnNotes("");
     setEncaissementLieu((parcel.encaissement_lieu as any) || "LIVREUR");
     setRepartitionVendeur("COD_SEUL");
+    setEditDeliveryAddress(parcel.delivery_address || "");
+    setEditDeliveryFee(parcel.delivery_fee || 0);
   };
 
   // Dynamic Reason Creators & Managers (never hardcoded, persistent in localStorage)
@@ -1367,9 +1377,9 @@ export default function TrackingPage() {
                 className="bg-white border border-slate-300 text-slate-800 text-xs font-semibold rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs cursor-pointer"
               >
                 <option value="ALL">🌐 Tous les Agents Réception (Quai)</option>
-                {RECEPTIONIST_AGENTS.map((agent) => (
+                {receptionists.map((agent) => (
                   <option key={agent.id} value={agent.id}>
-                    👤 {agent.nom} ({agent.matricule || "REC"}) — Multi-Flux
+                    👤 {agent.nom_complet} ({agent.username})
                   </option>
                 ))}
               </select>
@@ -3479,7 +3489,7 @@ export default function TrackingPage() {
                   className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-800 transition"
                 />
                 <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
-                  💡 <span>L'axe de livraison sera automatiquement mis à jour selon le quartier saisi.</span>
+                  💡 <span>L&apos;axe de livraison sera automatiquement mis à jour selon le quartier saisi.</span>
                 </p>
               </div>
 
@@ -3539,7 +3549,7 @@ export default function TrackingPage() {
                     </div>
 
                     <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-blue-800 text-[11px] leading-relaxed">
-                      ⚡ <strong>En cours de livraison</strong> : Le client a changé d'adresse pendant la course. Vous pouvez ajuster les frais selon la nouvelle zone convenue.
+                      ⚡ <strong>En cours de livraison</strong> : Le client a changé d&apos;adresse pendant la course. Vous pouvez ajuster les frais selon la nouvelle zone convenue.
                     </div>
                   </div>
                 ) : (

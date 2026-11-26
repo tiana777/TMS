@@ -147,6 +147,8 @@ class TourORM(Base):
     )
     total_theorique_caisse = Column(Float, default=0.0, nullable=False)
     total_reel_verse = Column(Float, default=0.0, nullable=False)
+    total_depenses = Column(Float, default=0.0, nullable=False)
+    motif_depenses = Column(String(255), nullable=True)
     ecart_constate = Column(Float, default=0.0, nullable=False)
     cloture_a = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

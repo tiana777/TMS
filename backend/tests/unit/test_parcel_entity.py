@@ -193,3 +193,64 @@ class TestParcelEntity:
         # Regional pickup confirmed
         parcel.confirm_province_pickup()
         assert parcel.status == ParcelStatus.LIVRE_ENCAISSE
+
+    # =========================================================================
+    # Règle Métier 9 : Modification d'adresse et de tarif selon le statut
+    # =========================================================================
+
+    def test_priority9_en_depot_allows_address_modification(self):
+        """En dépôt : autoriser la modification du lieu de livraison."""
+        parcel = self._create_sample_parcel()
+        assert parcel.status == ParcelStatus.EN_DEPOT
+        assert parcel.delivery_address == "Itaosy Cité Seimad"
+
+        parcel.update_delivery_details(delivery_address="Analamahitsy Carrefour")
+        assert parcel.delivery_address == "Analamahitsy Carrefour"
+
+    def test_priority9_en_depot_forbids_delivery_fee_modification(self):
+        """En dépôt : la modification des frais de livraison est formellement interdite."""
+        parcel = self._create_sample_parcel()
+        assert parcel.status == ParcelStatus.EN_DEPOT
+        assert parcel.delivery_fee == Money(5000)
+
+        with pytest.raises(BusinessRuleViolationException) as exc:
+            parcel.update_delivery_details(delivery_fee=Money(7000))
+        assert "n'est autorisée que pour les colis 'En cours de livraison'" in str(exc.value)
+        assert parcel.delivery_fee == Money(5000)
+
+    def test_priority9_en_cours_allows_both_address_and_delivery_fee_modification(self):
+        """En cours de livraison : autoriser la modification du lieu ET des frais de livraison."""
+        parcel = self._create_sample_parcel()
+        parcel.assign_to_courier(courier_id=4, tour_id=42)
+        parcel.start_delivery()
+        assert parcel.status == ParcelStatus.EN_COURS
+        assert parcel.merchandise_amount == Money(45000)
+        assert parcel.delivery_fee == Money(5000)
+        assert parcel.total_to_collect == Money(50000)
+
+        # Le coursier ajuste l'adresse et le tarif suite à changement demandé par le client
+        parcel.update_delivery_details(
+            delivery_address="Ambohimangakely PK 12",
+            delivery_fee=Money(8000),
+        )
+
+        assert parcel.delivery_address == "Ambohimangakely PK 12"
+        assert parcel.delivery_fee == Money(8000)
+        # Total COD recalculé automatiquement : 45 000 + 8 000 = 53 000 Ar
+        assert parcel.total_to_collect == Money(53000)
+
+    def test_priority9_delivered_or_closed_parcel_forbids_modifications(self):
+        """Un colis déjà livré ou clôturé ne peut plus voir son adresse ou ses frais modifiés."""
+        parcel = self._create_sample_parcel()
+        parcel.assign_to_courier(courier_id=4, tour_id=42)
+        parcel.start_delivery()
+        parcel.mark_as_delivered()
+        assert parcel.status == ParcelStatus.LIVRE
+
+        with pytest.raises(BusinessRuleViolationException) as exc:
+            parcel.update_delivery_details(delivery_address="Nouvelle adresse")
+        assert "statut final" in str(exc.value)
+
+        with pytest.raises(BusinessRuleViolationException) as exc2:
+            parcel.update_delivery_details(delivery_fee=Money(6000))
+        assert "statut final" in str(exc2.value)

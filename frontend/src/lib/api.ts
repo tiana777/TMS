@@ -51,6 +51,18 @@ export async function loginApi(username: string, password: string): Promise<Logi
   return await res.json();
 }
 
+export async function fetchCurrentUser(): Promise<UserItem | null> {
+  try {
+    const headers = getAuthHeaders();
+    const res = await fetch(`${getApiBaseUrl()}/auth/me`, { headers });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    console.warn("API offline or error loading current user", e);
+    return null;
+  }
+}
+
 export async function fetchUsers(role?: string, includeInactive: boolean = true): Promise<UserItem[]> {
   try {
     let url = `${getApiBaseUrl()}/auth/users`;
@@ -705,13 +717,31 @@ export async function fetchParcelHistory(parcelId: number): Promise<ParcelHistor
   return await res.json();
 }
 
-export async function closeTour(tourId: number, cashAndMobileRemitted: number) {
+export async function closeTour(
+  tourId: number,
+  cashAndMobileRemitted: number,
+  options?: {
+    cashAmount?: number;
+    mobileAmount?: number;
+    expensesAmount?: number;
+    expensesReason?: string;
+  }
+) {
   const headers = getAuthHeaders();
+  const payload: any = {
+    cash_and_mobile_remitted: cashAndMobileRemitted,
+  };
+  if (options) {
+    if (options.cashAmount !== undefined) payload.cash_amount = options.cashAmount;
+    if (options.mobileAmount !== undefined) payload.mobile_amount = options.mobileAmount;
+    if (options.expensesAmount !== undefined) payload.expenses_amount = options.expensesAmount;
+    if (options.expensesReason !== undefined) payload.expenses_reason = options.expensesReason;
+  }
 
   const res = await fetch(`${getApiBaseUrl()}/tours/${tourId}/close`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ cash_and_mobile_remitted: cashAndMobileRemitted }),
+    body: JSON.stringify(payload),
   });
 
   if (!res.ok) {

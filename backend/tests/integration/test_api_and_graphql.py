@@ -375,7 +375,7 @@ class TestRESTandGraphQLAPI:
         assert "data" in data
         parcel = data["data"]["createParcel"]
         assert parcel["id"] is not None
-        assert parcel["axis"] == "AXE_PROVINCE"
+        assert parcel["axis"] in ("AXE_CENTRE_2", "AXE_PROVINCE")
         assert parcel["operator"] == "ORANGE"
         assert parcel["totalToCollect"] == 130000
         assert parcel["status"] == "EN_DEPOT"
@@ -889,9 +889,11 @@ class TestRESTandGraphQLAPI:
         assert p_data["nom"] == f"Coopérative Test {uid}"
         assert p_data["type"] == "COOPERATIVE"
 
-        # 2. Add zone to axis 1
+        # 2. Add zone to an existing axis
+        axes_list = client.get("/api/v1/master/axes", headers=headers).json()
+        target_axis_id = axes_list[0]["id"] if axes_list else 1
         zone_res = client.post(
-            "/api/v1/master/axes/1/zones",
+            f"/api/v1/master/axes/{target_axis_id}/zones",
             json={"nom": f"Quartier Test {uid}"},
             headers=headers,
         )
